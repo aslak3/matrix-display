@@ -22,10 +22,10 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
 
 void led_task(void *dummy)
 {
+#if FREE_RTOS_KERNEL_SMP
     vTaskCoreAffinitySet(NULL, 1 << 0);
     printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
-
-    vTaskDelay(5000);
+#endif
 
     while (true) {
         cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
@@ -37,8 +37,10 @@ void led_task(void *dummy)
 
 void mqtt_task(void *dummy)
 {
+#if FREE_RTOS_KERNEL_SMP
     vTaskCoreAffinitySet(NULL, 1 << 0);
     printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
+#endif
 
     while (1) {
         if (cyw43_arch_init_with_country(CYW43_COUNTRY_UK)) {

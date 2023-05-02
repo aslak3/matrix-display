@@ -105,8 +105,10 @@ inline void framebuffer::swap(void)
 
 void animate_task(void *dummy)
 {
+#if FREE_RTOS_KERNEL_SMP
     vTaskCoreAffinitySet(NULL, 1 << 0);
     printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
+#endif
 
     ball ball1(3, 3, 1, 1);
     ball ball2(10, 10, -1, -1);
@@ -147,8 +149,10 @@ void animate_task(void *dummy)
 
 void matrix_task(void *dummy)
 {
+#if FREE_RTOS_KERNEL_SMP
     vTaskCoreAffinitySet(NULL, 1 << 1);
     printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
+#endif
 
     for (int g = 8; g <= 21; g++) gpio_init(g);
 
