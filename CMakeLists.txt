@@ -27,7 +27,7 @@ add_executable(
     cloudysun.c
     cloudysuntiny.c
 #    ${FREERTOS_KERNEL_PATH}
-    ${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/port.c
+#    ${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/port.c
 )
 
 target_include_directories(matrix PUBLIC

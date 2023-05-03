@@ -189,7 +189,6 @@ void matrix_task(void *dummy)
 
                 if (xSemaphoreTake(xSemaphore, (TickType_t) 0) == pdTRUE) {
                     for (int x = 63; x >= 0; x--) {
-
                         uint32_t colour = 0;
                         if ((*fb.foreground_rgb)[x][y].red > (same * 32)) {
                             colour |= r1;
@@ -212,24 +211,25 @@ void matrix_task(void *dummy)
                             colour |= b2;
                         }
 
-                        // clock low
-                        gpio_put_masked(mask, row | oe | colour | clock);
                         // clock high
+                        gpio_put_masked(mask, row | oe | colour | clock);
+                        // clock low
                         gpio_put_masked(mask, row | oe | colour);
                     }
 
                     xSemaphoreGive(xSemaphore);
-
-                    gpio_put_masked(mask, row | oe);
-
-                    // latch high
-                    gpio_put_masked(mask, row | oe | latch);
-                    // latch low
-                    gpio_put_masked(mask, row | oe);
-
-                    gpio_put_masked(mask, row);
-                    sleep_us(75);
                 }
+
+                gpio_put_masked(mask, row | oe);
+
+                // latch high
+                gpio_put_masked(mask, row | oe | latch);
+                // latch low
+                gpio_put_masked(mask, row | oe);
+
+                gpio_put_masked(mask, row);
+
+                sleep_us(50);
             }
         }
     }
