@@ -130,7 +130,7 @@ void animate_task(void *dummy)
         fb.filledbox(ball3.x - 1, ball3.y - 1, 3, 3,
             (rgb_t) { .red = 0xff, .green = 0x80, .blue = 0xff });
 
-        if (xSemaphoreTake(xSemaphore, (TickType_t) 10) == pdTRUE) {
+        if (xSemaphoreTake(xSemaphore, (TickType_t) 0) == pdTRUE) {
             fb.swap();
             xSemaphoreGive(xSemaphore);
         }
@@ -229,7 +229,7 @@ void matrix_task(void *dummy)
 
                 gpio_put_masked(mask, row);
 
-                sleep_us(50);
+                sleep_us(80);
             }
         }
     }

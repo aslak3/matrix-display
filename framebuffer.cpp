@@ -65,7 +65,7 @@ int framebuffer::printchar(int x, int y, char c, rgb_t rgb)
 
     for (int r = 0; r < 15; r++) {
         for (int c = 0; c < width; c++) {
-            if (noto_glyph_bitmap[count] > 0x20) {
+            if (noto_glyph_bitmap[count] > 0x20 && x + c < FB_WIDTH && x + c >= 0) {
                 (*background_rgb)[x + c][y + 16 - r] = (rgb_t) {
                     .red =   (uint8_t)((uint32_t)(noto_glyph_bitmap[count] * rgb.red) / 256),
                     .green = (uint8_t)((uint32_t)(noto_glyph_bitmap[count] * rgb.green) / 256),

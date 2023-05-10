@@ -66,6 +66,9 @@ void mqtt_task(void *dummy)
 
     mqtt_client_t *client = mqtt_client_new();
 
+    /* Setup callback for incoming publish requests */
+    mqtt_set_inpub_callback(client, mqtt_incoming_publish_cb, mqtt_incoming_data_cb, NULL);
+
     int err = do_mqtt_connect(client);
 
     /* For now just print the result code if something goes wrong */
@@ -74,8 +77,10 @@ void mqtt_task(void *dummy)
     }
 
     while (1) {
-        vTaskDelay(1000);
+       vTaskDelay(1000);
     }
+
+
 }
 
 static int do_mqtt_connect(mqtt_client_t *client)
@@ -105,18 +110,16 @@ static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection
     if(status == MQTT_CONNECT_ACCEPTED) {
         printf("mqtt_connection_cb: Successfully connected\n");
 
-        /* Setup callback for incoming publish requests */
-        mqtt_set_inpub_callback(client, mqtt_incoming_publish_cb, mqtt_incoming_data_cb, arg);
-
         /* Subscribe to a topic named "topic" with QoS level 1, call mqtt_sub_request_cb with result */
         // living_room_temperature_sensor_temperature
-        err = mqtt_subscribe(client, "homeassistant/sensor/+/state", 1, mqtt_sub_request_cb, arg);
+        err = mqtt_subscribe(client, "homeassistant/weather/#", 1, mqtt_sub_request_cb, arg);
 
         if(err != ERR_OK) {
             printf("mqtt_subscribe return: %d\n", err);
         }
     } else {
         printf("Disconnected: %d\n", status);
+        do_mqtt_connect(client);
     }
 }
 
@@ -134,11 +137,14 @@ extern char topic_message[256];
 
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags)
 {
-    // memset(topic_message, 0, sizeof(topic_message));
-    // strncpy(topic_message, (const char *) data, len);
-    // strcat(topic_message, " C");
+    memset(topic_message, 0, sizeof(topic_message));
+    strncpy(topic_message, (const char *) data, len);
     
-    printf("Incoming pub payload with length %d flags %d\n", len, flags);
+    // printf("Incoming pub payload with length %d flags %d\n", len, flags);
+    printf("%s\n", topic_message);
+    if (flags) {
+        printf("END\n");
+    }
 }
 
 static void mqtt_pub_request_cb(void *arg, err_t result)
