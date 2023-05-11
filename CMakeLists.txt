@@ -22,6 +22,7 @@ add_executable(
     matrix.cpp
     mqtt.cpp
     framebuffer.cpp
+    cJSON.c
     noto.c
     tinyseven.c
     cloudysun.c

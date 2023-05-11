@@ -10,6 +10,8 @@
 
 #include "lwip/apps/mqtt.h"
 
+#include "cJSON.h"
+
 void led_task(void *dummy);
 
 static int do_mqtt_connect(mqtt_client_t *client);
@@ -18,6 +20,7 @@ static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection
 static void mqtt_sub_request_cb(void *arg, err_t result);
 static void mqtt_pub_request_cb(void *arg, err_t result);
 static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len);
+static void dump_weather_data(void);
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags);
 
 void led_task(void *dummy)
@@ -112,7 +115,7 @@ static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection
 
         /* Subscribe to a topic named "topic" with QoS level 1, call mqtt_sub_request_cb with result */
         // living_room_temperature_sensor_temperature
-        err = mqtt_subscribe(client, "homeassistant/weather/#", 1, mqtt_sub_request_cb, arg);
+        err = mqtt_subscribe(client, "homeassistant/weather/openweathermap/#", 1, mqtt_sub_request_cb, arg);
 
         if(err != ERR_OK) {
             printf("mqtt_subscribe return: %d\n", err);
@@ -128,22 +131,128 @@ static void mqtt_sub_request_cb(void *arg, err_t result)
     printf("Subscribe result: %d\n", result);
 }
 
+char current_topic[128];
 static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len)
 {
-    printf("Incoming publish at topic %s with total length %d\n", topic, tot_len);
+    char *last_slash = strrchr(topic, '/');
+    if (!last_slash) {
+        panic("No last slash in topic");
+    }
+
+    strncpy(current_topic, last_slash + 1, 128);
 }
 
 extern char topic_message[256];
 
+char json_buffer[16384];
+char *json_p = json_buffer;
+
+#define CONDITION_LEN 32
+
+typedef struct {
+    char time[6];
+    char condition[CONDITION_LEN];
+    double temperature;
+    double precipitation_probability;
+} forecast_t;
+
+#define NO_FORECASTS 8
+
+typedef struct {
+    char current_condition[CONDITION_LEN];
+    double current_temperature;
+    double current_humidty;
+    int forecast_count;
+    forecast_t forecast[NO_FORECASTS];
+} weather_data_t;
+
+weather_data_t weather_data;
+
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags)
 {
     memset(topic_message, 0, sizeof(topic_message));
-    strncpy(topic_message, (const char *) data, len);
-    
-    // printf("Incoming pub payload with length %d flags %d\n", len, flags);
-    printf("%s\n", topic_message);
+
+    memcpy(json_p, data, len);
+    json_p += len;
     if (flags) {
-        printf("END\n");
+        *json_p = '\0';
+        json_p = json_buffer;
+
+        printf("Topic: %s\n", current_topic);
+
+        if (strcmp(current_topic, "state") == 0) {
+            strncpy(weather_data.current_condition, json_buffer, CONDITION_LEN);
+        }
+        else {
+            cJSON *json = cJSON_Parse(json_buffer);
+
+            if (json == NULL) {
+                const char *error_ptr = cJSON_GetErrorPtr();
+                if (error_ptr != NULL) {
+                    fprintf(stderr, "Error before: %s\n", error_ptr);
+                }
+            }
+            else
+            {
+                if (cJSON_IsArray(json)) {
+                    if (strcmp(current_topic, "forecast") == 0) {
+                        for (int i = 0; i < cJSON_GetArraySize(json) && i < NO_FORECASTS; i++) {
+                            cJSON *item = cJSON_GetArrayItem(json, i);
+                            cJSON *datetime = cJSON_GetObjectItem(item, "datetime");
+                            cJSON *condition = cJSON_GetObjectItem(item, "condition");
+                            cJSON *temperature = cJSON_GetObjectItem(item, "temperature");
+                            cJSON *precipitation_probability = cJSON_GetObjectItem(item, "precipitation_probability");
+                            if (!condition || !datetime || !temperature || !precipitation_probability) {
+                                panic("Missing field(s)");
+                            }
+
+                            printf("At %s condition %s, %.1f C, %d%% rain\n", cJSON_GetStringValue(datetime), cJSON_GetStringValue(condition),
+                                cJSON_GetNumberValue(temperature), (int)(cJSON_GetNumberValue(precipitation_probability)));
+
+                            strncpy(weather_data.forecast[i].time, cJSON_GetStringValue(datetime) + 11, 2 + 1 + 2);
+                            strncpy(weather_data.forecast[i].condition, cJSON_GetStringValue(condition), CONDITION_LEN);
+                            weather_data.forecast[i].temperature = cJSON_GetNumberValue(temperature);
+                            weather_data.forecast[i].precipitation_probability = cJSON_GetNumberValue(precipitation_probability);
+
+                            weather_data.forecast_count = i + 1;
+                        }
+                        dump_weather_data();
+                    }
+                }
+                else if (cJSON_IsString(json)) {
+                    printf("String\n");
+                }
+                else if (cJSON_IsNumber(json)) {
+                    double value = cJSON_GetNumberValue(json);
+                    if (strcmp(current_topic, "temperature") == 0) {
+                        weather_data.current_temperature = value;
+                    }
+                    else if (strcmp(current_topic, "humidity") == 0) {
+                        weather_data.current_humidty = value;
+                    }
+                }
+                else if (cJSON_IsObject(json)) {
+                    printf("Object\n");
+                }
+                else {
+                    printf("Some other type\n");
+                }
+
+                cJSON_Delete(json);
+            }
+        }
+    }
+}
+
+static void dump_weather_data(void)
+{
+    printf("--------------\nCurrent: condition=%s temperature=%.1f humidity=%.1f\n",
+        weather_data.current_condition, weather_data.current_temperature, weather_data.current_humidty);
+    for (int i = 0; i < weather_data.forecast_count; i++) {
+        printf("%s: condition=%s temperature=%.1f percipitation_probability=%.1f\n",
+            weather_data.forecast[i].time, weather_data.forecast[i].condition, 
+            weather_data.forecast[i].temperature,
+            weather_data.forecast[i].precipitation_probability);
     }
 }
 
