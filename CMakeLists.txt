@@ -23,10 +23,12 @@ add_executable(
     mqtt.cpp
     framebuffer.cpp
     cJSON.c
-    noto.c
-    tinyseven.c
     cloudysun.c
     cloudysuntiny.c
+)
+
+add_subdirectory(
+    fonts
 )
 
 target_include_directories(matrix PRIVATE
@@ -34,7 +36,8 @@ target_include_directories(matrix PRIVATE
 )
 
 # pull in common dependencies
-target_link_libraries(matrix pico_stdlib hardware_i2c
+target_link_libraries(matrix fonts 
+    pico_stdlib hardware_i2c
     pico_cyw43_arch_lwip_sys_freertos
     pico_lwip_mqtt
     FreeRTOS-Kernel-Heap4

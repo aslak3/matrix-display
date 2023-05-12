@@ -1,12 +1,12 @@
 
-#include "noto.h"
+#include "fonts.h"
 
 /***********************************************************************************
  * NotoSans-Regular.ttf 16 px Font in U+0020 ( ) .. U+007e (~)  range with 8 bpp
 ***********************************************************************************/
 
 /*Store the image of the letters (glyph)*/
-const uint8_t noto_glyph_bitmap[] = 
+const uint8_t noto16p_glyph_bitmap[] = 
 {
   /*Unicode: U+0020 ( ) , Width: 5 */
   0x00, 0x00, 0x00, 0x00, 0x00,  //..... 
@@ -1817,7 +1817,7 @@ const uint8_t noto_glyph_bitmap[] =
 
 
 /*Store the glyph descriptions*/
-const lv_font_glyph_dsc_t noto_glyph_dsc[] = 
+const lv_font_glyph_dsc_t noto16p_glyph_dsc[] = 
 {
   {.w_px = 5,	.glyph_index = 0},	/*Unicode: U+0020 ( )*/
   {.w_px = 3,	.glyph_index = 80},	/*Unicode: U+0021 (!)*/

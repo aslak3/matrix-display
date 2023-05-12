@@ -122,6 +122,7 @@ static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection
         }
     } else {
         printf("Disconnected: %d\n", status);
+        vTaskDelay(1000);
         do_mqtt_connect(client);
     }
 }
@@ -182,8 +183,6 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         *json_p = '\0';
         json_p = json_buffer;
 
-        // printf("Topic: %s\n", current_topic);
-
         if (strcmp(current_topic, "state") == 0) {
             strncpy(weather_data.condition, json_buffer, CONDITION_LEN);
             weather_data.fetched_fields |= FIELD_CONDITION;
@@ -210,9 +209,6 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
                             if (!condition || !datetime || !temperature || !precipitation_probability) {
                                 panic("Missing field(s)");
                             }
-
-                            // printf("At %s condition %s, %.1f C, %d%% rain\n", cJSON_GetStringValue(datetime), cJSON_GetStringValue(condition),
-                            //     cJSON_GetNumberValue(temperature), (int)(cJSON_GetNumberValue(precipitation_probability)));
 
                             strncpy(weather_data.forecast[i].time, cJSON_GetStringValue(datetime) + 11, 2 + 1 + 2);
                             strncpy(weather_data.forecast[i].condition, cJSON_GetStringValue(condition), CONDITION_LEN);
@@ -249,9 +245,8 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         }
 
         if (weather_data.fetched_fields == (FIELD_CONDITION | FIELD_TEMPERATURE | FIELD_HUMIDITY | FIELD_FORECAST)) {
-            dump_weather_data();
-
-            sprintf(topic_message, "%s %dC", weather_data.condition, (int)(weather_data.temperature));
+            sprintf(topic_message, "%s %.1fC %.1f%% humidity; bye!!!", weather_data.condition, weather_data.temperature,
+                weather_data.humidty);
 
             memset(&weather_data, 0, sizeof(weather_data_t));
         }

@@ -1,5 +1,7 @@
 #include "pico/stdlib.h"
 
+#include "fonts/fonts.h"
+
 #define FB_WIDTH 64
 #define FB_HEIGHT 32
 
@@ -18,8 +20,8 @@ class framebuffer {
         void point(int x, int y, rgb_t rgb);
         void hollowbox(int x, int y, int width, int height, rgb_t rgb);
         void filledbox(int x, int y, int width, int height, rgb_t rgb);
-        int printchar(int x, int y, char c, rgb_t rgb);
-        void printstring(int x, int y, const char *s, rgb_t rgb);
+        int printchar(font_t *font, int x, int y, char c, rgb_t rgb);
+        void printstring(font_t *font, int x, int y, const char *s, rgb_t rgb);
         void showimage(void);
         void copy_foreground_row(int r, uint32_t *out);
 

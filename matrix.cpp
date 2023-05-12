@@ -5,14 +5,14 @@
 #include "pico/cyw43_arch.h"
 
 #include "hardware/pio.h"
-#include "hub75.pio.h"
-
 
 #include <FreeRTOS.h>
 #include <task.h>
 #include <semphr.h>
 
 #include "framebuffer.hpp"
+
+#include "hub75.pio.h"
 
 #define DATA_BASE_PIN 2
 #define DATA_N_PINS 6
@@ -126,14 +126,21 @@ void animate_task(void *dummy)
     ball ball2(10, 10, -1, -1);
     ball ball3(24, 10, -1, 1);
 
+    font_t *big_font = get_font("Noto", 20);
+    if (!big_font) panic("Could not find Noto/20");
+    font_t *medium_font = get_font("Noto", 16);
+    if (!medium_font) panic("Could not find Noto/16");
+    font_t *small_font = get_font("Noto", 10);
+    if (!small_font) panic("Could not find Noto/10");
+
     for (uint32_t frame = 0;; frame++)
     {
         fb.clear();
-        fb.showimage();
-        fb.printstring(2, 16, topic_message,
+        // fb.showimage();
+        fb.printstring(big_font,  64 - ((frame/2) % 400), 25, topic_message,
             (rgb_t){ .red = 0x40, .green = 0, .blue = 0xff });
-        fb.printstring(22, 0, "Test",
-            (rgb_t){ .red = 0x20, .green = 0x40, .blue = 0x20 });
+        // fb.printstring(big_font, 6, 2, "Test",
+        //     (rgb_t){ .red = 0x20, .green = 0x40, .blue = 0x20 });
 
         fb.filledbox(ball1.x - 1, ball1.y - 1, 3, 3,
             (rgb_t) { .red = 0, .green = 0xff, .blue = 0x80 });
@@ -142,12 +149,9 @@ void animate_task(void *dummy)
         fb.filledbox(ball3.x - 1, ball3.y - 1, 3, 3,
             (rgb_t) { .red = 0xff, .green = 0x80, .blue = 0xff });
 
-        // if (xSemaphoreTake(xSemaphore, (TickType_t) 0) == pdTRUE) {
-            taskENTER_CRITICAL();
-            fb.swap();
-            taskEXIT_CRITICAL();
-        //     xSemaphoreGive(xSemaphore);
-        // }
+        taskENTER_CRITICAL();
+        fb.swap();
+        taskEXIT_CRITICAL();
 
         if ((frame & 0x1) == 0) {
             ball1.move();
@@ -181,14 +185,10 @@ void matrix_task(void *dummy)
 
     while (1) {
         for (int rowsel = 0; rowsel < 16; ++rowsel) {
-            // if (xSemaphoreTake(xSemaphore, (TickType_t) 0) == pdTRUE) {
-                taskENTER_CRITICAL();
-                fb.copy_foreground_row(rowsel, gc_row[0]);
-                fb.copy_foreground_row(rowsel + 16, gc_row[1]);
-                taskEXIT_CRITICAL();
-
-            //     xSemaphoreGive(xSemaphore);
-            // }
+            taskENTER_CRITICAL();
+            fb.copy_foreground_row(rowsel, gc_row[0]);
+            fb.copy_foreground_row(rowsel + 16, gc_row[1]);
+            taskEXIT_CRITICAL();
 
             for (int bit = 0; bit < 8; ++bit) {
                 hub75_data_rgb888_set_shift(pio, sm_data, data_prog_offs, bit);

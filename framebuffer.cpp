@@ -3,7 +3,6 @@
 #include "pico/stdlib.h"
 
 #include "framebuffer.hpp"
-#include "noto.h"
 
 framebuffer::framebuffer(void) {
     foreground_rgb = &fb_rgb1;
@@ -54,22 +53,19 @@ void framebuffer::filledbox(int x, int y, int width, int height, rgb_t rgb)
     }
 }
 
-extern const lv_font_glyph_dsc_t noto_glyph_dsc[];
-extern const uint8_t noto_glyph_bitmap[];
-
-int framebuffer::printchar(int x, int y, char c, rgb_t rgb)
+int framebuffer::printchar(font_t *font, int x, int y, char c, rgb_t rgb)
 {
     int index = (int)(c - ' ');
-    int count = noto_glyph_dsc[index].glyph_index;
-    int width = noto_glyph_dsc[index].w_px;
+    int count = font->lv_font_glyph_dsc[index].glyph_index;
+    int width = font->lv_font_glyph_dsc[index].w_px;
 
-    for (int r = 0; r < 15; r++) {
+    for (int r = 0; r < font->height; r++) {
         for (int c = 0; c < width; c++) {
-            if (noto_glyph_bitmap[count] > 0x20 && x + c < FB_WIDTH && x + c >= 0) {
-                (*background_rgb)[y + 16 - r][x + c] = rgb_t {
-                    .red =   (uint8_t)((uint32_t)(noto_glyph_bitmap[count] * rgb.red) / 256),
-                    .green = (uint8_t)((uint32_t)(noto_glyph_bitmap[count] * rgb.green) / 256),
-                    .blue =  (uint8_t)((uint32_t)(noto_glyph_bitmap[count] * rgb.blue) / 256),
+            if (font->data[count] > 0x20 && x + c < FB_WIDTH && x + c >= 0) {
+                (*background_rgb)[y - r][x + c] = rgb_t {
+                    .red =   (uint8_t)((uint32_t)(font->data[count] * rgb.red) / 256),
+                    .green = (uint8_t)((uint32_t)(font->data[count] * rgb.green) / 256),
+                    .blue =  (uint8_t)((uint32_t)(font->data[count] * rgb.blue) / 256),
                 };
             }
             count++;
@@ -78,11 +74,11 @@ int framebuffer::printchar(int x, int y, char c, rgb_t rgb)
     return width;
 }
 
-void framebuffer::printstring(int x, int y, const char *s, rgb_t rgb)
+void framebuffer::printstring(font_t *font, int x, int y, const char *s, rgb_t rgb)
 {
     int running_x = x;
     for (; *s; s++) {
-        running_x += 1 + printchar(running_x, y, *s, rgb);
+        running_x += 1 + printchar(font, running_x, y, *s, rgb);
     }
 }
 
@@ -106,9 +102,8 @@ void framebuffer::showimage(void)
 void framebuffer::copy_foreground_row(int r, uint32_t *out)
 {
     for (int p = FB_WIDTH - 1; p >= 0; p--) {
-        *out = (*foreground_rgb)[r][p].red << 0 |
+        *out++ = (*foreground_rgb)[r][p].red << 0 |
             (*foreground_rgb)[r][p].green << 8 |
             (*foreground_rgb)[r][p].blue << 16;
-        out++;
     }
 }
