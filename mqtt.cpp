@@ -176,8 +176,6 @@ weather_data_t weather_data;
 
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags)
 {
-    memset(topic_message, 0, sizeof(topic_message));
-
     memcpy(json_p, data, len);
     json_p += len;
     if (flags) {
@@ -252,6 +250,8 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
 
         if (weather_data.fetched_fields == (FIELD_CONDITION | FIELD_TEMPERATURE | FIELD_HUMIDITY | FIELD_FORECAST)) {
             dump_weather_data();
+
+            sprintf(topic_message, "%s %dC", weather_data.condition, (int)(weather_data.temperature));
 
             memset(&weather_data, 0, sizeof(weather_data_t));
         }

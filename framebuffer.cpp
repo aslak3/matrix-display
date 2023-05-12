@@ -12,7 +12,7 @@ framebuffer::framebuffer(void) {
 }
 
 void framebuffer::swap(void) {
-    rgb_t (*temp)[FB_WIDTH][FB_HEIGHT];
+    rgb_t (*temp)[FB_HEIGHT][FB_WIDTH];
 
     temp = background_rgb;
     background_rgb = foreground_rgb;
@@ -22,26 +22,26 @@ void framebuffer::swap(void) {
 void framebuffer::clear(void) {
     for (int r = 0; r < FB_HEIGHT; r++) {
         for (int c = 0; c < FB_WIDTH; c++) {
-            (*background_rgb)[c][r] = (rgb_t) {};
+            (*background_rgb)[r][c] = (rgb_t) {};
         }
     }
 }
 
 void framebuffer::point(int x, int y, rgb_t rgb)
 {
-    (*background_rgb)[x][y] = rgb;
+    (*background_rgb)[y][x] = rgb;
 }
 
 void framebuffer::hollowbox(int x, int y, int width, int height, rgb_t rgb)
 {
     for (int p = x; p < x + width; p++) {
-        (*background_rgb)[p][y] = rgb;
-        (*background_rgb)[p][y + height - 1] = rgb;
+        (*background_rgb)[y][p] = rgb;
+        (*background_rgb)[y + height - 1][p] = rgb;
     }
 
     for (int p = y; p < y + height; p++) {
-        (*background_rgb)[x][p] = rgb;
-        (*background_rgb)[x + width - 1][p] = rgb;
+        (*background_rgb)[p][x] = rgb;
+        (*background_rgb)[p][x + width - 1] = rgb;
     }
 }
 
@@ -49,7 +49,7 @@ void framebuffer::filledbox(int x, int y, int width, int height, rgb_t rgb)
 {
     for (int r = y; r < y + height; r++) {
         for (int c = x; c < x + width; c++) {
-            (*background_rgb)[c][r] = rgb;
+            (*background_rgb)[r][c] = rgb;
         }
     }
 }
@@ -66,7 +66,7 @@ int framebuffer::printchar(int x, int y, char c, rgb_t rgb)
     for (int r = 0; r < 15; r++) {
         for (int c = 0; c < width; c++) {
             if (noto_glyph_bitmap[count] > 0x20 && x + c < FB_WIDTH && x + c >= 0) {
-                (*background_rgb)[x + c][y + 16 - r] = (rgb_t) {
+                (*background_rgb)[y + 16 - r][x + c] = rgb_t {
                     .red =   (uint8_t)((uint32_t)(noto_glyph_bitmap[count] * rgb.red) / 256),
                     .green = (uint8_t)((uint32_t)(noto_glyph_bitmap[count] * rgb.green) / 256),
                     .blue =  (uint8_t)((uint32_t)(noto_glyph_bitmap[count] * rgb.blue) / 256),
@@ -94,11 +94,21 @@ void framebuffer::showimage(void)
         for (int c = 0; c < 20; c++) {
             uint8_t index = cloudysuntiny_map[1024 + (r * 20) + c];
 
-            (*background_rgb)[c][19 - r] = (rgb_t){
+            (*background_rgb)[19 - r][c] = rgb_t {
                 .red = cloudysuntiny_map[(index * 4) + 2],
                 .green = cloudysuntiny_map[(index * 4) + 1],
                 .blue = cloudysuntiny_map[(index * 4) + 0],
             };
         }
+    }
+}
+
+void framebuffer::copy_foreground_row(int r, uint32_t *out)
+{
+    for (int p = FB_WIDTH - 1; p >= 0; p--) {
+        *out = (*foreground_rgb)[r][p].red << 0 |
+            (*foreground_rgb)[r][p].green << 8 |
+            (*foreground_rgb)[r][p].blue << 16;
+        out++;
     }
 }

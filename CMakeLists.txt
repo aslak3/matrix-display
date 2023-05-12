@@ -32,6 +32,7 @@ add_executable(
 target_include_directories(matrix PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
 )
+
 # pull in common dependencies
 target_link_libraries(matrix pico_stdlib hardware_i2c
     pico_cyw43_arch_lwip_sys_freertos
@@ -46,5 +47,7 @@ target_compile_definitions(${PROJECT} PRIVATE
 
 pico_enable_stdio_usb(matrix 1)
 pico_enable_stdio_uart(matrix 1)
+
+pico_generate_pio_header(matrix ${CMAKE_CURRENT_LIST_DIR}/hub75.pio)
 
 pico_add_extra_outputs(matrix)

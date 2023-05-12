@@ -4,11 +4,23 @@
 #include "hardware/gpio.h"
 #include "pico/cyw43_arch.h"
 
+#include "hardware/pio.h"
+#include "hub75.pio.h"
+
+
 #include <FreeRTOS.h>
 #include <task.h>
 #include <semphr.h>
 
 #include "framebuffer.hpp"
+
+#define DATA_BASE_PIN 2
+#define DATA_N_PINS 6
+#define ROWSEL_BASE_PIN 8
+#define ROWSEL_N_PINS 4
+#define CLK_PIN 13
+#define STROBE_PIN 14
+#define OEN_PIN 15
 
 void animate_task(void *dummy);
 void matrix_task(void *dummy);
@@ -80,7 +92,7 @@ int main(void)
     xSemaphore = xSemaphoreCreateMutex();
 
     xTaskCreate(&animate_task, "Animate Task", 256, NULL, 0, NULL);
-    xTaskCreate(&matrix_task, "Matrix Task", 256, NULL, 0, NULL);
+    xTaskCreate(&matrix_task, "Matrix Task", 256, NULL, 10, NULL);
     xTaskCreate(&mqtt_task, "MQTT Task", 1024, NULL, 0, NULL);
 
     vTaskStartScheduler();
@@ -96,7 +108,7 @@ char topic_message[256] = "TESTING";
 
 inline void framebuffer::swap(void)
 {
-    rgb_t (*temp)[FB_WIDTH][FB_HEIGHT];
+    rgb_t (*temp)[FB_HEIGHT][FB_WIDTH];
 
     temp = foreground_rgb;
     background_rgb = foreground_rgb;
@@ -130,10 +142,12 @@ void animate_task(void *dummy)
         fb.filledbox(ball3.x - 1, ball3.y - 1, 3, 3,
             (rgb_t) { .red = 0xff, .green = 0x80, .blue = 0xff });
 
-        if (xSemaphoreTake(xSemaphore, (TickType_t) 0) == pdTRUE) {
+        // if (xSemaphoreTake(xSemaphore, (TickType_t) 0) == pdTRUE) {
+            taskENTER_CRITICAL();
             fb.swap();
-            xSemaphoreGive(xSemaphore);
-        }
+            taskEXIT_CRITICAL();
+        //     xSemaphoreGive(xSemaphore);
+        // }
 
         if ((frame & 0x1) == 0) {
             ball1.move();
@@ -154,82 +168,44 @@ void matrix_task(void *dummy)
     printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
 
-    for (int g = 2; g <= 15; g++) gpio_init(g);
+    PIO pio = pio0;
+    uint sm_data = 0;
+    uint sm_row = 1;
 
-    uint32_t clock = 1 << 13;
-    uint32_t latch = 1 << 14;
-    uint32_t oe =    1 << 15;
-    uint32_t r1 =    1 << 2;
-    uint32_t g1 =    1 << 3;
-    uint32_t b1 =    1 << 4;
-    uint32_t r2 =    1 << 5;
-    uint32_t g2 =    1 << 6;
-    uint32_t b2 =    1 << 7;
-    uint32_t a =     1 << 8;
-    uint32_t b =     1 << 9;
-    uint32_t c =     1 << 10;
-    uint32_t d =     1 << 11;
-    // uint32_t e =     1 << 18;
+    uint data_prog_offs = pio_add_program(pio, &hub75_data_rgb888_program);
+    uint row_prog_offs = pio_add_program(pio, &hub75_row_program);
+    hub75_data_rgb888_program_init(pio, sm_data, data_prog_offs, DATA_BASE_PIN, CLK_PIN);
+    hub75_row_program_init(pio, sm_row, row_prog_offs, ROWSEL_BASE_PIN, ROWSEL_N_PINS, STROBE_PIN);
 
-    uint32_t mask = r1 | g1 | b1 | r2 | g2 | b2 | a | b | c | d | latch | clock | oe;
-
-    gpio_set_dir_out_masked(mask);
-
-    int y;
+    static uint32_t gc_row[2][FB_WIDTH];
 
     while (1) {
-        for (int same = 0; same < 8; same++) {
-            for (y = 0; y < 16; y++) {
+        for (int rowsel = 0; rowsel < 16; ++rowsel) {
+            // if (xSemaphoreTake(xSemaphore, (TickType_t) 0) == pdTRUE) {
+                taskENTER_CRITICAL();
+                fb.copy_foreground_row(rowsel, gc_row[0]);
+                fb.copy_foreground_row(rowsel + 16, gc_row[1]);
+                taskEXIT_CRITICAL();
 
-                uint32_t row = 0;
-                if (y & 0x1) row |= a;
-                if (y & 0x2) row |= b;
-                if (y & 0x4) row |= c;
-                if (y & 0x8) row |= d;
+            //     xSemaphoreGive(xSemaphore);
+            // }
 
-                if (xSemaphoreTake(xSemaphore, (TickType_t) 0) == pdTRUE) {
-                    for (int x = 63; x >= 0; x--) {
-                        uint32_t colour = 0;
-                        if ((*fb.foreground_rgb)[x][y].red > (same * 32)) {
-                            colour |= r1;
-                        }
-                        if ((*fb.foreground_rgb)[x][y + 16].red > (same * 32)) {
-                            colour |= r2;
-                        }
-
-                        if ((*fb.foreground_rgb)[x][y].green  > (same * 32)) {
-                            colour |= g1;
-                        }
-                        if ((*fb.foreground_rgb)[x][y + 16].green > (same * 32)) {
-                            colour |= g2;
-                        }
-
-                        if ((*fb.foreground_rgb)[x][y].blue > (same * 32)) {
-                            colour |= b1;
-                        }
-                        if ((*fb.foreground_rgb)[x][y + 16].blue > (same * 32)) {
-                            colour |= b2;
-                        }
-
-                        // clock high
-                        gpio_put_masked(mask, row | oe | colour | clock);
-                        // clock low
-                        gpio_put_masked(mask, row | oe | colour);
-                    }
-
-                    xSemaphoreGive(xSemaphore);
+            for (int bit = 0; bit < 8; ++bit) {
+                hub75_data_rgb888_set_shift(pio, sm_data, data_prog_offs, bit);
+                for (int x = 0; x < FB_WIDTH; ++x) {
+                    pio_sm_put_blocking(pio, sm_data, gc_row[0][x]);
+                    pio_sm_put_blocking(pio, sm_data, gc_row[1][x]);
                 }
+                // Dummy pixel per lane
+                pio_sm_put_blocking(pio, sm_data, 0);
+                pio_sm_put_blocking(pio, sm_data, 0);
+                // SM is finished when it stalls on empty TX FIFO
+                hub75_wait_tx_stall(pio, sm_data);
+                // Also check that previous OEn pulse is finished, else things can get out of sequence
+                hub75_wait_tx_stall(pio, sm_row);
 
-                gpio_put_masked(mask, row | oe);
-
-                // latch high
-                gpio_put_masked(mask, row | oe | latch);
-                // latch low
-                gpio_put_masked(mask, row | oe);
-
-                gpio_put_masked(mask, row);
-
-                sleep_us(80);
+                // Latch row data, pulse output enable for new row.
+                pio_sm_put_blocking(pio, sm_row, rowsel | (100u * (1u << bit) << 5));
             }
         }
     }
