@@ -158,10 +158,16 @@ typedef struct {
 
 #define NO_FORECASTS 8
 
+#define FIELD_CONDITION (1<<0)
+#define FIELD_TEMPERATURE (1<<1)
+#define FIELD_HUMIDITY (1<<2)
+#define FIELD_FORECAST (1<<3)
+
 typedef struct {
-    char current_condition[CONDITION_LEN];
-    double current_temperature;
-    double current_humidty;
+    int fetched_fields;
+    char condition[CONDITION_LEN];
+    double temperature;
+    double humidty;
     int forecast_count;
     forecast_t forecast[NO_FORECASTS];
 } weather_data_t;
@@ -178,10 +184,11 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         *json_p = '\0';
         json_p = json_buffer;
 
-        printf("Topic: %s\n", current_topic);
+        // printf("Topic: %s\n", current_topic);
 
         if (strcmp(current_topic, "state") == 0) {
-            strncpy(weather_data.current_condition, json_buffer, CONDITION_LEN);
+            strncpy(weather_data.condition, json_buffer, CONDITION_LEN);
+            weather_data.fetched_fields |= FIELD_CONDITION;
         }
         else {
             cJSON *json = cJSON_Parse(json_buffer);
@@ -206,8 +213,8 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
                                 panic("Missing field(s)");
                             }
 
-                            printf("At %s condition %s, %.1f C, %d%% rain\n", cJSON_GetStringValue(datetime), cJSON_GetStringValue(condition),
-                                cJSON_GetNumberValue(temperature), (int)(cJSON_GetNumberValue(precipitation_probability)));
+                            // printf("At %s condition %s, %.1f C, %d%% rain\n", cJSON_GetStringValue(datetime), cJSON_GetStringValue(condition),
+                            //     cJSON_GetNumberValue(temperature), (int)(cJSON_GetNumberValue(precipitation_probability)));
 
                             strncpy(weather_data.forecast[i].time, cJSON_GetStringValue(datetime) + 11, 2 + 1 + 2);
                             strncpy(weather_data.forecast[i].condition, cJSON_GetStringValue(condition), CONDITION_LEN);
@@ -216,19 +223,20 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
 
                             weather_data.forecast_count = i + 1;
                         }
-                        dump_weather_data();
+                        weather_data.fetched_fields |= FIELD_FORECAST;
                     }
                 }
                 else if (cJSON_IsString(json)) {
-                    printf("String\n");
                 }
                 else if (cJSON_IsNumber(json)) {
                     double value = cJSON_GetNumberValue(json);
                     if (strcmp(current_topic, "temperature") == 0) {
-                        weather_data.current_temperature = value;
+                        weather_data.temperature = value;
+                        weather_data.fetched_fields |= FIELD_TEMPERATURE;
                     }
                     else if (strcmp(current_topic, "humidity") == 0) {
-                        weather_data.current_humidty = value;
+                        weather_data.humidty = value;
+                        weather_data.fetched_fields |= FIELD_HUMIDITY;
                     }
                 }
                 else if (cJSON_IsObject(json)) {
@@ -241,19 +249,27 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
                 cJSON_Delete(json);
             }
         }
+
+        if (weather_data.fetched_fields == (FIELD_CONDITION | FIELD_TEMPERATURE | FIELD_HUMIDITY | FIELD_FORECAST)) {
+            dump_weather_data();
+
+            memset(&weather_data, 0, sizeof(weather_data_t));
+        }
     }
 }
 
 static void dump_weather_data(void)
 {
-    printf("--------------\nCurrent: condition=%s temperature=%.1f humidity=%.1f\n",
-        weather_data.current_condition, weather_data.current_temperature, weather_data.current_humidty);
+    printf("--------------\n");
+    printf("Current: condition=%s temperature=%.1f humidity=%.1f\n",
+        weather_data.condition, weather_data.temperature, weather_data.humidty);
     for (int i = 0; i < weather_data.forecast_count; i++) {
         printf("%s: condition=%s temperature=%.1f percipitation_probability=%.1f\n",
             weather_data.forecast[i].time, weather_data.forecast[i].condition, 
             weather_data.forecast[i].temperature,
             weather_data.forecast[i].precipitation_probability);
     }
+    printf("--------------\n");
 }
 
 static void mqtt_pub_request_cb(void *arg, err_t result)
