@@ -19,21 +19,21 @@ extern void mqtt_task(void *dummy);
 
 /* WIRING
  *
- * R1   GP8
- * B1   GP9
- * R2   GP10
- * B2   GP11
- * A    GP12
- * C    GP13
- * CLK  GP14
+ * R1   GP2
+ * B1   GP4
+ * R2   GP5
+ * B2   GP7
+ * A    GP8
+ * C    GP10
+ * CLK  GP13
  * OE   GP15
  *
- * G1   GP20
- * G2   GP19
- * E    GP18
- * B    GP17
- * D    GP21
- * LAT  GP16
+ * G1   GP3
+ * G2   GP6
+ * E    GND
+ * B    GP9
+ * D    GP11
+ * LAT  GP14
  *
  * 0b00000000 00011111 11111111 00000000
  * 0x001fff00
@@ -154,24 +154,24 @@ void matrix_task(void *dummy)
     printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
 
-    for (int g = 8; g <= 21; g++) gpio_init(g);
+    for (int g = 2; g <= 15; g++) gpio_init(g);
 
-    uint32_t clock = 1 << 14;
-    uint32_t latch = 1 << 16;
+    uint32_t clock = 1 << 13;
+    uint32_t latch = 1 << 14;
     uint32_t oe =    1 << 15;
-    uint32_t r1 =    1 << 8;
-    uint32_t g1 =    1 << 20;
-    uint32_t b1 =    1 << 9;
-    uint32_t r2 =    1 << 10;
-    uint32_t g2 =    1 << 19;
-    uint32_t b2 =    1 << 11;
-    uint32_t a =     1 << 12;
-    uint32_t b =     1 << 17;
-    uint32_t c =     1 << 13;
-    uint32_t d =     1 << 21;
-    uint32_t e =     1 << 18;
+    uint32_t r1 =    1 << 2;
+    uint32_t g1 =    1 << 3;
+    uint32_t b1 =    1 << 4;
+    uint32_t r2 =    1 << 5;
+    uint32_t g2 =    1 << 6;
+    uint32_t b2 =    1 << 7;
+    uint32_t a =     1 << 8;
+    uint32_t b =     1 << 9;
+    uint32_t c =     1 << 10;
+    uint32_t d =     1 << 11;
+    // uint32_t e =     1 << 18;
 
-    uint32_t mask = r1 | g1 | b1 | r2 | g2 | b2 | a | b | c | d | e | latch | clock | oe;
+    uint32_t mask = r1 | g1 | b1 | r2 | g2 | b2 | a | b | c | d | latch | clock | oe;
 
     gpio_set_dir_out_masked(mask);
 
