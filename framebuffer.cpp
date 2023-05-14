@@ -55,46 +55,75 @@ void framebuffer::filledbox(int x, int y, int width, int height, rgb_t rgb)
 
 int framebuffer::printchar(font_t *font, int x, int y, char c, rgb_t rgb)
 {
-    int index = (int)(c - ' ');
-    int count = font->lv_font_glyph_dsc[index].glyph_index;
-    int width = font->lv_font_glyph_dsc[index].w_px;
+    int index = 0;
+    int count = 0;
+    int width = 0;
+    int width_allocation = 0;
+
+    if (font->lv_font_glyph_dsc) {
+        index = (int)(c - ' ');
+        count = font->lv_font_glyph_dsc[index].glyph_index;
+        width = font->lv_font_glyph_dsc[index].w_px;
+        width_allocation = width + 1;
+    }
+    else {
+        index = (int)(c);
+        count = index * font->height;
+        width = 8;
+        width_allocation = width;
+    }
 
     for (int r = 0; r < font->height; r++) {
-        for (int c = 0; c < width; c++) {
-            if (font->data[count] > 0x20 && x + c < FB_WIDTH && x + c >= 0) {
-                (*background_rgb)[y - r][x + c] = rgb_t {
-                    .red =   (uint8_t)((uint32_t)(font->data[count] * rgb.red) / 256),
-                    .green = (uint8_t)((uint32_t)(font->data[count] * rgb.green) / 256),
-                    .blue =  (uint8_t)((uint32_t)(font->data[count] * rgb.blue) / 256),
-                };
+        if (font->lv_font_glyph_dsc) {
+            for (int c = 0; c < width; c++) {
+                if (font->data[count] > 0x20 && x + c < FB_WIDTH && x + c >= 0) {
+                    (*background_rgb)[y - r][x + c] = rgb_t {
+                        .red =   (uint8_t)((uint32_t)(font->data[count] * rgb.red) / 256),
+                        .green = (uint8_t)((uint32_t)(font->data[count] * rgb.green) / 256),
+                        .blue =  (uint8_t)((uint32_t)(font->data[count] * rgb.blue) / 256),
+                    };
+                }
+                count++;
+            }
+        }
+        else {
+            uint8_t byte = font->data[count];
+            for (int c = 0; c < width; c++) {
+                if (x + c < FB_WIDTH && x + c >= 0) {
+                    if (byte & 0x80) {
+                        (*background_rgb)[y - r][x + c] = rgb;
+                    }
+                }
+                byte <<= 1;
             }
             count++;
         }
     }
-    return width;
+    return width_allocation;
 }
 
 void framebuffer::printstring(font_t *font, int x, int y, const char *s, rgb_t rgb)
 {
     int running_x = x;
     for (; *s; s++) {
-        running_x += 1 + printchar(font, running_x, y, *s, rgb);
+        running_x += printchar(font, running_x, y, *s, rgb);
     }
 }
 
-extern const uint8_t cloudysuntiny_map[];
-
-void framebuffer::showimage(void)
+void framebuffer::showimage(image_t *image, int x, int y)
 {
-    for (int r = 0; r < 20; r++) {
-        for (int c = 0; c < 20; c++) {
-            uint8_t index = cloudysuntiny_map[1024 + (r * 20) + c];
+    const image_dsc_t *image_dsc = image->image_dsc;
+    uint8_t *off = (uint8_t *) image_dsc->data;
 
-            (*background_rgb)[19 - r][c] = rgb_t {
-                .red = cloudysuntiny_map[(index * 4) + 2],
-                .green = cloudysuntiny_map[(index * 4) + 1],
-                .blue = cloudysuntiny_map[(index * 4) + 0],
+    for (int c = 0; c < image_dsc->width; c++) {
+        for (int r = 0; r < image_dsc->height; r++) {
+            (*background_rgb)[r + y][c + x] = rgb_t {
+                .red = *(off + 0),
+                .green = *(off + 1),
+                .blue = *(off + 2),
             };
+
+            off += 4;
         }
     }
 }

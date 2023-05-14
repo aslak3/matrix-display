@@ -10,10 +10,12 @@ typedef struct lv_font_glyph_dsc {
     uint32_t glyph_index;
 } lv_font_glyph_dsc_t;
 
+// If font_glyph_dsc is NULL, data is a simple uint8_t 1bpp array
+
 typedef struct {
     char name[32];
     uint8_t height;
-    const lv_font_glyph_dsc_t *lv_font_glyph_dsc;
+    const lv_font_glyph_dsc_t *lv_font_glyph_dsc; // Optional
     const uint8_t *data;
 } font_t;
 

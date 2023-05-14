@@ -31,12 +31,16 @@ add_subdirectory(
     fonts
 )
 
+add_subdirectory(
+    images
+)
+
 target_include_directories(${PROJECT} PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
 )
 
 # pull in common dependencies
-target_link_libraries(matrix-display fonts 
+target_link_libraries(matrix-display fonts images
     pico_stdlib hardware_i2c
     pico_cyw43_arch_lwip_sys_freertos
     pico_lwip_mqtt

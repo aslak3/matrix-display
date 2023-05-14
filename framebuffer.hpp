@@ -1,6 +1,7 @@
 #include "pico/stdlib.h"
 
 #include "fonts/fonts.h"
+#include "images/images.h"
 
 #define FB_WIDTH 64
 #define FB_HEIGHT 32
@@ -22,7 +23,7 @@ class framebuffer {
         void filledbox(int x, int y, int width, int height, rgb_t rgb);
         int printchar(font_t *font, int x, int y, char c, rgb_t rgb);
         void printstring(font_t *font, int x, int y, const char *s, rgb_t rgb);
-        void showimage(void);
+        void showimage(image_t *image, int x, int y);
         void copy_foreground_row(int r, uint32_t *out);
 
         rgb_t fb_rgb1[FB_HEIGHT][FB_WIDTH];

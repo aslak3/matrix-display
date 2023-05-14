@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <math.h>
 
 #include "pico/stdlib.h"
 #include "hardware/gpio.h"
@@ -132,15 +133,22 @@ void animate_task(void *dummy)
     if (!medium_font) panic("Could not find Noto/16");
     font_t *small_font = get_font("Noto", 10);
     if (!small_font) panic("Could not find Noto/10");
+    font_t *ibm_font = get_font("IBM", 8);
+    if (!ibm_font) panic("Could not find IBM/8");
+
+    image_t *snowy_rainy_image = get_image("partlycloudy");
+    if (!snowy_rainy_image) panic("Could not load snowy-rainy");
 
     for (uint32_t frame = 0;; frame++)
     {
         fb.clear();
-        // fb.showimage();
-        fb.printstring(big_font,  64 - ((frame/2) % 400), 25, topic_message,
-            (rgb_t){ .red = 0x40, .green = 0, .blue = 0xff });
-        // fb.printstring(big_font, 6, 2, "Test",
-        //     (rgb_t){ .red = 0x20, .green = 0x40, .blue = 0x20 });
+        fb.showimage(snowy_rainy_image, 10, 10);
+        int running_x = 0;
+        for (char *s = topic_message; *s; s++) {
+            int wobble = 0;//(int)(sin((frame + (running_x / 2)) / 40.0) * 12.0);
+            running_x += 1 + fb.printchar(ibm_font, running_x + 64 - ((frame/2) % 500), FB_HEIGHT - 1/*(FB_HEIGHT / 2) + (10 / 2) + wobble*/, *s,
+                (rgb_t){ .red = 0x40, .green = 0, .blue = 0xff });
+        }
 
         fb.filledbox(ball1.x - 1, ball1.y - 1, 3, 3,
             (rgb_t) { .red = 0, .green = 0xff, .blue = 0x80 });
