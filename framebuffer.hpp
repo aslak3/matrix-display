@@ -10,7 +10,6 @@ typedef struct {
     uint8_t red;
     uint8_t green;
     uint8_t blue;
-    uint8_t dummy;
 } rgb_t;
 
 class framebuffer {
@@ -21,8 +20,9 @@ class framebuffer {
         void point(int x, int y, rgb_t rgb);
         void hollowbox(int x, int y, int width, int height, rgb_t rgb);
         void filledbox(int x, int y, int width, int height, rgb_t rgb);
-        int printchar(font_t *font, int x, int y, char c, rgb_t rgb);
+        int printchar(font_t *font, int x, int y, char c, rgb_t rgb, bool length_only);
         void printstring(font_t *font, int x, int y, const char *s, rgb_t rgb);
+        int stringlength(font_t *font, const char *s);
         void showimage(image_t *image, int x, int y);
         void copy_foreground_row(int r, uint32_t *out);
 

@@ -3,6 +3,7 @@
 #include "images.h"
 
 extern const image_dsc_t clear_night_dsc;
+extern const image_dsc_t cloudy_dsc;
 extern const image_dsc_t fog_dsc;
 extern const image_dsc_t hail_dsc;
 extern const image_dsc_t lightning_dsc;
@@ -17,6 +18,7 @@ extern const image_dsc_t windy_dsc;
 
 static image_t images[] = {
     { "clear-night", &clear_night_dsc },
+    { "cloudy", &cloudy_dsc },
     { "fog", &fog_dsc },
     { "hail", &hail_dsc },
     { "lightning", &lightning_dsc },

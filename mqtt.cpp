@@ -2,6 +2,7 @@
 
 #include <FreeRTOS.h>
 #include <task.h>
+#include <queue.h>
 
 #include "pico/stdlib.h"
 #include "pico/cyw43_arch.h"
@@ -9,6 +10,8 @@
 #include "mqtt_opts.h"
 
 #include "lwip/apps/mqtt.h"
+
+#include "mqtt.h"
 
 #include "cJSON.h"
 
@@ -82,8 +85,6 @@ void mqtt_task(void *dummy)
     while (1) {
        vTaskDelay(1000);
     }
-
-
 }
 
 static int do_mqtt_connect(mqtt_client_t *client)
@@ -144,34 +145,10 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
 }
 
 extern char topic_message[256];
+extern QueueHandle_t animate_queue;
 
 char json_buffer[16384];
 char *json_p = json_buffer;
-
-#define CONDITION_LEN 32
-
-typedef struct {
-    char time[6];
-    char condition[CONDITION_LEN];
-    double temperature;
-    double precipitation_probability;
-} forecast_t;
-
-#define NO_FORECASTS 8
-
-#define FIELD_CONDITION (1<<0)
-#define FIELD_TEMPERATURE (1<<1)
-#define FIELD_HUMIDITY (1<<2)
-#define FIELD_FORECAST (1<<3)
-
-typedef struct {
-    int fetched_fields;
-    char condition[CONDITION_LEN];
-    double temperature;
-    double humidty;
-    int forecast_count;
-    forecast_t forecast[NO_FORECASTS];
-} weather_data_t;
 
 weather_data_t weather_data;
 
@@ -210,7 +187,7 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
                                 panic("Missing field(s)");
                             }
 
-                            strncpy(weather_data.forecast[i].time, cJSON_GetStringValue(datetime) + 11, 2 + 1 + 2);
+                            strncpy(weather_data.forecast[i].time, cJSON_GetStringValue(datetime) + 11, 2 + 1);
                             strncpy(weather_data.forecast[i].condition, cJSON_GetStringValue(condition), CONDITION_LEN);
                             weather_data.forecast[i].temperature = cJSON_GetNumberValue(temperature);
                             weather_data.forecast[i].precipitation_probability = cJSON_GetNumberValue(precipitation_probability);
@@ -247,6 +224,10 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         if (weather_data.fetched_fields == (FIELD_CONDITION | FIELD_TEMPERATURE | FIELD_HUMIDITY | FIELD_FORECAST)) {
             sprintf(topic_message, "%s %.1fC %.1f%% humidity; bye!!!", weather_data.condition, weather_data.temperature,
                 weather_data.humidty);
+
+            if (xQueueSend(animate_queue, &weather_data, 10) != pdTRUE) {
+                printf("Could not send weather data; dropping");
+            }
 
             memset(&weather_data, 0, sizeof(weather_data_t));
         }

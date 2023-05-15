@@ -53,7 +53,7 @@ void framebuffer::filledbox(int x, int y, int width, int height, rgb_t rgb)
     }
 }
 
-int framebuffer::printchar(font_t *font, int x, int y, char c, rgb_t rgb)
+int framebuffer::printchar(font_t *font, int x, int y, char c, rgb_t rgb, bool length_only)
 {
     int index = (int)(c - ' ');
     int count = 0;
@@ -79,6 +79,10 @@ int framebuffer::printchar(font_t *font, int x, int y, char c, rgb_t rgb)
         }
     }
 
+    if (length_only) {
+        return width_allocation;
+    }
+
     for (int r = 0; r < font->height; r++) {
         if (font->lv_font_glyph_dsc) {
             for (int c = 0; c < width; c++) {
@@ -97,7 +101,7 @@ int framebuffer::printchar(font_t *font, int x, int y, char c, rgb_t rgb)
             for (int c = 0; c < width; c++) {
                 if (x + c < FB_WIDTH && x + c >= 0) {
                     if (byte & 0x80) {
-                        (*background_rgb)[y - r][x + c] = rgb;
+                        (*background_rgb)[font->height + (y - r)][x + c] = rgb;
                     }
                 }
                 byte <<= 1;
@@ -112,9 +116,19 @@ void framebuffer::printstring(font_t *font, int x, int y, const char *s, rgb_t r
 {
     int running_x = x;
     for (; *s; s++) {
-        running_x += printchar(font, running_x, y, *s, rgb);
+        running_x += printchar(font, running_x, y, *s, rgb, false);
     }
 }
+
+int framebuffer::stringlength(font_t *font, const char *s)
+{
+    int running_x = 0;
+    for (; *s; s++) {
+        running_x += printchar(font, running_x, 0, *s, (rgb_t) {}, true);
+    }
+    return running_x;
+}
+
 
 void framebuffer::showimage(image_t *image, int x, int y)
 {

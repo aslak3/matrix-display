@@ -9,11 +9,13 @@
 
 #include <FreeRTOS.h>
 #include <task.h>
-#include <semphr.h>
+#include <queue.h>
 
 #include "framebuffer.hpp"
 
 #include "hub75.pio.h"
+
+#include "mqtt.h"
 
 #define DATA_BASE_PIN 2
 #define DATA_N_PINS 6
@@ -82,7 +84,7 @@ class ball {
         int dx, dy;
 };
 
-SemaphoreHandle_t xSemaphore = NULL;
+QueueHandle_t animate_queue;
 
 int main(void)
 {
@@ -90,7 +92,7 @@ int main(void)
 
     printf("Hello, matrix here\n");
 
-    xSemaphore = xSemaphoreCreateMutex();
+    animate_queue = xQueueCreate(10, sizeof(weather_data_t));
 
     xTaskCreate(&animate_task, "Animate Task", 256, NULL, 0, NULL);
     xTaskCreate(&matrix_task, "Matrix Task", 256, NULL, 10, NULL);
@@ -123,9 +125,12 @@ void animate_task(void *dummy)
     printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
 
-    ball ball1(3, 3, 1, 1);
-    ball ball2(10, 10, -1, -1);
-    ball ball3(24, 10, -1, 1);
+    // ball ball1(3, 3, 1, 1);
+    // ball ball2(10, 10, -1, -1);
+    // ball ball3(24, 10, -1, 1);
+
+    rgb_t white = { red: 0xff, green: 0xff, blue: 0xff };
+    rgb_t blue = { red: 0, green: 0, blue: 0xff };
 
     font_t *big_font = get_font("Noto", 20);
     if (!big_font) panic("Could not find Noto/20");
@@ -138,18 +143,46 @@ void animate_task(void *dummy)
     font_t *tiny_font = get_font("tiny", 6);
     if (!tiny_font) panic("Could not find tiny/8");
 
-    image_t *snowy_rainy_image = get_image("pouring");
-    if (!snowy_rainy_image) panic("Could not load snowy-rainy");
+    weather_data_t weather_data;
+    memset(&weather_data, 0, sizeof(weather_data_t));
 
     for (uint32_t frame = 0;; frame++)
     {
+        if (xQueueReceive(animate_queue, &weather_data, 0) == pdTRUE) {
+            printf("animate_task new weather: %s: %f C %f %%\n", weather_data.condition, weather_data.temperature,
+                weather_data.humidty);
+        }
+
         fb.clear();
-        fb.showimage(snowy_rainy_image, 0, 8);
-        int running_x = 0;
-        for (char *s = topic_message; *s; s++) {
-            int wobble = (int)(sin((frame + (running_x / 2)) / 40.0) * 8.0);
-            running_x += fb.printchar(tiny_font, running_x + 64 - ((frame/5) % 500), (FB_HEIGHT / 2) + (10 / 2) + wobble, *s,
-                (rgb_t){ .red = 0x40, .green = 0, .blue = 0xff });
+
+        if (strlen(weather_data.condition)) {
+            int offset_x = 0;
+
+            for (int forecast_count = 5; forecast_count < 8; forecast_count++) {
+                forecast_t *forecast = &weather_data.forecast[forecast_count];
+                char buffer[10];
+                memset(buffer, 0, sizeof(buffer));
+
+                fb.printstring(tiny_font, offset_x + 11 - (fb.stringlength(tiny_font, forecast->time) / 2), 24, forecast->time, white);
+
+                image_t *current_weather_image = get_image(forecast->condition);
+                if (!current_weather_image) {
+                    panic("Could not load current weather condition image for %s",
+                        forecast->condition);
+                }
+
+                fb.showimage(current_weather_image, offset_x + 2, 8);
+
+                if ((frame % 600) < 300) {
+                    snprintf(buffer, sizeof(buffer), "%dC", (int)forecast->temperature);
+                    fb.printstring(tiny_font, offset_x + 11 - (fb.stringlength(tiny_font, buffer) / 2), 0, buffer, white);
+                }
+                else {
+                    snprintf(buffer, sizeof(buffer), "%d%%", (int)forecast->precipitation_probability);
+                    fb.printstring(tiny_font, offset_x + 11 - (fb.stringlength(tiny_font, buffer) / 2), 0, buffer, blue);
+                }
+                offset_x += 22;
+            }
         }
 
         // fb.filledbox(ball1.x - 1, ball1.y - 1, 3, 3,
@@ -163,13 +196,13 @@ void animate_task(void *dummy)
         fb.swap();
         taskEXIT_CRITICAL();
 
-        if ((frame & 0x1) == 0) {
-            ball1.move();
-            ball2.move();
-        }
-        if ((frame & 0x3) == 0) {
-            ball3.move();
-        }
+        // if ((frame & 0x1) == 0) {
+        //     ball1.move();
+        //     ball2.move();
+        // }
+        // if ((frame & 0x3) == 0) {
+        //     ball3.move();
+        // }
 
         vTaskDelay(10);
     }
