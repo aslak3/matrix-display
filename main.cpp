@@ -135,27 +135,29 @@ void animate_task(void *dummy)
     if (!small_font) panic("Could not find Noto/10");
     font_t *ibm_font = get_font("IBM", 8);
     if (!ibm_font) panic("Could not find IBM/8");
+    font_t *tiny_font = get_font("tiny", 6);
+    if (!tiny_font) panic("Could not find tiny/8");
 
-    image_t *snowy_rainy_image = get_image("partlycloudy");
+    image_t *snowy_rainy_image = get_image("pouring");
     if (!snowy_rainy_image) panic("Could not load snowy-rainy");
 
     for (uint32_t frame = 0;; frame++)
     {
         fb.clear();
-        fb.showimage(snowy_rainy_image, 10, 10);
+        fb.showimage(snowy_rainy_image, 0, 8);
         int running_x = 0;
         for (char *s = topic_message; *s; s++) {
-            int wobble = 0;//(int)(sin((frame + (running_x / 2)) / 40.0) * 12.0);
-            running_x += 1 + fb.printchar(ibm_font, running_x + 64 - ((frame/2) % 500), FB_HEIGHT - 1/*(FB_HEIGHT / 2) + (10 / 2) + wobble*/, *s,
+            int wobble = (int)(sin((frame + (running_x / 2)) / 40.0) * 8.0);
+            running_x += fb.printchar(tiny_font, running_x + 64 - ((frame/5) % 500), (FB_HEIGHT / 2) + (10 / 2) + wobble, *s,
                 (rgb_t){ .red = 0x40, .green = 0, .blue = 0xff });
         }
 
-        fb.filledbox(ball1.x - 1, ball1.y - 1, 3, 3,
-            (rgb_t) { .red = 0, .green = 0xff, .blue = 0x80 });
-        fb.hollowbox(ball2.x - 1, ball2.y - 1, 3, 3,
-            (rgb_t) { .red = 0xff, .green = 0xff, .blue = 0 });
-        fb.filledbox(ball3.x - 1, ball3.y - 1, 3, 3,
-            (rgb_t) { .red = 0xff, .green = 0x80, .blue = 0xff });
+        // fb.filledbox(ball1.x - 1, ball1.y - 1, 3, 3,
+        //     (rgb_t) { .red = 0, .green = 0xff, .blue = 0x80 });
+        // fb.hollowbox(ball2.x - 1, ball2.y - 1, 3, 3,
+        //     (rgb_t) { .red = 0xff, .green = 0xff, .blue = 0 });
+        // fb.filledbox(ball3.x - 1, ball3.y - 1, 3, 3,
+        //     (rgb_t) { .red = 0xff, .green = 0x80, .blue = 0xff });
 
         taskENTER_CRITICAL();
         fb.swap();

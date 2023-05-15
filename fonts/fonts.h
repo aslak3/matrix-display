@@ -15,6 +15,7 @@ typedef struct lv_font_glyph_dsc {
 typedef struct {
     char name[32];
     uint8_t height;
+    uint8_t fixed_width;
     const lv_font_glyph_dsc_t *lv_font_glyph_dsc; // Optional
     const uint8_t *data;
 } font_t;

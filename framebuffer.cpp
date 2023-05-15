@@ -55,22 +55,28 @@ void framebuffer::filledbox(int x, int y, int width, int height, rgb_t rgb)
 
 int framebuffer::printchar(font_t *font, int x, int y, char c, rgb_t rgb)
 {
-    int index = 0;
+    int index = (int)(c - ' ');
     int count = 0;
     int width = 0;
     int width_allocation = 0;
 
     if (font->lv_font_glyph_dsc) {
-        index = (int)(c - ' ');
         count = font->lv_font_glyph_dsc[index].glyph_index;
         width = font->lv_font_glyph_dsc[index].w_px;
         width_allocation = width + 1;
     }
     else {
-        index = (int)(c);
-        count = index * font->height;
-        width = 8;
-        width_allocation = width;
+        if (font->fixed_width != 0) {
+            count = index * font->height;
+            width = font->fixed_width;
+            width_allocation = width;
+        }
+        else {
+            count = index * (font->height + 1);
+            width = font->data[count];
+            count++;
+            width_allocation = width + 1;
+        }
     }
 
     for (int r = 0; r < font->height; r++) {
