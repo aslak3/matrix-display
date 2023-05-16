@@ -4,43 +4,32 @@
 
 #include "framebuffer.hpp"
 
-framebuffer::framebuffer(void) {
-    foreground_rgb = &fb_rgb1;
-
-    background_rgb = &fb_rgb2;
-}
-
-void framebuffer::swap(void) {
-    rgb_t (*temp)[FB_HEIGHT][FB_WIDTH];
-
-    temp = background_rgb;
-    background_rgb = foreground_rgb;
-    foreground_rgb = temp;
+framebuffer::framebuffer() {
 }
 
 void framebuffer::clear(void) {
     for (int r = 0; r < FB_HEIGHT; r++) {
         for (int c = 0; c < FB_WIDTH; c++) {
-            (*background_rgb)[r][c] = (rgb_t) {};
+            background_rgb[r][c] = (rgb_t) {};
         }
     }
 }
 
 void framebuffer::point(int x, int y, rgb_t rgb)
 {
-    (*background_rgb)[y][x] = rgb;
+    background_rgb[y][x] = rgb;
 }
 
 void framebuffer::hollowbox(int x, int y, int width, int height, rgb_t rgb)
 {
     for (int p = x; p < x + width; p++) {
-        (*background_rgb)[y][p] = rgb;
-        (*background_rgb)[y + height - 1][p] = rgb;
+        background_rgb[y][p] = rgb;
+        background_rgb[y + height - 1][p] = rgb;
     }
 
     for (int p = y; p < y + height; p++) {
-        (*background_rgb)[p][x] = rgb;
-        (*background_rgb)[p][x + width - 1] = rgb;
+        background_rgb[p][x] = rgb;
+        background_rgb[p][x + width - 1] = rgb;
     }
 }
 
@@ -48,7 +37,7 @@ void framebuffer::filledbox(int x, int y, int width, int height, rgb_t rgb)
 {
     for (int r = y; r < y + height; r++) {
         for (int c = x; c < x + width; c++) {
-            (*background_rgb)[r][c] = rgb;
+            background_rgb[r][c] = rgb;
         }
     }
 }
@@ -87,7 +76,7 @@ int framebuffer::printchar(font_t *font, int x, int y, char c, rgb_t rgb, bool l
         if (font->lv_font_glyph_dsc) {
             for (int c = 0; c < width; c++) {
                 if (font->data[count] > 0x20 && x + c < FB_WIDTH && x + c >= 0) {
-                    (*background_rgb)[y - r][x + c] = rgb_t {
+                    background_rgb[y - r][x + c] = rgb_t {
                         .red =   (uint8_t)((uint32_t)(font->data[count] * rgb.red) / 256),
                         .green = (uint8_t)((uint32_t)(font->data[count] * rgb.green) / 256),
                         .blue =  (uint8_t)((uint32_t)(font->data[count] * rgb.blue) / 256),
@@ -101,7 +90,7 @@ int framebuffer::printchar(font_t *font, int x, int y, char c, rgb_t rgb, bool l
             for (int c = 0; c < width; c++) {
                 if (x + c < FB_WIDTH && x + c >= 0) {
                     if (byte & 0x80) {
-                        (*background_rgb)[font->height + (y - r)][x + c] = rgb;
+                        background_rgb[font->height + (y - r)][x + c] = rgb;
                     }
                 }
                 byte <<= 1;
@@ -137,7 +126,7 @@ void framebuffer::showimage(image_t *image, int x, int y)
 
     for (int c = 0; c < image_dsc->width; c++) {
         for (int r = 0; r < image_dsc->height; r++) {
-            (*background_rgb)[r + y][c + x] = rgb_t {
+            background_rgb[r + y][c + x] = rgb_t {
                 .red = *(off + 0),
                 .green = *(off + 1),
                 .blue = *(off + 2),
@@ -145,14 +134,5 @@ void framebuffer::showimage(image_t *image, int x, int y)
 
             off += 4;
         }
-    }
-}
-
-void framebuffer::copy_foreground_row(int r, uint32_t *out)
-{
-    for (int p = FB_WIDTH - 1; p >= 0; p--) {
-        *out++ = (*foreground_rgb)[r][p].red << 0 |
-            (*foreground_rgb)[r][p].green << 8 |
-            (*foreground_rgb)[r][p].blue << 16;
     }
 }
