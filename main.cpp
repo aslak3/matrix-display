@@ -10,6 +10,7 @@
 #include <FreeRTOS.h>
 #include <task.h>
 #include <queue.h>
+#include <semphr.h>
 
 #include "framebuffer.hpp"
 
@@ -85,12 +86,15 @@ class ball {
 };
 
 QueueHandle_t animate_queue;
+SemaphoreHandle_t bin_sem;
 
 int main(void)
 {
     stdio_init_all();
 
     printf("Hello, matrix here\n");
+
+    bin_sem = xSemaphoreCreateBinary();
 
     animate_queue = xQueueCreate(10, sizeof(weather_data_t));
 
@@ -106,8 +110,6 @@ int main(void)
 }
 
 framebuffer fb;
-
-char topic_message[256] = "TESTING";
 
 inline void framebuffer::swap(void)
 {
@@ -129,8 +131,12 @@ void animate_task(void *dummy)
     // ball ball2(10, 10, -1, -1);
     // ball ball3(24, 10, -1, 1);
 
-    rgb_t white = { red: 0xff, green: 0xff, blue: 0xff };
-    rgb_t blue = { red: 0, green: 0, blue: 0xff };
+    const rgb_t white = { red: 0xff, green: 0xff, blue: 0xff };
+    const rgb_t blue = { red: 0, green: 0, blue: 0xff };
+    const rgb_t black = { red: 0, green: 0, blue: 0 };
+    const rgb_t cyan = { red: 0, green: 0xff, blue: 0xff };
+    const rgb_t yellow = { red: 0xff, green: 0xff, blue: 0 };
+    const rgb_t magenta = { red: 0xff, green: 0, blue: 0xff };
 
     font_t *big_font = get_font("Noto", 20);
     if (!big_font) panic("Could not find Noto/20");
@@ -143,27 +149,50 @@ void animate_task(void *dummy)
     font_t *tiny_font = get_font("tiny", 6);
     if (!tiny_font) panic("Could not find tiny/8");
 
+    message_t message;
+    memset(&message, 0, sizeof(message_t));
+
     weather_data_t weather_data;
     memset(&weather_data, 0, sizeof(weather_data_t));
+    notification_t notification;
+    memset(&notification, 0, sizeof(notification_t));
 
-    for (uint32_t frame = 0;; frame++)
+    int32_t weather_data_framestamp = 0;
+    int32_t notification_framestamp = 0;
+
+    for (int32_t frame = 0;; frame++)
     {
-        if (xQueueReceive(animate_queue, &weather_data, 0) == pdTRUE) {
-            printf("animate_task new weather: %s: %f C %f %%\n", weather_data.condition, weather_data.temperature,
-                weather_data.humidty);
+        if (xQueueReceive(animate_queue, &message, 0) == pdTRUE) {
+            printf("New message, type: %d\n", message.message_type);
+
+            switch (message.message_type) {
+                case MESSAGE_WEATHER:
+                    weather_data = message.weather_data;
+                    weather_data_framestamp = frame;
+                    break;
+
+                case MESSAGE_NOTIFICATION:
+                    notification = message.notification;
+                    notification_framestamp = frame;
+                    printf("animate_task: New notification: %s\n", notification.text);
+                    break;
+                
+                default:
+                    printf("Unknown message type: %d\n", message.message_type);
+            }
         }
 
         fb.clear();
 
-        if (strlen(weather_data.condition)) {
+        if (weather_data_framestamp) {
             int offset_x = 0;
-
             for (int forecast_count = 5; forecast_count < 8; forecast_count++) {
                 forecast_t *forecast = &weather_data.forecast[forecast_count];
                 char buffer[10];
                 memset(buffer, 0, sizeof(buffer));
 
-                fb.printstring(tiny_font, offset_x + 11 - (fb.stringlength(tiny_font, forecast->time) / 2), 24, forecast->time, white);
+                fb.printstring(tiny_font, offset_x + 11 - (fb.stringlength(tiny_font, forecast->time) / 2),
+                    24, forecast->time, white);
 
                 image_t *current_weather_image = get_image(forecast->condition);
                 if (!current_weather_image) {
@@ -185,6 +214,14 @@ void animate_task(void *dummy)
             }
         }
 
+        if (notification_framestamp) {
+            fb.filledbox(0, 8, FB_WIDTH, 16, (rgb_t) {});
+            fb.printstring(medium_font, (notification_framestamp - frame) / 4, 8 + 16, notification.text, white);
+            if ((frame - notification_framestamp) > 1000) {
+                notification_framestamp = 0;
+            }
+        }
+
         // fb.filledbox(ball1.x - 1, ball1.y - 1, 3, 3,
         //     (rgb_t) { .red = 0, .green = 0xff, .blue = 0x80 });
         // fb.hollowbox(ball2.x - 1, ball2.y - 1, 3, 3,
@@ -193,8 +230,10 @@ void animate_task(void *dummy)
         //     (rgb_t) { .red = 0xff, .green = 0x80, .blue = 0xff });
 
         taskENTER_CRITICAL();
+        // xSemaphoreTake(bin_sem, 0);
         fb.swap();
         taskEXIT_CRITICAL();
+        // xSemaphoreGive(bin_sem);
 
         // if ((frame & 0x1) == 0) {
         //     ball1.move();
@@ -229,9 +268,11 @@ void matrix_task(void *dummy)
     while (1) {
         for (int rowsel = 0; rowsel < 16; ++rowsel) {
             taskENTER_CRITICAL();
+            // xSemaphoreTake(bin_sem, 0);
             fb.copy_foreground_row(rowsel, gc_row[0]);
             fb.copy_foreground_row(rowsel + 16, gc_row[1]);
             taskEXIT_CRITICAL();
+            // xSemaphoreGive(bin_sem);
 
             for (int bit = 0; bit < 8; ++bit) {
                 hub75_data_rgb888_set_shift(pio, sm_data, data_prog_offs, bit);
