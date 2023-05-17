@@ -145,6 +145,7 @@ void animate_task(void *dummy)
 
     int32_t weather_data_framestamp = 0;
     int32_t notification_framestamp = 0;
+    int notification_pixel_length = 0;
 
     for (int32_t frame = 0;; frame++)
     {
@@ -160,6 +161,7 @@ void animate_task(void *dummy)
                 case MESSAGE_NOTIFICATION:
                     notification = message.notification;
                     notification_framestamp = frame;
+                    notification_pixel_length = fb.stringlength(medium_font, notification.text);
                     printf("animate_task: New notification: %s\n", notification.text);
                     break;
                 
@@ -211,8 +213,9 @@ void animate_task(void *dummy)
             // TODO: Line drawing
             fb.hollowbox(0, 8, FB_WIDTH, 1, white);
             fb.hollowbox(0, 8 + 15, FB_WIDTH, 1, white);
-            fb.printstring(ibm_font, FB_WIDTH + ((notification_framestamp - frame) / 3), 8, notification.text, magenta);
-            if ((frame - notification_framestamp) > 1000) {
+            int notification_offset = (frame - notification_framestamp) / 3;
+            fb.printstring(medium_font, FB_WIDTH - notification_offset, 8, notification.text, magenta);
+            if (notification_offset > notification_pixel_length + FB_WIDTH + (FB_WIDTH / 2)) {
                 notification_framestamp = 0;
             }
         }
