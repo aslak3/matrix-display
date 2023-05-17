@@ -1,6 +1,10 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "pico/stdlib.h"
+
+#include <FreeRTOS.h>
+#include <task.h>
 
 #include "framebuffer.hpp"
 
@@ -75,8 +79,9 @@ int framebuffer::printchar(font_t *font, int x, int y, char c, rgb_t rgb, bool l
     for (int r = 0; r < font->height; r++) {
         if (font->lv_font_glyph_dsc) {
             for (int c = 0; c < width; c++) {
-                if (font->data[count] > 0x20 && x + c < FB_WIDTH && x + c >= 0) {
-                    background_rgb[y - r][x + c] = rgb_t {
+                // Ignore nearly off pixels
+                if (font->data[count] > 0x60 && x + c < FB_WIDTH && x + c >= 0) {
+                    background_rgb[font->height + (y - r)][x + c] = rgb_t {
                         .red =   (uint8_t)((uint32_t)(font->data[count] * rgb.red) / 256),
                         .green = (uint8_t)((uint32_t)(font->data[count] * rgb.green) / 256),
                         .blue =  (uint8_t)((uint32_t)(font->data[count] * rgb.blue) / 256),
@@ -135,4 +140,18 @@ void framebuffer::showimage(image_t *image, int x, int y)
             off += 4;
         }
     }
+}
+
+void framebuffer::atomic_back_to_fore_copy(void)
+{
+    taskENTER_CRITICAL();
+    memcpy(foreground_rgb, background_rgb, sizeof(rgb_t) * FB_HEIGHT * FB_WIDTH);
+    taskEXIT_CRITICAL();
+}
+
+void framebuffer::atomic_fore_copy_out(rgb_t *out)
+{
+    taskENTER_CRITICAL();
+    memcpy(out, foreground_rgb, sizeof(rgb_t) * FB_HEIGHT * FB_WIDTH);
+    taskEXIT_CRITICAL();
 }

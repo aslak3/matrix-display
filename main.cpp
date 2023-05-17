@@ -87,7 +87,6 @@ class ball {
 };
 
 QueueHandle_t animate_queue;
-QueueHandle_t matrix_queue;
 
 int main(void)
 {
@@ -96,7 +95,6 @@ int main(void)
     printf("Hello, matrix here\n");
 
     animate_queue = xQueueCreate(10, sizeof(weather_data_t));
-    matrix_queue = xQueueCreate(2, sizeof(rgb_t) * FB_HEIGHT * FB_WIDTH);
 
     xTaskCreate(&animate_task, "Animate Task", 256, NULL, 0, NULL);
     xTaskCreate(&matrix_task, "Matrix Task", 256, NULL, 10, NULL);
@@ -111,9 +109,9 @@ int main(void)
 
 framebuffer fb;
 
+const rgb_t black = { red: 0, green: 0, blue: 0 };
 const rgb_t white = { red: 0xff, green: 0xff, blue: 0xff };
 const rgb_t blue = { red: 0, green: 0, blue: 0xff };
-const rgb_t black = { red: 0, green: 0, blue: 0 };
 const rgb_t cyan = { red: 0, green: 0xff, blue: 0xff };
 const rgb_t yellow = { red: 0xff, green: 0xff, blue: 0 };
 const rgb_t magenta = { red: 0xff, green: 0, blue: 0xff };
@@ -125,10 +123,6 @@ void animate_task(void *dummy)
     vTaskCoreAffinitySet(NULL, 1 << 0);
     printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
-
-    ball ball1(3, 3, 1, 1);
-    ball ball2(10, 10, -1, -1);
-    ball ball3(24, 10, -1, 1);
 
     font_t *big_font = get_font("Noto", 20);
     if (!big_font) panic("Could not find Noto/20");
@@ -175,7 +169,7 @@ void animate_task(void *dummy)
         }
 
         fb.clear();
-        rgb_t notification_rgb = {};
+        rgb_t notification_rgb = black;
 
         if (notification_framestamp) {
             notification_rgb = rgb_grey(255 - ((frame - notification_framestamp) * 16));
@@ -184,7 +178,7 @@ void animate_task(void *dummy)
 
         if (weather_data_framestamp) {
             int offset_x = 0;
-            for (int forecast_count = 1; forecast_count < 4; forecast_count++) {
+            for (int forecast_count = 0; forecast_count < 3; forecast_count++) {
                 forecast_t *forecast = &weather_data.forecast[forecast_count];
                 char buffer[10];
                 memset(buffer, 0, sizeof(buffer));
@@ -217,30 +211,13 @@ void animate_task(void *dummy)
             // TODO: Line drawing
             fb.hollowbox(0, 8, FB_WIDTH, 1, white);
             fb.hollowbox(0, 8 + 15, FB_WIDTH, 1, white);
-            fb.printstring(medium_font, FB_WIDTH + ((notification_framestamp - frame) / 4), 8 + 16, notification.text, magenta);
+            fb.printstring(ibm_font, FB_WIDTH + ((notification_framestamp - frame) / 3), 8, notification.text, magenta);
             if ((frame - notification_framestamp) > 1000) {
                 notification_framestamp = 0;
             }
         }
 
-        fb.filledbox(ball1.x - 1, ball1.y - 1, 3, 3,
-            (rgb_t) { .red = 0, .green = 0xff, .blue = 0x80 });
-        fb.hollowbox(ball2.x - 1, ball2.y - 1, 3, 3,
-            (rgb_t) { .red = 0xff, .green = 0xff, .blue = 0 });
-        fb.filledbox(ball3.x - 1, ball3.y - 1, 3, 3,
-            (rgb_t) { .red = 0xff, .green = 0x80, .blue = 0xff });
-
-        taskENTER_CRITICAL();
-        memcpy(fb.foreground_rgb, fb.background_rgb, sizeof(rgb_t) * FB_HEIGHT * FB_WIDTH);
-        taskEXIT_CRITICAL();
-
-        if ((frame & 0x1) == 0) {
-            ball1.move();
-            ball2.move();
-        }
-        if ((frame & 0x3) == 0) {
-            ball3.move();
-        }
+        fb.atomic_back_to_fore_copy();
 
         vTaskDelay(10);
     }
@@ -249,7 +226,7 @@ void animate_task(void *dummy)
 static rgb_t rgb_grey(int grey_level)
 {
     if (grey_level < 0) {
-        return (rgb_t) {};
+        return black;
     }
     else if (grey_level > 255) {
         return white;
@@ -283,9 +260,7 @@ void matrix_task(void *dummy)
     static uint32_t fb_uint32[FB_HEIGHT][FB_WIDTH];
 
     while (1) {
-        taskENTER_CRITICAL();
-        memcpy(fb_uint32, fb.foreground_rgb, sizeof(rgb_t) * FB_HEIGHT * FB_WIDTH);
-        taskEXIT_CRITICAL();
+        fb.atomic_fore_copy_out((rgb_t *) fb_uint32);
 
         for (int rowsel = 0; rowsel < 16; ++rowsel) {
             for (int bit = 0; bit < 8; ++bit) {

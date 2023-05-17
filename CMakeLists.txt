@@ -23,8 +23,6 @@ add_executable(
     mqtt.cpp
     framebuffer.cpp
     cJSON.c
-    cloudysun.c
-    cloudysuntiny.c
 )
 
 add_subdirectory(
