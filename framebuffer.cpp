@@ -125,19 +125,23 @@ int framebuffer::stringlength(font_t *font, const char *s)
     return running_x;
 }
 
-
 void framebuffer::showimage(image_t *image, int x, int y)
+{
+    showimage(image, x, y, 255);
+}
+
+void framebuffer::showimage(image_t *image, int x, int y, uint8_t gamma)
 {
     const image_dsc_t *image_dsc = image->image_dsc;
     uint8_t *off = (uint8_t *) image_dsc->data;
 
-    for (int c = 0; c < image_dsc->width; c++) {
-        for (int r = 0; r < image_dsc->height; r++) {
-            set_pixel(c + x, r + y, (rgb_t) {
+    for (int r = 0; r < image_dsc->height; r++) {
+        for (int c = 0; c < image_dsc->width; c++) {
+            set_pixel(c + x, image_dsc->height + (y - r), (rgb_t) {
                 .red = *(off + 0),
                 .green = *(off + 1),
                 .blue = *(off + 2),
-            });
+            }, gamma);
 
             off += 4;
         }
@@ -164,5 +168,17 @@ void framebuffer::set_pixel(int x, int y, rgb_t rgb)
 {
     if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
         background_rgb[y][x] = rgb;
+    }
+}
+
+void framebuffer::set_pixel(int x, int y, rgb_t rgb, uint8_t gamma)
+{
+    rgb_t adjusted_rgb = {
+        red: (uint8_t)((uint32_t)(rgb.red * gamma) / 255),
+        green: (uint8_t)((uint32_t)(rgb.green * gamma) / 255),
+        blue: (uint8_t)((uint32_t)(rgb.blue * gamma) / 255),
+    };
+    if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
+        background_rgb[y][x] = adjusted_rgb;
     }
 }

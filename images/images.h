@@ -17,7 +17,7 @@ typedef struct {
 } image_t;
 
 
-image_t *get_image(const char *name);
+image_t *get_image(const char *name, int width, int height);
 
 #ifdef __cplusplus
 }

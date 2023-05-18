@@ -16,6 +16,7 @@ typedef struct {
 } notification_state_t;
 
 typedef enum {
+    PAGE_CURRENT_WEATHER,
     PAGE_WEATHER_FORECAST,
 } page_t;
 
@@ -38,12 +39,16 @@ class animation {
         int frames_left_on_page;
 
         int frame;
+        // When a page was started, which some pages use
+        int page_framestamp;
 
         weather_state_t weather_state;
         notification_state_t notification_state;
 
         const rgb_t black = { red: 0, green: 0, blue: 0 };
         const rgb_t white = { red: 0xff, green: 0xff, blue: 0xff };
+        const rgb_t red = { red: 0xff, green: 0, blue: 0 };
+        const rgb_t green = { red: 0, green: 0xff, blue: 0 };
         const rgb_t blue = { red: 0, green: 0, blue: 0xff };
         const rgb_t cyan = { red: 0, green: 0xff, blue: 0xff };
         const rgb_t yellow = { red: 0xff, green: 0xff, blue: 0 };
@@ -58,6 +63,7 @@ class animation {
 
         void change_page(page_t new_page);
 
+        void render_current_weather(void);
         void render_weather_forecast(void);
 
         rgb_t rgb_grey(int grey_level);

@@ -24,11 +24,13 @@ class framebuffer {
         void printstring(font_t *font, int x, int y, const char *s, rgb_t rgb);
         int stringlength(font_t *font, const char *s);
         void showimage(image_t *image, int x, int y);
+        void showimage(image_t *image, int x, int y, uint8_t gamma);
         void atomic_back_to_fore_copy(void);
         void atomic_fore_copy_out(rgb_t *out);
 
     private:
         void set_pixel(int x, int y, rgb_t rgb);
+        void set_pixel(int x, int y, rgb_t rgb, uint8_t gamma);
 
         rgb_t foreground_rgb[FB_HEIGHT][FB_WIDTH];
         rgb_t background_rgb[FB_HEIGHT][FB_WIDTH];

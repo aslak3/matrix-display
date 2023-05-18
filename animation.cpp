@@ -23,7 +23,7 @@ animation::animation(framebuffer& f) : fb(f)
     notification_state.framestamp = 0;
     notification_state.rgb = black;
 
-    change_page(PAGE_WEATHER_FORECAST);
+    change_page(PAGE_CURRENT_WEATHER);
 
     frame = 0;
 }
@@ -36,11 +36,17 @@ void animation::prepare_screen(void)
 void animation::render_page(void)
 {
     switch (page) {
+        case PAGE_CURRENT_WEATHER:
+            render_current_weather();
+            if (! frames_left_on_page) {
+                change_page(PAGE_WEATHER_FORECAST);
+            }
+            break;
+
         case PAGE_WEATHER_FORECAST:
             render_weather_forecast();
             if (! frames_left_on_page) {
-                printf("End of weather forecast\n");
-                change_page(PAGE_WEATHER_FORECAST);
+                change_page(PAGE_CURRENT_WEATHER);
             }
             break;
 
@@ -95,7 +101,14 @@ void animation::clear_notification(void)
 
 void animation::change_page(page_t new_page)
 {
+    page_framestamp = frame;
+
     switch (new_page) {
+        case PAGE_CURRENT_WEATHER:
+            page = PAGE_CURRENT_WEATHER;
+            frames_left_on_page = 500;
+            break;
+
         case PAGE_WEATHER_FORECAST:
             page = PAGE_WEATHER_FORECAST;
             frames_left_on_page = 1000;
@@ -106,9 +119,39 @@ void animation::change_page(page_t new_page)
     }
 }
 
+void animation::render_current_weather(void)
+{
+    if (! weather_state.framestamp) {
+        fb.printstring(big_font, 6, 4, "Wait...", white);
+        return;
+    }
+
+    image_t *current_weather_image = get_image(weather_state.data.condition, 28, 28);
+    if (!current_weather_image) {
+        panic("Could not load current weather condition image for %s %dx%d",
+            weather_state.data.condition);
+    }
+
+    fb.showimage(current_weather_image, 2, 2, 0x40);
+
+    char buffer[10];
+    memset(buffer, 0, sizeof(buffer));
+
+    snprintf(buffer, sizeof(buffer), "T:%dC", (int)weather_state.data.temperature);
+    fb.printstring(ibm_font, 24, 22, buffer, cyan);
+
+    snprintf(buffer, sizeof(buffer), "H:%d%%", (int)weather_state.data.humidty);
+    fb.printstring(ibm_font, 24, 12, buffer, green);
+
+    int extra_offset = (frame - page_framestamp) / 3;
+    fb.printstring(tiny_font, FB_WIDTH - extra_offset, 0,
+        "Hello there!!! TESTing", blue);
+}
+
 void animation::render_weather_forecast(void)
 {
     if (! weather_state.framestamp) {
+        fb.printstring(big_font, 6, 4, "Wait...", white);
         return;
     }
 
@@ -119,7 +162,7 @@ void animation::render_weather_forecast(void)
         fb.printstring(tiny_font, offset_x + 11 - (fb.stringlength(tiny_font, forecast.time) / 2),
             24, forecast.time, white);
 
-        image_t *current_weather_image = get_image(forecast.condition);
+        image_t *current_weather_image = get_image(forecast.condition, 16, 16);
         if (!current_weather_image) {
             panic("Could not load current weather condition image for %s",
                 forecast.condition);
