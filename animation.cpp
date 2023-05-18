@@ -22,6 +22,10 @@ animation::animation(framebuffer& f) : fb(f)
 
     notification_state.framestamp = 0;
     notification_state.rgb = black;
+
+    change_page(PAGE_WEATHER_FORECAST);
+
+    frame = 0;
 }
 
 void animation::prepare_screen(void)
@@ -29,7 +33,80 @@ void animation::prepare_screen(void)
     fb.clear(notification_state.rgb);
 }
 
-void animation::render_weather_forecast(int frame)
+void animation::render_page(void)
+{
+    switch (page) {
+        case PAGE_WEATHER_FORECAST:
+            render_weather_forecast();
+            if (! frames_left_on_page) {
+                printf("End of weather forecast\n");
+                change_page(PAGE_WEATHER_FORECAST);
+            }
+            break;
+
+        default:
+            break;
+    }
+
+    frames_left_on_page--;
+    frame++;
+}
+
+void animation::render_notification(void)
+{
+    if (! notification_state.framestamp) {
+        return;
+    }
+
+    notification_state.rgb = rgb_grey(255 - ((frame - notification_state.framestamp) * 16));
+
+    fb.filledbox(0, 8, FB_WIDTH, 16, notification_state.rgb);
+    // TODO: Line drawing
+    fb.hollowbox(0, 8, FB_WIDTH, 1, white);
+    fb.hollowbox(0, 8 + 15, FB_WIDTH, 1, white);
+    int notification_offset = (frame - notification_state.framestamp) / 3;
+    fb.printstring(medium_font, FB_WIDTH - notification_offset, 8,
+        notification_state.data.text, magenta);
+    if (notification_offset > notification_state.pixel_length + FB_WIDTH + (FB_WIDTH / 2)) {
+        clear_notification();
+    }
+}
+
+void animation::new_weather_data(weather_data_t& weather_data)
+{
+    weather_state.data = weather_data;
+    weather_state.framestamp = frame;
+}
+
+void animation::new_notification(notification_t& notification)
+{
+    notification_state.data = notification;
+    notification_state.framestamp = frame;
+    notification_state.pixel_length = fb.stringlength(medium_font, notification.text);
+    notification_state.rgb = white;
+}
+
+void animation::clear_notification(void)
+{
+    notification_state.framestamp = 0;
+}
+
+////
+
+void animation::change_page(page_t new_page)
+{
+    switch (new_page) {
+        case PAGE_WEATHER_FORECAST:
+            page = PAGE_WEATHER_FORECAST;
+            frames_left_on_page = 1000;
+            break;
+
+        default:
+            panic("Don't know how to switch page to %d\n", new_page);
+    }
+}
+
+void animation::render_weather_forecast(void)
 {
     if (! weather_state.framestamp) {
         return;
@@ -64,47 +141,6 @@ void animation::render_weather_forecast(int frame)
         offset_x += 22;
     }
 }
-
-void animation::render_notification(int frame)
-{
-    if (! notification_state.framestamp) {
-        return;
-    }
-
-    notification_state.rgb = rgb_grey(255 - ((frame - notification_state.framestamp) * 16));
-
-    fb.filledbox(0, 8, FB_WIDTH, 16, notification_state.rgb);
-    // TODO: Line drawing
-    fb.hollowbox(0, 8, FB_WIDTH, 1, white);
-    fb.hollowbox(0, 8 + 15, FB_WIDTH, 1, white);
-    int notification_offset = (frame - notification_state.framestamp) / 3;
-    fb.printstring(medium_font, FB_WIDTH - notification_offset, 8,
-        notification_state.data.text, magenta);
-    if (notification_offset > notification_state.pixel_length + FB_WIDTH + (FB_WIDTH / 2)) {
-        clear_notification();
-    }
-}
-
-void animation::new_weather_data(int frame, weather_data_t& weather_data)
-{
-    weather_state.data = weather_data;
-    weather_state.framestamp = frame;
-}
-
-void animation::new_notification(int frame, notification_t& notification)
-{
-    notification_state.data = notification;
-    notification_state.framestamp = frame;
-    notification_state.pixel_length = fb.stringlength(medium_font, notification.text);
-    notification_state.rgb = white;
-}
-
-void animation::clear_notification(void)
-{
-    notification_state.framestamp = 0;
-}
-
-////
 
 rgb_t animation::rgb_grey(int grey_level)
 {

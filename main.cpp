@@ -97,18 +97,18 @@ void animate_task(void *dummy)
 
     animation anim(fb);
 
-    for (int32_t frame = 0;; frame++)
+    while (1)
     {
         if (xQueueReceive(animate_queue, &message, 0) == pdTRUE) {
             printf("New message, type: %d\n", message.message_type);
 
             switch (message.message_type) {
                 case MESSAGE_WEATHER:
-                    anim.new_weather_data(frame, message.weather_data);
+                    anim.new_weather_data(message.weather_data);
                     break;
 
                 case MESSAGE_NOTIFICATION:
-                    anim.new_notification(frame, message.notification);
+                    anim.new_notification(message.notification);
                     printf("animate_task: New notification: %s\n", message.notification.text);
                     break;
                 
@@ -119,8 +119,9 @@ void animate_task(void *dummy)
 
         anim.prepare_screen();
 
-        anim.render_weather_forecast(frame);
-        anim.render_notification(frame);
+        anim.render_page();
+
+        anim.render_notification();
 
         fb.atomic_back_to_fore_copy();
 

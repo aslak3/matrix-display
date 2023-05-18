@@ -15,20 +15,29 @@ typedef struct {
     int pixel_length;
 } notification_state_t;
 
+typedef enum {
+    PAGE_WEATHER_FORECAST,
+} page_t;
+
 class animation {
     public:
         animation(framebuffer& f);
 
         void prepare_screen(void);
-        void render_weather_forecast(int frame);
-        void render_notification(int frame);
+        void render_page(void);
+        void render_notification(void);
 
-        void new_weather_data(int frame, weather_data_t& weather_data);
-        void new_notification(int frame, notification_t& notification);
+        void new_weather_data(weather_data_t& weather_data);
+        void new_notification(notification_t& notification);
         void clear_notification(void);
 
     private:
         framebuffer& fb;
+
+        page_t page;
+        int frames_left_on_page;
+
+        int frame;
 
         weather_state_t weather_state;
         notification_state_t notification_state;
@@ -46,6 +55,10 @@ class animation {
         font_t *small_font;
         font_t *ibm_font;
         font_t *tiny_font;
+
+        void change_page(page_t new_page);
+
+        void render_weather_forecast(void);
 
         rgb_t rgb_grey(int grey_level);
 };
