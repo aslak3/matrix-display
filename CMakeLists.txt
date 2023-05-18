@@ -22,6 +22,7 @@ add_executable(
     main.cpp
     mqtt.cpp
     framebuffer.cpp
+    animation.cpp
     cJSON.c
 )
 

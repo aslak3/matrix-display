@@ -6,6 +6,11 @@
         "array": "c",
         "string": "c",
         "string_view": "c",
-        "fonts.h": "c"
+        "fonts.h": "c",
+        "*.tcc": "cpp",
+        "deque": "cpp",
+        "unordered_map": "cpp",
+        "vector": "cpp",
+        "system_error": "cpp"
     }
 }

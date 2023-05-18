@@ -12,11 +12,10 @@
 #include <queue.h>
 #include <semphr.h>
 
-#include "framebuffer.hpp"
+// #include "framebuffer.hpp"
+#include "animation.h"
 
 #include "hub75.pio.h"
-
-#include "mqtt.h"
 
 #define DATA_BASE_PIN 2
 #define DATA_N_PINS 6
@@ -27,7 +26,6 @@
 #define OEN_PIN 15
 
 void animate_task(void *dummy);
-static rgb_t rgb_grey(int grey_level);
 void matrix_task(void *dummy);
 
 void vApplicationTickHook(void);
@@ -55,36 +53,6 @@ extern void mqtt_task(void *dummy);
  * 0b00000000 00011111 11111111 00000000
  * 0x001fff00
 */
-
-class ball {
-    public:
-        ball(int x_new, int y_new, int dx_new, int dy_new) {
-            x = x_new;
-            y = y_new;
-            dx = dx_new;
-            dy = dy_new;
-        }
-        void move(void)
-        {
-            if (x >= FB_WIDTH - 2) {
-                dx = -1;
-            }
-            if (x < 2) {
-                dx = 1;
-            }
-            if (y >= FB_HEIGHT - 2) {
-                dy = -1;
-            }
-            if (y < 2) {
-                dy = 1;
-            }
-            x += dx;
-            y += dy;
-        }
-
-        int x, y;
-        int dx, dy;
-};
 
 QueueHandle_t animate_queue;
 
@@ -124,28 +92,10 @@ void animate_task(void *dummy)
     printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
 
-    font_t *big_font = get_font("Noto", 20);
-    if (!big_font) panic("Could not find Noto/20");
-    font_t *medium_font = get_font("Noto", 16);
-    if (!medium_font) panic("Could not find Noto/16");
-    font_t *small_font = get_font("Noto", 10);
-    if (!small_font) panic("Could not find Noto/10");
-    font_t *ibm_font = get_font("IBM", 8);
-    if (!ibm_font) panic("Could not find IBM/8");
-    font_t *tiny_font = get_font("tiny", 6);
-    if (!tiny_font) panic("Could not find tiny/8");
-
     message_t message;
     memset(&message, 0, sizeof(message_t));
 
-    weather_data_t weather_data;
-    memset(&weather_data, 0, sizeof(weather_data_t));
-    notification_t notification;
-    memset(&notification, 0, sizeof(notification_t));
-
-    int32_t weather_data_framestamp = 0;
-    int32_t notification_framestamp = 0;
-    int notification_pixel_length = 0;
+    animation anim(fb);
 
     for (int32_t frame = 0;; frame++)
     {
@@ -154,15 +104,12 @@ void animate_task(void *dummy)
 
             switch (message.message_type) {
                 case MESSAGE_WEATHER:
-                    weather_data = message.weather_data;
-                    weather_data_framestamp = frame;
+                    anim.new_weather_data(frame, message.weather_data);
                     break;
 
                 case MESSAGE_NOTIFICATION:
-                    notification = message.notification;
-                    notification_framestamp = frame;
-                    notification_pixel_length = fb.stringlength(medium_font, notification.text);
-                    printf("animate_task: New notification: %s\n", notification.text);
+                    anim.new_notification(frame, message.notification);
+                    printf("animate_task: New notification: %s\n", message.notification.text);
                     break;
                 
                 default:
@@ -170,77 +117,14 @@ void animate_task(void *dummy)
             }
         }
 
-        fb.clear(black);
-        rgb_t notification_rgb = black;
+        anim.prepare_screen();
 
-        if (notification_framestamp) {
-            notification_rgb = rgb_grey(255 - ((frame - notification_framestamp) * 16));
-            fb.filledbox(0, 0, FB_WIDTH, FB_HEIGHT, notification_rgb);
-        }
-
-        if (weather_data_framestamp) {
-            int offset_x = 0;
-            for (int forecast_count = 0; forecast_count < 3; forecast_count++) {
-                forecast_t *forecast = &weather_data.forecast[forecast_count];
-                char buffer[10];
-                memset(buffer, 0, sizeof(buffer));
-
-                fb.printstring(tiny_font, offset_x + 11 - (fb.stringlength(tiny_font, forecast->time) / 2),
-                    24, forecast->time, white);
-
-                image_t *current_weather_image = get_image(forecast->condition);
-                if (!current_weather_image) {
-                    panic("Could not load current weather condition image for %s",
-                        forecast->condition);
-                }
-
-                fb.showimage(current_weather_image, offset_x + 2, 8);
-
-                if ((frame % 600) < 300) {
-                    snprintf(buffer, sizeof(buffer), "%dC", (int)forecast->temperature);
-                    fb.printstring(tiny_font, offset_x + 11 - (fb.stringlength(tiny_font, buffer) / 2), 0, buffer, white);
-                }
-                else {
-                    snprintf(buffer, sizeof(buffer), "%d%%", (int)forecast->precipitation_probability);
-                    fb.printstring(tiny_font, offset_x + 11 - (fb.stringlength(tiny_font, buffer) / 2), 0, buffer, blue);
-                }
-                offset_x += 22;
-            }
-        }
-
-        if (notification_framestamp) {
-            fb.filledbox(0, 8, FB_WIDTH, 16, notification_rgb);
-            // TODO: Line drawing
-            fb.hollowbox(0, 8, FB_WIDTH, 1, white);
-            fb.hollowbox(0, 8 + 15, FB_WIDTH, 1, white);
-            int notification_offset = (frame - notification_framestamp) / 3;
-            fb.printstring(medium_font, FB_WIDTH - notification_offset, 8, notification.text, magenta);
-            if (notification_offset > notification_pixel_length + FB_WIDTH + (FB_WIDTH / 2)) {
-                notification_framestamp = 0;
-            }
-        }
+        anim.render_weather_forecast(frame);
+        anim.render_notification(frame);
 
         fb.atomic_back_to_fore_copy();
 
         vTaskDelay(10);
-    }
-}
-
-static rgb_t rgb_grey(int grey_level)
-{
-    if (grey_level < 0) {
-        return black;
-    }
-    else if (grey_level > 255) {
-        return white;
-    }
-    else {
-        rgb_t rgb = {
-            red: (uint8_t) grey_level,
-            green: (uint8_t) grey_level,
-            blue: (uint8_t) grey_level,
-        };
-        return rgb;
     }
 }
 

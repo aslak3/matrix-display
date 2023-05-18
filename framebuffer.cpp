@@ -6,9 +6,10 @@
 #include <FreeRTOS.h>
 #include <task.h>
 
-#include "framebuffer.hpp"
+#include "framebuffer.h"
 
-framebuffer::framebuffer() {
+framebuffer::framebuffer()
+{
 }
 
 void framebuffer::clear(rgb_t rgb) {
@@ -95,6 +96,7 @@ int framebuffer::printchar(font_t *font, int x, int y, char c, rgb_t rgb, bool l
             for (int c = 0; c < width; c++) {
                 if (x + c < FB_WIDTH && x + c >= 0) {
                     if (byte & 0x80) {
+                        // Unlike 8bpp fonts, the off pixels are left alone
                         set_pixel(x + c, font->height + (y - r), rgb);
                     }
                 }
