@@ -11,29 +11,29 @@
 framebuffer::framebuffer() {
 }
 
-void framebuffer::clear(void) {
+void framebuffer::clear(rgb_t rgb) {
     for (int r = 0; r < FB_HEIGHT; r++) {
         for (int c = 0; c < FB_WIDTH; c++) {
-            background_rgb[r][c] = (rgb_t) {};
+            set_pixel(c, r, rgb);
         }
     }
 }
 
 void framebuffer::point(int x, int y, rgb_t rgb)
 {
-    background_rgb[y][x] = rgb;
+    set_pixel(x, y, rgb);
 }
 
 void framebuffer::hollowbox(int x, int y, int width, int height, rgb_t rgb)
 {
     for (int p = x; p < x + width; p++) {
-        background_rgb[y][p] = rgb;
-        background_rgb[y + height - 1][p] = rgb;
+        set_pixel(p, y, rgb);
+        set_pixel(p, y + height - 1, rgb);
     }
 
     for (int p = y; p < y + height; p++) {
-        background_rgb[p][x] = rgb;
-        background_rgb[p][x + width - 1] = rgb;
+        set_pixel(x, p, rgb);
+        set_pixel(x + width - 1, p, rgb);
     }
 }
 
@@ -41,7 +41,7 @@ void framebuffer::filledbox(int x, int y, int width, int height, rgb_t rgb)
 {
     for (int r = y; r < y + height; r++) {
         for (int c = x; c < x + width; c++) {
-            background_rgb[r][c] = rgb;
+            set_pixel(c, r, rgb);
         }
     }
 }
@@ -80,12 +80,12 @@ int framebuffer::printchar(font_t *font, int x, int y, char c, rgb_t rgb, bool l
         if (font->lv_font_glyph_dsc) {
             for (int c = 0; c < width; c++) {
                 // Ignore nearly off pixels
-                if (font->data[count] > 0x60 && x + c < FB_WIDTH && x + c >= 0) {
-                    background_rgb[font->height + (y - r)][x + c] = rgb_t {
+                if (font->data[count] > 0x60) {
+                    set_pixel(x + c, font->height + (y - r), (rgb_t) {
                         .red =   (uint8_t)((uint32_t)(font->data[count] * rgb.red) / 256),
                         .green = (uint8_t)((uint32_t)(font->data[count] * rgb.green) / 256),
                         .blue =  (uint8_t)((uint32_t)(font->data[count] * rgb.blue) / 256),
-                    };
+                    });
                 }
                 count++;
             }
@@ -95,7 +95,7 @@ int framebuffer::printchar(font_t *font, int x, int y, char c, rgb_t rgb, bool l
             for (int c = 0; c < width; c++) {
                 if (x + c < FB_WIDTH && x + c >= 0) {
                     if (byte & 0x80) {
-                        background_rgb[font->height + (y - r)][x + c] = rgb;
+                        set_pixel(x + c, font->height + (y - r), rgb);
                     }
                 }
                 byte <<= 1;
@@ -131,11 +131,11 @@ void framebuffer::showimage(image_t *image, int x, int y)
 
     for (int c = 0; c < image_dsc->width; c++) {
         for (int r = 0; r < image_dsc->height; r++) {
-            background_rgb[r + y][c + x] = rgb_t {
+            set_pixel(c + x, r + y, (rgb_t) {
                 .red = *(off + 0),
                 .green = *(off + 1),
                 .blue = *(off + 2),
-            };
+            });
 
             off += 4;
         }
@@ -154,4 +154,13 @@ void framebuffer::atomic_fore_copy_out(rgb_t *out)
     taskENTER_CRITICAL();
     memcpy(out, foreground_rgb, sizeof(rgb_t) * FB_HEIGHT * FB_WIDTH);
     taskEXIT_CRITICAL();
+}
+
+////
+
+void framebuffer::set_pixel(int x, int y, rgb_t rgb)
+{
+    if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
+        background_rgb[y][x] = rgb;
+    }
 }

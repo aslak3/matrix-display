@@ -16,7 +16,7 @@ typedef struct {
 class framebuffer {
     public:
         framebuffer(void);
-        void clear(void);
+        void clear(rgb_t rgb);
         void point(int x, int y, rgb_t rgb);
         void hollowbox(int x, int y, int width, int height, rgb_t rgb);
         void filledbox(int x, int y, int width, int height, rgb_t rgb);
@@ -28,6 +28,8 @@ class framebuffer {
         void atomic_fore_copy_out(rgb_t *out);
 
     private:
+        void set_pixel(int x, int y, rgb_t rgb);
+
         rgb_t foreground_rgb[FB_HEIGHT][FB_WIDTH];
         rgb_t background_rgb[FB_HEIGHT][FB_WIDTH];
 };

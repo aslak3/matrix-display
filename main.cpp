@@ -170,7 +170,7 @@ void animate_task(void *dummy)
             }
         }
 
-        fb.clear();
+        fb.clear(black);
         rgb_t notification_rgb = black;
 
         if (notification_framestamp) {
