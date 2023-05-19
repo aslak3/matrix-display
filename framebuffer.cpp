@@ -47,6 +47,16 @@ void framebuffer::filledbox(int x, int y, int width, int height, rgb_t rgb)
     }
 }
 
+void framebuffer::shadowbox(int x, int y, int width, int height, uint8_t gamma)
+{
+    for (int r = y; r < y + height; r++) {
+        for (int c = x; c < x + width; c++) {
+            rgb_t rgb = get_pixel(c, r);
+            set_pixel(c, r, rgb, gamma);
+        }
+    }
+}
+
 int framebuffer::printchar(font_t *font, int x, int y, char c, rgb_t rgb, bool length_only)
 {
     int index = (int)(c - ' ');
@@ -168,6 +178,16 @@ void framebuffer::set_pixel(int x, int y, rgb_t rgb)
 {
     if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
         background_rgb[y][x] = rgb;
+    }
+}
+
+rgb_t framebuffer::get_pixel(int x, int y)
+{
+    if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
+        return background_rgb[y][x];
+    }
+    else {
+        return (rgb_t) {};
     }
 }
 

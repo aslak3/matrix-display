@@ -20,6 +20,7 @@ class framebuffer {
         void point(int x, int y, rgb_t rgb);
         void hollowbox(int x, int y, int width, int height, rgb_t rgb);
         void filledbox(int x, int y, int width, int height, rgb_t rgb);
+        void shadowbox(int x, int y, int width, int height, uint8_t gamma);
         int printchar(font_t *font, int x, int y, char c, rgb_t rgb, bool length_only);
         void printstring(font_t *font, int x, int y, const char *s, rgb_t rgb);
         int stringlength(font_t *font, const char *s);
@@ -31,6 +32,7 @@ class framebuffer {
     private:
         void set_pixel(int x, int y, rgb_t rgb);
         void set_pixel(int x, int y, rgb_t rgb, uint8_t gamma);
+        rgb_t get_pixel(int x, int y);
 
         rgb_t foreground_rgb[FB_HEIGHT][FB_WIDTH];
         rgb_t background_rgb[FB_HEIGHT][FB_WIDTH];

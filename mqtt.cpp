@@ -230,6 +230,18 @@ static void handle_weather_data(char *attribute, char *data_as_chars)
                     weather_data.humidty = value;
                     weather_data.fetched_fields |= FIELD_HUMIDITY;
                 }
+                else if (strcmp(attribute, "wind_speed") == 0) {
+                    weather_data.wind_speed = value;
+                    weather_data.fetched_fields |= FIELD_WIND_SPEED;
+                }
+                else if (strcmp(attribute, "wind_bearing") == 0) {
+                    weather_data.wind_bearing = value;
+                    weather_data.fetched_fields |= FIELD_WIND_BEARING;
+                }
+                else if (strcmp(attribute, "pressure") == 0) {
+                    weather_data.pressure = value;
+                    weather_data.fetched_fields |= FIELD_PRESSURE;
+                }
             }
             else if (cJSON_IsObject(json)) {
                 printf("Object\n");
@@ -242,7 +254,7 @@ static void handle_weather_data(char *attribute, char *data_as_chars)
         }
     }
 
-    if (weather_data.fetched_fields == (FIELD_CONDITION | FIELD_TEMPERATURE | FIELD_HUMIDITY | FIELD_FORECAST)) {
+    if (weather_data.fetched_fields == FIELD_ALL) {
         message_t message = {
             message_type: MESSAGE_WEATHER,
             weather_data: weather_data,

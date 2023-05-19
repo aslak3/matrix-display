@@ -3,6 +3,8 @@
 #include "framebuffer.h"
 #include "mqtt.h"
 
+// Incoming data from MQTT
+
 typedef struct {
     weather_data_t data;
     int framestamp;
@@ -16,9 +18,18 @@ typedef struct {
 } notification_state_t;
 
 typedef enum {
+    PAGE_WAITING,
     PAGE_CURRENT_WEATHER,
     PAGE_WEATHER_FORECAST,
 } page_t;
+
+// Per page private
+
+typedef struct {
+    char message[256];
+    int message_pixel_length;
+    int message_offset;
+} current_weather_page_t;
 
 class animation {
     public:
@@ -61,10 +72,13 @@ class animation {
         font_t *ibm_font;
         font_t *tiny_font;
 
+        current_weather_page_t current_weather_page;
+
         void change_page(page_t new_page);
 
-        void render_current_weather(void);
-        void render_weather_forecast(void);
+        void render_waiting_page(void);
+        void render_current_weather_page(void);
+        void render_weather_forecast_page(void);
 
         rgb_t rgb_grey(int grey_level);
 };

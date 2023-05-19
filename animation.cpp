@@ -23,10 +23,11 @@ animation::animation(framebuffer& f) : fb(f)
     notification_state.framestamp = 0;
     notification_state.rgb = black;
 
-    change_page(PAGE_CURRENT_WEATHER);
-
     frame = 0;
+
+    change_page(PAGE_WAITING);
 }
+
 
 void animation::prepare_screen(void)
 {
@@ -36,15 +37,26 @@ void animation::prepare_screen(void)
 void animation::render_page(void)
 {
     switch (page) {
-        case PAGE_CURRENT_WEATHER:
-            render_current_weather();
-            if (! frames_left_on_page) {
-                change_page(PAGE_WEATHER_FORECAST);
+        case PAGE_WAITING:
+            render_waiting_page();
+            if (weather_state.framestamp) {
+                printf("Switching to weather\n");
+                change_page(PAGE_CURRENT_WEATHER);
             }
             break;
 
+        case PAGE_CURRENT_WEATHER:
+            render_current_weather_page();
+            if (current_weather_page.message_offset >
+                current_weather_page.message_pixel_length + FB_WIDTH + (FB_WIDTH / 2))
+            {
+                change_page(PAGE_WEATHER_FORECAST);
+            }
+            
+            break;
+
         case PAGE_WEATHER_FORECAST:
-            render_weather_forecast();
+            render_weather_forecast_page();
             if (! frames_left_on_page) {
                 change_page(PAGE_CURRENT_WEATHER);
             }
@@ -54,7 +66,9 @@ void animation::render_page(void)
             break;
     }
 
-    frames_left_on_page--;
+    if (frames_left_on_page) {
+        frames_left_on_page--;
+    }
     frame++;
 }
 
@@ -80,6 +94,7 @@ void animation::render_notification(void)
 
 void animation::new_weather_data(weather_data_t& weather_data)
 {
+    printf("Got new eather data frame %d\n", frame);
     weather_state.data = weather_data;
     weather_state.framestamp = frame;
 }
@@ -103,29 +118,40 @@ void animation::change_page(page_t new_page)
 {
     page_framestamp = frame;
 
+    page = new_page;
+
     switch (new_page) {
+        case PAGE_WAITING:
+            break;
+
         case PAGE_CURRENT_WEATHER:
-            page = PAGE_CURRENT_WEATHER;
-            frames_left_on_page = 500;
+            frames_left_on_page = 0;
+            snprintf(current_weather_page.message, sizeof(current_weather_page.message),
+                "PRESSURE: %d hPa; WIND: %d km/h FROM %d",
+                (int)weather_state.data.pressure, (int)weather_state.data.wind_speed,
+                (int)weather_state.data.wind_bearing);
+            current_weather_page.message_pixel_length = fb.stringlength(tiny_font,
+                current_weather_page.message);
+            current_weather_page.message_offset = 0;
             break;
 
         case PAGE_WEATHER_FORECAST:
-            page = PAGE_WEATHER_FORECAST;
-            frames_left_on_page = 1000;
+            frames_left_on_page = 600;
             break;
 
         default:
             panic("Don't know how to switch page to %d\n", new_page);
+            break;
     }
 }
 
-void animation::render_current_weather(void)
+void animation::render_waiting_page(void)
 {
-    if (! weather_state.framestamp) {
-        fb.printstring(big_font, 6, 4, "Wait...", white);
-        return;
-    }
+    fb.printstring(big_font, 6, 4, "Wait...", white);
+}
 
+void animation::render_current_weather_page(void)
+{
     image_t *current_weather_image = get_image(weather_state.data.condition, 28, 28);
     if (!current_weather_image) {
         panic("Could not load current weather condition image for %s %dx%d",
@@ -143,18 +169,13 @@ void animation::render_current_weather(void)
     snprintf(buffer, sizeof(buffer), "H:%d%%", (int)weather_state.data.humidty);
     fb.printstring(ibm_font, 24, 12, buffer, green);
 
-    int extra_offset = (frame - page_framestamp) / 3;
-    fb.printstring(tiny_font, FB_WIDTH - extra_offset, 0,
-        "Hello there!!! TESTing", blue);
+    current_weather_page.message_offset = (frame - page_framestamp) / 3;
+    fb.printstring(tiny_font, FB_WIDTH - current_weather_page.message_offset, 0,
+        current_weather_page.message, blue);
 }
 
-void animation::render_weather_forecast(void)
+void animation::render_weather_forecast_page(void)
 {
-    if (! weather_state.framestamp) {
-        fb.printstring(big_font, 6, 4, "Wait...", white);
-        return;
-    }
-
     int offset_x = 0;
     for (int forecast_count = 0; forecast_count < 3; forecast_count++) {
         forecast_t& forecast = weather_state.data.forecast[forecast_count];
@@ -162,27 +183,29 @@ void animation::render_weather_forecast(void)
         fb.printstring(tiny_font, offset_x + 11 - (fb.stringlength(tiny_font, forecast.time) / 2),
             24, forecast.time, white);
 
+        char buffer[10];
+        memset(buffer, 0, sizeof(buffer));
+
+        if ((frame % 600) < 300) {
+            snprintf(buffer, sizeof(buffer), "%dC", (int)forecast.temperature);
+            fb.printstring(tiny_font, offset_x + 11 - (fb.stringlength(tiny_font, buffer) / 2), 16, buffer, white);
+        }
+        else {
+            snprintf(buffer, sizeof(buffer), "%d%%", (int)forecast.precipitation_probability);
+            fb.printstring(tiny_font, offset_x + 11 - (fb.stringlength(tiny_font, buffer) / 2), 16, buffer, blue);
+        }
+
         image_t *current_weather_image = get_image(forecast.condition, 16, 16);
         if (!current_weather_image) {
             panic("Could not load current weather condition image for %s",
                 forecast.condition);
         }
 
-        fb.showimage(current_weather_image, offset_x + 2, 8);
+        fb.showimage(current_weather_image, offset_x + 2, 0);
 
-        char buffer[10];
-        memset(buffer, 0, sizeof(buffer));
-
-        if ((frame % 600) < 300) {
-            snprintf(buffer, sizeof(buffer), "%dC", (int)forecast.temperature);
-            fb.printstring(tiny_font, offset_x + 11 - (fb.stringlength(tiny_font, buffer) / 2), 0, buffer, white);
-        }
-        else {
-            snprintf(buffer, sizeof(buffer), "%d%%", (int)forecast.precipitation_probability);
-            fb.printstring(tiny_font, offset_x + 11 - (fb.stringlength(tiny_font, buffer) / 2), 0, buffer, blue);
-        }
         offset_x += 22;
     }
+    fb.shadowbox(0, 0, FB_WIDTH, 8, 0x10);
 }
 
 rgb_t animation::rgb_grey(int grey_level)
