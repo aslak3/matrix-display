@@ -11,6 +11,11 @@ typedef struct {
 } weather_state_t;
 
 typedef struct {
+    media_player_data_t data;
+    int framestamp;
+} media_player_state_t;
+
+typedef struct {
     notification_t data;
     int framestamp;
     rgb_t rgb;
@@ -21,6 +26,7 @@ typedef enum {
     PAGE_WAITING,
     PAGE_CURRENT_WEATHER,
     PAGE_WEATHER_FORECAST,
+    PAGE_MEDIA_PLAYER,
 } page_t;
 
 // Per page private
@@ -29,7 +35,9 @@ typedef struct {
     char message[256];
     int message_pixel_length;
     int message_offset;
-} current_weather_page_t;
+    int framestamp;
+    int off_countdown;
+} scroller_t;
 
 class animation {
     public:
@@ -40,6 +48,7 @@ class animation {
         void render_notification(void);
 
         void new_weather_data(weather_data_t& weather_data);
+        void new_media_player_data(media_player_data_t& media_player_data);
         void new_notification(notification_t& notification);
         void clear_notification(void);
 
@@ -54,6 +63,7 @@ class animation {
         int page_framestamp;
 
         weather_state_t weather_state;
+        media_player_state_t media_player_state;
         notification_state_t notification_state;
 
         const rgb_t black = { red: 0, green: 0, blue: 0 };
@@ -72,13 +82,16 @@ class animation {
         font_t *ibm_font;
         font_t *tiny_font;
 
-        current_weather_page_t current_weather_page;
+        scroller_t scroller;
 
         void change_page(page_t new_page);
 
         void render_waiting_page(void);
         void render_current_weather_page(void);
         void render_weather_forecast_page(void);
+        void render_media_player_page(void);
+        void update_scroller_message(void);
+        void render_scroller(void);
 
         rgb_t rgb_grey(int grey_level);
 };

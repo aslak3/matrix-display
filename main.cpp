@@ -12,7 +12,6 @@
 #include <queue.h>
 #include <semphr.h>
 
-// #include "framebuffer.hpp"
 #include "animation.h"
 
 #include "hub75.pio.h"
@@ -64,8 +63,8 @@ int main(void)
 
     animate_queue = xQueueCreate(10, sizeof(weather_data_t));
 
-    xTaskCreate(&animate_task, "Animate Task", 256, NULL, 0, NULL);
-    xTaskCreate(&matrix_task, "Matrix Task", 256, NULL, 10, NULL);
+    xTaskCreate(&animate_task, "Animate Task", 1024, NULL, 0, NULL);
+    xTaskCreate(&matrix_task, "Matrix Task", 1024, NULL, 10, NULL);
     xTaskCreate(&mqtt_task, "MQTT Task", 1024, NULL, 0, NULL);
 
     vTaskStartScheduler();
@@ -105,6 +104,10 @@ void animate_task(void *dummy)
             switch (message.message_type) {
                 case MESSAGE_WEATHER:
                     anim.new_weather_data(message.weather_data);
+                    break;
+
+                case MESSAGE_MEDIA_PLAYER:
+                    anim.new_media_player_data(message.media_player_data);
                     break;
 
                 case MESSAGE_NOTIFICATION:
