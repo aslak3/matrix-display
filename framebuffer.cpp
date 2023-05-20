@@ -91,7 +91,7 @@ int framebuffer::printchar(font_t *font, int x, int y, char c, rgb_t rgb, bool l
         if (font->lv_font_glyph_dsc) {
             for (int c = 0; c < width; c++) {
                 // Ignore nearly off pixels
-                if (font->data[count] > 0x60) {
+                if (font->data[count] > 0x80) {
                     set_pixel(x + c, font->height + (y - r), (rgb_t) {
                         .red =   (uint8_t)((uint32_t)(font->data[count] * rgb.red) / 256),
                         .green = (uint8_t)((uint32_t)(font->data[count] * rgb.green) / 256),

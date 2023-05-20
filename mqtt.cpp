@@ -15,6 +15,8 @@
 
 #include "cJSON.h"
 
+extern QueueHandle_t animate_queue;
+
 void led_task(void *dummy);
 
 static int do_mqtt_connect(mqtt_client_t *client);
@@ -120,17 +122,17 @@ static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection
     if(status == MQTT_CONNECT_ACCEPTED) {
         printf("mqtt_connection_cb: Successfully connected\n");
 
-        /* Subscribe to a topic named "topic" with QoS level 1, call mqtt_sub_request_cb with result */
+        // Subscribe to a topic named "topic" with QoS level 1, call mqtt_sub_request_cb with result
         // living_room_temperature_sensor_temperature
         err = mqtt_subscribe(client, "homeassistant/weather/openweathermap/#", 1, mqtt_sub_request_cb, arg);
-        if(err != ERR_OK) {
+        if (err != ERR_OK) {
             printf("mqtt_subscribe return: %d\n", err);
         }
 
-        // err = mqtt_subscribe(client, "homeassistant/media_player/squeezebox_boom/#", 1, mqtt_sub_request_cb, arg);
-        // if(err != ERR_OK) {
-        //     printf("mqtt_subscribe return: %d\n", err);
-        // }
+        err = mqtt_subscribe(client, "homeassistant/media_player/squeezebox_boom/#", 1, mqtt_sub_request_cb, arg);
+        if(err != ERR_OK) {
+            printf("mqtt_subscribe return: %d\n", err);
+        }
 
         err = mqtt_subscribe(client, "matrix-display/#", 1, mqtt_sub_request_cb, arg);
         if(err != ERR_OK) {
@@ -155,7 +157,7 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
     strncpy(current_topic, topic, 128);
 }
 
-extern QueueHandle_t animate_queue;
+// extern QueueHandle_t animate_queue;
 
 #define WEATHER_TOPIC "homeassistant/weather/openweathermap/"
 #define MEDIA_PLAYER_TOPIC "homeassistant/media_player/squeezebox_boom/"
@@ -286,7 +288,6 @@ static void handle_media_player_data(char *attribute, char *data_as_chars)
 
     if (strcmp(attribute, "state") == 0) {
         strncpy(media_player_data.state, data_as_chars, sizeof(media_player_data.state));
-        media_player_data.fetched_fields |= FIELD_MPD_STATE;
         send_update = true;
     }
     else {
@@ -304,20 +305,15 @@ static void handle_media_player_data(char *attribute, char *data_as_chars)
             if (strcmp(attribute, "media_title") == 0) {
                 strncpy(media_player_data.media_title, cJSON_GetStringValue(json),
                     sizeof(media_player_data.media_title));
-                media_player_data.fetched_fields |= FIELD_MPD_MEDIA_TITLE;
             }
             else if (strcmp(attribute, "media_artist") == 0) {
                 strncpy(media_player_data.media_artist, cJSON_GetStringValue(json),
                     sizeof(media_player_data.media_artist));
-                media_player_data.fetched_fields |= FIELD_MPD_MEDIA_ARTIST;
             }
             else if (strcmp(attribute, "media_album_name") == 0) {
                 strncpy(media_player_data.media_album_name,  cJSON_GetStringValue(json),
                     sizeof(media_player_data.media_album_name));
-                media_player_data.fetched_fields |= FIELD_MPD_MEDIA_ALBUM_NAME;
                 send_update = true;
-            }
-            else {
             }
         }
 

@@ -13,6 +13,8 @@ typedef struct {
 typedef struct {
     media_player_data_t data;
     int framestamp;
+    char message[512];
+    int message_pixel_length;
 } media_player_state_t;
 
 typedef struct {
@@ -30,6 +32,9 @@ typedef enum {
 } page_t;
 
 // Per page private
+
+typedef struct {
+} media_player_page_t;
 
 typedef struct {
     char message[256];
@@ -83,13 +88,14 @@ class animation {
         font_t *tiny_font;
 
         scroller_t scroller;
+        media_player_page_t media_player_page;
 
         void change_page(page_t new_page);
 
         void render_waiting_page(void);
         void render_current_weather_page(void);
         void render_weather_forecast_page(void);
-        void render_media_player_page(void);
+        bool render_media_player_page(void);
         void update_scroller_message(void);
         void render_scroller(void);
 

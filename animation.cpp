@@ -56,13 +56,20 @@ void animation::render_page(void)
         case PAGE_WEATHER_FORECAST:
             render_weather_forecast_page();
             if (! frames_left_on_page) {
-                change_page(PAGE_MEDIA_PLAYER);
+                printf("frames left is zero %s\n", media_player_state.data.state);
+                if (strcmp(media_player_state.data.state, "off") != 0) {
+                    printf("switching to media player\n");
+                    change_page(PAGE_MEDIA_PLAYER);
+                }
+                else {
+                    printf("switching to weather\n");
+                    change_page(PAGE_CURRENT_WEATHER);
+                }
             }
             break;
 
         case PAGE_MEDIA_PLAYER:
-            render_media_player_page();
-            if (! frames_left_on_page) {
+            if (render_media_player_page()) {
                 change_page(PAGE_CURRENT_WEATHER);
             }
             break;
@@ -103,14 +110,18 @@ void animation::render_notification(void)
 
 void animation::new_weather_data(weather_data_t& weather_data)
 {
-    weather_state.data = weather_data;
+        weather_state.data = weather_data;
     weather_state.framestamp = frame;
 }
 
 void animation::new_media_player_data(media_player_data_t& media_player_data)
 {
+    snprintf(media_player_state.message, sizeof(media_player_state.message),
+        "'%s' by '%s' on '%s'",
+        media_player_data.media_title, media_player_data.media_artist,
+        media_player_data.media_album_name);
+    media_player_state.message_pixel_length = fb.stringlength(medium_font, media_player_state.message);
     media_player_state.data = media_player_data;
-    media_player_state.framestamp = frame;
 }
 
 void animation::new_notification(notification_t& notification)
@@ -147,7 +158,8 @@ void animation::change_page(page_t new_page)
             break;
 
         case PAGE_MEDIA_PLAYER:
-            frames_left_on_page = 1000;
+            frames_left_on_page = 0;
+            media_player_state.framestamp = frame;
             break;
 
         default:
@@ -214,13 +226,26 @@ void animation::render_weather_forecast_page(void)
     }
 }
 
-void animation::render_media_player_page(void)
+// true = go to next page
+bool animation::render_media_player_page(void)
 {
-    if (strcmp(media_player_state.data.state, "off") != 0) {
-        fb.printstring(tiny_font, 0, 24, media_player_state.data.media_title, white);
-        fb.printstring(tiny_font, 0, 16, media_player_state.data.media_artist, white);
-        fb.printstring(tiny_font, 0, 8, media_player_state.data.media_album_name, white);
+    media_player_data_t *mpd = &media_player_state.data;
+
+    fb.printstring(ibm_font, (FB_WIDTH / 2) - (fb.stringlength(ibm_font, mpd->state) / 2),
+        21, mpd->state, blue);
+
+    if (strcmp(mpd->state, "off") != 0 ) {
+        int message_offset = (frame - media_player_state.framestamp) / 2;
+        fb.printstring(medium_font, FB_WIDTH - message_offset, 8,
+            media_player_state.message, cyan);
+
+        if (message_offset >
+            media_player_state.message_pixel_length + FB_WIDTH + (FB_WIDTH / 2))
+        {
+            return true;
+        }
     }
+    return false;
 }
 
 void animation::update_scroller_message(void)
@@ -229,13 +254,6 @@ void animation::update_scroller_message(void)
     snprintf(scroller.message, sizeof(scroller.message),
         "PRESSURE: %d hPa; WIND: %d km/h FROM %d",
         (int) wd->pressure, (int) wd->wind_speed, (int) wd->wind_bearing);
-
-    media_player_data_t *mpd = &media_player_state.data;
-    if (strcmp(mpd->state, "playing") == 0) {
-        snprintf(scroller.message, sizeof(scroller.message),
-            "%s; PLAYING: '%s' by '%s' on '%s'", scroller.message,
-            mpd->media_title, mpd->media_artist, mpd->media_album_name);
-    }
 
     scroller.message_pixel_length = fb.stringlength(tiny_font,
         scroller.message);
