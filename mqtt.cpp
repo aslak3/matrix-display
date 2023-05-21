@@ -118,25 +118,22 @@ static int do_mqtt_connect(mqtt_client_t *client)
 
 static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection_status_t status)
 {
+    const char *subscriptions[] = {
+        "homeassistant/weather/openweathermap/#",
+        "homeassistant/media_player/squeezebox_boom/#",
+        "matrix-display/#",
+        NULL,
+    };
+
     err_t err;
-    if(status == MQTT_CONNECT_ACCEPTED) {
+    if (status == MQTT_CONNECT_ACCEPTED) {
         printf("mqtt_connection_cb: Successfully connected\n");
 
-        // Subscribe to a topic named "topic" with QoS level 1, call mqtt_sub_request_cb with result
-        // living_room_temperature_sensor_temperature
-        err = mqtt_subscribe(client, "homeassistant/weather/openweathermap/#", 1, mqtt_sub_request_cb, arg);
-        if (err != ERR_OK) {
-            printf("mqtt_subscribe return: %d\n", err);
-        }
-
-        err = mqtt_subscribe(client, "homeassistant/media_player/squeezebox_boom/#", 1, mqtt_sub_request_cb, arg);
-        if(err != ERR_OK) {
-            printf("mqtt_subscribe return: %d\n", err);
-        }
-
-        err = mqtt_subscribe(client, "matrix-display/#", 1, mqtt_sub_request_cb, arg);
-        if(err != ERR_OK) {
-            printf("mqtt_subscribe return: %d\n", err);
+        for (const char **s = subscriptions; *s; s++) {
+            err = mqtt_subscribe(client, *s, 1, mqtt_sub_request_cb, arg);
+            if(err != ERR_OK) {
+                printf("mqtt_subscribe on %s return: %d\n", *s, err);
+            }
         }
     } else {
         printf("Disconnected: %d\n", status);
