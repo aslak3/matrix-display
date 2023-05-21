@@ -112,11 +112,11 @@ void animate_task(void *dummy)
 
                 case MESSAGE_NOTIFICATION:
                     anim.new_notification(message.notification);
-                    printf("animate_task: New notification: %s\n", message.notification.text);
                     break;
                 
                 default:
                     printf("Unknown message type: %d\n", message.message_type);
+                    break;
             }
         }
 

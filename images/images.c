@@ -30,6 +30,11 @@ extern const image_dsc_t snowy_28x28_dsc;
 extern const image_dsc_t sunny_28x28_dsc;
 extern const image_dsc_t windy_28x28_dsc;
 
+extern const image_dsc_t mp_off_32x32_dsc;
+extern const image_dsc_t mp_stop_32x32_dsc;
+extern const image_dsc_t mp_pause_32x32_dsc;
+extern const image_dsc_t mp_play_32x32_dsc;
+
 static image_t images[] = {
     { "clear-night", &clear_night_16x16_dsc },
     { "cloudy", &cloudy_16x16_dsc },
@@ -58,6 +63,11 @@ static image_t images[] = {
     { "snowy", &snowy_28x28_dsc },
     { "sunny", &sunny_28x28_dsc },
     { "windy", &windy_28x28_dsc },
+
+    { "mp-off", &mp_off_32x32_dsc },
+    { "mp-stop", &mp_stop_32x32_dsc },
+    { "mp-pause", &mp_pause_32x32_dsc },
+    { "mp-play", &mp_play_32x32_dsc },
 
     { "", NULL },
 };

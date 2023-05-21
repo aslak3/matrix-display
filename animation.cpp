@@ -56,13 +56,10 @@ void animation::render_page(void)
         case PAGE_WEATHER_FORECAST:
             render_weather_forecast_page();
             if (! frames_left_on_page) {
-                printf("frames left is zero %s\n", media_player_state.data.state);
                 if (strcmp(media_player_state.data.state, "off") != 0) {
-                    printf("switching to media player\n");
                     change_page(PAGE_MEDIA_PLAYER);
                 }
                 else {
-                    printf("switching to weather\n");
                     change_page(PAGE_CURRENT_WEATHER);
                 }
             }
@@ -231,8 +228,18 @@ bool animation::render_media_player_page(void)
 {
     media_player_data_t *mpd = &media_player_state.data;
 
-    fb.printstring(ibm_font, (FB_WIDTH / 2) - (fb.stringlength(ibm_font, mpd->state) / 2),
-        21, mpd->state, blue);
+    const char *state_image_name = "mp-off";
+    if (strcmp(mpd->state, "playing") == 0) {
+        state_image_name = "mp-play";
+    }
+    else if (strcmp(mpd->state, "paused") == 0) {
+        state_image_name = "mp-pause";
+    }
+    image_t *state_image = get_image(state_image_name, 32, 32);
+    if (! state_image) {
+        panic("Could not load media_player state image for %s", mpd->state);
+    }
+    fb.showimage(state_image, 16, 0, 0x40);
 
     if (strcmp(mpd->state, "off") != 0 ) {
         int message_offset = (frame - media_player_state.framestamp) / 2;
