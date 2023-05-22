@@ -27,6 +27,7 @@ static void mqtt_pub_request_cb(void *arg, err_t result);
 static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len);
 static void handle_weather_data(char *attribute, char *data_as_chars);
 static void handle_media_player_data(char *attribute, char *data_as_chars);
+static void handle_porch_sensor_data(char *data_as_chars);
 static void handle_notificaiton_data(char *data_as_chars);
 static void dump_weather_data(weather_data_t *weather_data);
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags);
@@ -121,6 +122,7 @@ static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection
     const char *subscriptions[] = {
         "homeassistant/weather/openweathermap/#",
         "homeassistant/media_player/squeezebox_boom/#",
+        "homeassistant/binary_sensor/lumi_lumi_sensor_motion_aq2_iaszone/state",
         "matrix-display/#",
         NULL,
     };
@@ -158,6 +160,7 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
 
 #define WEATHER_TOPIC "homeassistant/weather/openweathermap/"
 #define MEDIA_PLAYER_TOPIC "homeassistant/media_player/squeezebox_boom/"
+#define PORCH_SENSOR_TOPIC "homeassistant/binary_sensor/lumi_lumi_sensor_motion_aq2_iaszone/state"
 #define NOTIFICATION_TOPIC "matrix-display/notification"
 
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags)
@@ -175,6 +178,9 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         }
         else if (strncmp(current_topic, MEDIA_PLAYER_TOPIC, strlen(MEDIA_PLAYER_TOPIC)) == 0) {
             handle_media_player_data(current_topic + strlen(MEDIA_PLAYER_TOPIC), data_as_chars);
+        }
+        else if( strcmp(current_topic, PORCH_SENSOR_TOPIC) == 0) {
+            handle_porch_sensor_data(data_as_chars);
         }
         else if (strcmp(current_topic, NOTIFICATION_TOPIC) == 0) {
             handle_notificaiton_data(data_as_chars);
@@ -325,6 +331,23 @@ static void handle_media_player_data(char *attribute, char *data_as_chars)
         if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
             printf("Could not send media_player data; dropping");
         }
+    }
+}
+
+static void handle_porch_sensor_data(char *data_as_chars)
+{
+    printf("Porch update: %s\n", data_as_chars);
+
+    porch_t porch = {
+        occupied: (strcmp(data_as_chars, "on") == 0) ? true : false,
+    };
+
+    message_t message = {
+        message_type: MESSAGE_PORCH,
+        porch: porch,
+    };
+    if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+        printf("Could not send media_player data; dropping");
     }
 }
 

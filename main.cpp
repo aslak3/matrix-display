@@ -61,7 +61,7 @@ int main(void)
 
     printf("Hello, matrix here\n");
 
-    animate_queue = xQueueCreate(10, sizeof(weather_data_t));
+    animate_queue = xQueueCreate(10, sizeof(message_t));
 
     xTaskCreate(&animate_task, "Animate Task", 1024, NULL, 0, NULL);
     xTaskCreate(&matrix_task, "Matrix Task", 1024, NULL, 10, NULL);
@@ -75,14 +75,6 @@ int main(void)
 }
 
 framebuffer fb;
-
-const rgb_t black = { red: 0, green: 0, blue: 0 };
-const rgb_t white = { red: 0xff, green: 0xff, blue: 0xff };
-const rgb_t blue = { red: 0, green: 0, blue: 0xff };
-const rgb_t cyan = { red: 0, green: 0xff, blue: 0xff };
-const rgb_t yellow = { red: 0xff, green: 0xff, blue: 0 };
-const rgb_t magenta = { red: 0xff, green: 0, blue: 0xff };
-const rgb_t grey = { red: 0x08, green: 0x08, blue: 0x08 };
 
 void animate_task(void *dummy)
 {
@@ -114,6 +106,10 @@ void animate_task(void *dummy)
                     anim.new_notification(message.notification);
                     break;
                 
+                case MESSAGE_PORCH:
+                    anim.new_porch(message.porch);
+                    break;
+
                 default:
                     printf("Unknown message type: %d\n", message.message_type);
                     break;

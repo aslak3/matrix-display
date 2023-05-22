@@ -23,6 +23,8 @@ animation::animation(framebuffer& f) : fb(f)
     notification_state.framestamp = 0;
     notification_state.rgb = black;
 
+    porch_state.framestamp = 0;
+
     scroller.off_countdown = 1000;
 
     frame = 0;
@@ -87,6 +89,17 @@ void animation::render_page(void)
 
 void animation::render_notification(void)
 {
+    if (porch_state.framestamp) {
+        if (porch_state.data.occupied == true && frame & 0x40) {
+            image_t *porch_image = get_image("porch", 21, 8);
+            if (! porch_image) {
+                panic("Could not find porch image");
+            }
+
+            fb.showimage(porch_image, 0, FB_HEIGHT - 1 - 8);
+        }
+    }
+
     if (! notification_state.framestamp) {
         return;
     }
@@ -134,6 +147,12 @@ void animation::clear_notification(void)
     notification_state.framestamp = 0;
 }
 
+void animation::new_porch(porch_t& porch)
+{
+    porch_state.data = porch;
+    porch_state.framestamp = frame;
+}
+
 ////
 
 void animation::change_page(page_t new_page)
@@ -172,22 +191,19 @@ void animation::render_waiting_page(void)
 
 void animation::render_current_weather_page(void)
 {
-    image_t *current_weather_image = get_image(weather_state.data.condition, 28, 28);
+    image_t *current_weather_image = get_image(weather_state.data.condition, 32, 32);
     if (!current_weather_image) {
         panic("Could not load current weather condition image for %s %dx%d",
             weather_state.data.condition);
     }
 
-    fb.showimage(current_weather_image, 2, 2, 0x40);
+    fb.showimage(current_weather_image, 16, 0, 0x40);
 
     char buffer[10];
     memset(buffer, 0, sizeof(buffer));
 
-    snprintf(buffer, sizeof(buffer), "T:%dC", (int)weather_state.data.temperature);
-    fb.printstring(ibm_font, 24, 22, buffer, yellow);
-
-    snprintf(buffer, sizeof(buffer), "H:%d%%", (int)weather_state.data.humidty);
-    fb.printstring(ibm_font, 24, 12, buffer, green);
+    snprintf(buffer, sizeof(buffer), "%dC", (int)weather_state.data.temperature);
+    fb.printstring(ibm_font, 40, 20, buffer, yellow);
 }
 
 void animation::render_weather_forecast_page(void)
@@ -259,8 +275,9 @@ void animation::update_scroller_message(void)
 {
     weather_data_t *wd = &weather_state.data;
     snprintf(scroller.message, sizeof(scroller.message),
-        "PRESSURE: %d hPa; WIND: %d km/h FROM %d",
-        (int) wd->pressure, (int) wd->wind_speed, (int) wd->wind_bearing);
+        "HUMIDTY: %d %%; PRESSURE: %d hPa; WIND: %d km/h FROM %d",
+        (int) wd->humidty, (int) wd->pressure, (int) wd->wind_speed,
+        (int) wd->wind_bearing);
 
     scroller.message_pixel_length = fb.stringlength(tiny_font,
         scroller.message);

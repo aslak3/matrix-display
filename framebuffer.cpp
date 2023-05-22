@@ -59,6 +59,12 @@ void framebuffer::shadowbox(int x, int y, int width, int height, uint8_t gamma)
 
 int framebuffer::printchar(font_t *font, int x, int y, char c, rgb_t rgb, bool length_only)
 {
+    // Basic sanity please
+    if (c < 0x20 || c > 0x7f) {
+        printf("Bad character in framebuffer::printchar(): %02x\n", (int) c);
+        return 0;
+    }
+
     int index = (int)(c - ' ');
     int count = 0;
     int width = 0;
@@ -91,7 +97,7 @@ int framebuffer::printchar(font_t *font, int x, int y, char c, rgb_t rgb, bool l
         if (font->lv_font_glyph_dsc) {
             for (int c = 0; c < width; c++) {
                 // Ignore nearly off pixels
-                if (font->data[count] > 0x80) {
+                if (font->data[count] > 0x10) {
                     set_pixel(x + c, font->height + (y - r), (rgb_t) {
                         .red =   (uint8_t)((uint32_t)(font->data[count] * rgb.red) / 256),
                         .green = (uint8_t)((uint32_t)(font->data[count] * rgb.green) / 256),

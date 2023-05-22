@@ -16,24 +16,26 @@ extern const image_dsc_t snowy_16x16_dsc;
 extern const image_dsc_t sunny_16x16_dsc;
 extern const image_dsc_t windy_16x16_dsc;
 
-extern const image_dsc_t clear_night_28x28_dsc;
-extern const image_dsc_t cloudy_28x28_dsc;
-extern const image_dsc_t fog_28x28_dsc;
-extern const image_dsc_t hail_28x28_dsc;
-extern const image_dsc_t lightning_28x28_dsc;
-extern const image_dsc_t lightning_rainy_28x28_dsc;
-extern const image_dsc_t partlycloudy_28x28_dsc;
-extern const image_dsc_t pouring_28x28_dsc;
-extern const image_dsc_t rainy_28x28_dsc;
-extern const image_dsc_t snowy_rainy_28x28_dsc;
-extern const image_dsc_t snowy_28x28_dsc;
-extern const image_dsc_t sunny_28x28_dsc;
-extern const image_dsc_t windy_28x28_dsc;
+extern const image_dsc_t clear_night_32x32_dsc;
+extern const image_dsc_t cloudy_32x32_dsc;
+extern const image_dsc_t fog_32x32_dsc;
+extern const image_dsc_t hail_32x32_dsc;
+extern const image_dsc_t lightning_32x32_dsc;
+extern const image_dsc_t lightning_rainy_32x32_dsc;
+extern const image_dsc_t partlycloudy_32x32_dsc;
+extern const image_dsc_t pouring_32x32_dsc;
+extern const image_dsc_t rainy_32x32_dsc;
+extern const image_dsc_t snowy_rainy_32x32_dsc;
+extern const image_dsc_t snowy_32x32_dsc;
+extern const image_dsc_t sunny_32x32_dsc;
+extern const image_dsc_t windy_32x32_dsc;
 
 extern const image_dsc_t mp_off_32x32_dsc;
 extern const image_dsc_t mp_stop_32x32_dsc;
 extern const image_dsc_t mp_pause_32x32_dsc;
 extern const image_dsc_t mp_play_32x32_dsc;
+
+extern const image_dsc_t porch_21x8_dsc;
 
 static image_t images[] = {
     { "clear-night", &clear_night_16x16_dsc },
@@ -48,26 +50,28 @@ static image_t images[] = {
     { "snowy-rainy", &snowy_rainy_16x16_dsc },
     { "snowy", &snowy_16x16_dsc },
     { "sunny", &sunny_16x16_dsc },
-    { "windy", &windy_28x28_dsc },
+    { "windy", &windy_32x32_dsc },
     
-    { "clear-night", &clear_night_28x28_dsc },
-    { "cloudy", &cloudy_28x28_dsc },
-    { "fog", &fog_28x28_dsc },
-    { "hail", &hail_28x28_dsc },
-    { "lightning", &lightning_28x28_dsc },
-    { "lightning-rainy", &lightning_rainy_28x28_dsc },
-    { "partlycloudy", &partlycloudy_28x28_dsc },
-    { "pouring", &pouring_28x28_dsc },
-    { "rainy", &rainy_28x28_dsc },
-    { "snowy-rainy", &snowy_rainy_28x28_dsc },
-    { "snowy", &snowy_28x28_dsc },
-    { "sunny", &sunny_28x28_dsc },
-    { "windy", &windy_28x28_dsc },
+    { "clear-night", &clear_night_32x32_dsc },
+    { "cloudy", &cloudy_32x32_dsc },
+    { "fog", &fog_32x32_dsc },
+    { "hail", &hail_32x32_dsc },
+    { "lightning", &lightning_32x32_dsc },
+    { "lightning-rainy", &lightning_rainy_32x32_dsc },
+    { "partlycloudy", &partlycloudy_32x32_dsc },
+    { "pouring", &pouring_32x32_dsc },
+    { "rainy", &rainy_32x32_dsc },
+    { "snowy-rainy", &snowy_rainy_32x32_dsc },
+    { "snowy", &snowy_32x32_dsc },
+    { "sunny", &sunny_32x32_dsc },
+    { "windy", &windy_32x32_dsc },
 
     { "mp-off", &mp_off_32x32_dsc },
     { "mp-stop", &mp_stop_32x32_dsc },
     { "mp-pause", &mp_pause_32x32_dsc },
     { "mp-play", &mp_play_32x32_dsc },
+
+    { "porch", &porch_21x8_dsc },
 
     { "", NULL },
 };

@@ -24,17 +24,17 @@ typedef struct {
     int pixel_length;
 } notification_state_t;
 
+typedef struct {
+    porch_t data;
+    int framestamp;
+} porch_state_t;
+
 typedef enum {
     PAGE_WAITING,
     PAGE_CURRENT_WEATHER,
     PAGE_WEATHER_FORECAST,
     PAGE_MEDIA_PLAYER,
 } page_t;
-
-// Per page private
-
-typedef struct {
-} media_player_page_t;
 
 typedef struct {
     char message[256];
@@ -56,6 +56,7 @@ class animation {
         void new_media_player_data(media_player_data_t& media_player_data);
         void new_notification(notification_t& notification);
         void clear_notification(void);
+        void new_porch(porch_t& porch);
 
     private:
         framebuffer& fb;
@@ -70,6 +71,7 @@ class animation {
         weather_state_t weather_state;
         media_player_state_t media_player_state;
         notification_state_t notification_state;
+        porch_state_t porch_state;
 
         const rgb_t black = { red: 0, green: 0, blue: 0 };
         const rgb_t white = { red: 0xff, green: 0xff, blue: 0xff };
@@ -88,7 +90,6 @@ class animation {
         font_t *tiny_font;
 
         scroller_t scroller;
-        media_player_page_t media_player_page;
 
         void change_page(page_t new_page);
 

@@ -98,7 +98,7 @@ func output_bmp_as_c(filename string, output_shortname string) {
 
 	fmt.Printf("const image_dsc_t %s_dsc = {\n", output_longname)
 	fmt.Printf("\twidth: %d,\n", bounds.Dx())
-	fmt.Printf("\theight: %d,\n", bounds.Dx())
+	fmt.Printf("\theight: %d,\n", bounds.Dy())
 	fmt.Printf("\tdata: %s,\n", output_longname)
 	fmt.Printf("};\n")
 	fmt.Printf("\n")
@@ -109,7 +109,7 @@ func main() {
 
 	if len(args) < 1 {
 		fmt.Fprintf(os.Stderr, "Usage: weather-icons <filename> <size>\n")
-		fmt.Fprintf(os.Stderr, "\tsize: AxB!, for an image A by B pixels\n")
+		fmt.Fprintf(os.Stderr, "\tsize: AxB, for an image A by B pixels\n")
 		fmt.Fprintf(os.Stderr, "Or: one-image <filename> <output shortname>\n")
 		os.Exit(1)
 	}
@@ -163,7 +163,7 @@ func main() {
 		}
 	} else if args[0] == "one-image" {
 		if len(args) < 3 {
-			fmt.Fprintf(os.Stderr, "Filename and/or output_shortname not specified")
+			fmt.Fprintf(os.Stderr, "Filename and/or output_shortname not specified\n")
 			os.Exit(1)
 		}
 		input_filename := args[1]
