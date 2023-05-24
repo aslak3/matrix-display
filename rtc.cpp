@@ -9,11 +9,15 @@
 #include <task.h>
 #include <queue.h>
 
+#include "messages.h"
+
 #define PICO_I2C_SDA_PIN 16
 #define PICO_I2C_SCL_PIN 17
 
 static void setup_rtc(void);
 static void get_rtc_time(uint8_t *buffer, size_t length);
+
+extern QueueHandle_t animate_queue;
 
 void rtc_task(void *dummy)
 {
@@ -22,17 +26,19 @@ void rtc_task(void *dummy)
     printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
 
+    static message_t message = {
+        message_type: MESSAGE_RTC,
+    };
+
     setup_rtc();
 
     while (1) {
-        uint8_t buffer[7];
+        get_rtc_time(message.rtc.buffer, 7);
 
-        get_rtc_time(buffer, 7);
-
-        printf("RTC TIME: %02x:%02x:%02x\n",
-            buffer[2] & 0x3f,
-            buffer[1] & 0x7f,
-            buffer[0] & 0x7f);
+        printf("Sending time\n");
+        if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+            printf("Could not send weather data; dropping");
+        }
         
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }

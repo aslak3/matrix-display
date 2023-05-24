@@ -57,11 +57,16 @@ typedef struct {
     bool occupied;
 } porch_t;
 
+typedef struct {
+    uint8_t buffer[7];
+} rtc_t;
+
 #define MESSAGE_NULL 0
 #define MESSAGE_WEATHER 1
 #define MESSAGE_MEDIA_PLAYER 2
 #define MESSAGE_NOTIFICATION 3
 #define MESSAGE_PORCH 4
+#define MESSAGE_RTC 10
 
 typedef struct {
     uint8_t message_type;
@@ -70,5 +75,6 @@ typedef struct {
         media_player_data_t media_player_data;
         notification_t notification;
         porch_t porch;
+        rtc_t rtc;
     };    
 } message_t;

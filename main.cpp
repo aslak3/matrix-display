@@ -112,6 +112,10 @@ void animate_task(void *dummy)
                     anim.new_porch(&message.porch);
                     break;
 
+                case MESSAGE_RTC:
+                    anim.new_rtc(&message.rtc);
+                    break;
+
                 default:
                     printf("Unknown message type: %d\n", message.message_type);
                     break;

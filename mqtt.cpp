@@ -11,7 +11,7 @@
 
 #include "lwip/apps/mqtt.h"
 
-#include "mqtt.h"
+#include "messages.h"
 
 #include "cJSON.h"
 

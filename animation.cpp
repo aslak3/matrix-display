@@ -43,7 +43,14 @@ void animation::render_page(void)
     switch (page) {
         case PAGE_WAITING:
             render_waiting_page();
-            if (weather_state.framestamp) {
+            if (rtc_state.framestamp) {
+                change_page(PAGE_RTC);
+            }
+            break;
+
+        case PAGE_RTC:
+            render_rtc_page();
+            if (! frames_left_on_page && weather_state.framestamp) {
                 change_page(PAGE_CURRENT_WEATHER);
             }
             break;
@@ -58,18 +65,20 @@ void animation::render_page(void)
         case PAGE_WEATHER_FORECAST:
             render_weather_forecast_page();
             if (! frames_left_on_page) {
-                if (strcmp(media_player_state.data.state, "off") != 0) {
+                if ((strcmp(media_player_state.data.state, "playing") == 0) ||
+                    (strcmp(media_player_state.data.state, "paused") == 0))
+                {
                     change_page(PAGE_MEDIA_PLAYER);
                 }
                 else {
-                    change_page(PAGE_CURRENT_WEATHER);
+                    change_page(PAGE_RTC);
                 }
             }
             break;
 
         case PAGE_MEDIA_PLAYER:
             if (render_media_player_page()) {
-                change_page(PAGE_CURRENT_WEATHER);
+                change_page(PAGE_RTC);
             }
             break;
 
@@ -160,6 +169,13 @@ void animation::new_porch(porch_t *porch)
     porch_state.framestamp = frame;
 }
 
+void animation::new_rtc(rtc_t *rtc)
+{
+    // printf("new_rtc()\n");
+    rtc_state.data = *rtc;
+    rtc_state.framestamp = frame;
+}
+
 ////
 
 void animation::change_page(page_t new_page)
@@ -171,6 +187,10 @@ void animation::change_page(page_t new_page)
 
     switch (new_page) {
         case PAGE_WAITING:
+            break;
+
+        case PAGE_RTC:
+            frames_left_on_page = 1000;
             break;
 
         case PAGE_CURRENT_WEATHER:
@@ -195,6 +215,41 @@ void animation::change_page(page_t new_page)
 void animation::render_waiting_page(void)
 {
     fb.printstring(big_font, 6, 4, "Wait...", white);
+}
+
+void animation::render_rtc_page(void)
+{
+    const char *month_names[] = {
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    };
+    const char *day_names[] = {
+        "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
+    };
+
+    uint8_t *buffer = rtc_state.data.buffer;
+    char time[10];
+    snprintf(time, sizeof(time), "%02x:%02x:%02x",
+        buffer[2] & 0x3f,
+        buffer[1] & 0x7f,
+        buffer[0] & 0x7f
+    );
+    fb.printstring(ibm_font, 0, FB_HEIGHT - 8 - 1, time, yellow);
+
+    char date[20];
+
+    if (buffer[4] <= 6 && (buffer[5] & 0x1f) <= 11) {
+        snprintf(date, sizeof(date), "%s %02x-%s-%02x",
+            day_names[buffer[4]],
+            buffer[3],
+            month_names[buffer[5] & 0x1f],
+            buffer[6]
+        );
+    }
+    else {
+        strncpy(date, "XXXX", sizeof(date));
+    }
+    fb.printstring(tiny_font, (FB_WIDTH / 2) - (fb.stringlength(tiny_font, date) / 2),
+        FB_HEIGHT - 8 - 10, date, white);
 }
 
 void animation::render_current_weather_page(void)

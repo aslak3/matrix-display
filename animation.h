@@ -1,7 +1,7 @@
 #include "pico/stdlib.h"
 
 #include "framebuffer.h"
-#include "mqtt.h"
+#include "messages.h"
 
 // Incoming data from MQTT
 
@@ -29,8 +29,14 @@ typedef struct {
     int framestamp;
 } porch_state_t;
 
+typedef struct {
+    rtc_t data;
+    int framestamp;
+} rtc_state_t;
+
 typedef enum {
     PAGE_WAITING,
+    PAGE_RTC,
     PAGE_CURRENT_WEATHER,
     PAGE_WEATHER_FORECAST,
     PAGE_MEDIA_PLAYER,
@@ -57,6 +63,7 @@ class animation {
         void new_notification(notification_t *notification);
         void clear_notification(void);
         void new_porch(porch_t *porch);
+        void new_rtc(rtc_t *rtc);
 
     private:
         framebuffer& fb;
@@ -72,6 +79,7 @@ class animation {
         media_player_state_t media_player_state;
         notification_state_t notification_state;
         porch_state_t porch_state;
+        rtc_state_t rtc_state;
 
         const rgb_t black = { red: 0, green: 0, blue: 0 };
         const rgb_t white = { red: 0xff, green: 0xff, blue: 0xff };
@@ -94,6 +102,7 @@ class animation {
         void change_page(page_t new_page);
 
         void render_waiting_page(void);
+        void render_rtc_page(void);
         void render_current_weather_page(void);
         void render_weather_forecast_page(void);
         bool render_media_player_page(void);
