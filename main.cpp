@@ -26,6 +26,7 @@
 
 void animate_task(void *dummy);
 void matrix_task(void *dummy);
+void rtc_task(void *dummy);
 
 void vApplicationTickHook(void);
 
@@ -63,9 +64,10 @@ int main(void)
 
     animate_queue = xQueueCreate(10, sizeof(message_t));
 
-    xTaskCreate(&animate_task, "Animate Task", 1024, NULL, 0, NULL);
+    xTaskCreate(&animate_task, "Animate Task", 4096, NULL, 0, NULL);
     xTaskCreate(&matrix_task, "Matrix Task", 1024, NULL, 10, NULL);
-    xTaskCreate(&mqtt_task, "MQTT Task", 1024, NULL, 0, NULL);
+    xTaskCreate(&mqtt_task, "MQTT Task", 4096, NULL, 0, NULL);
+    xTaskCreate(&rtc_task, "RTC Task", 4096, NULL, 0, NULL);
 
     vTaskStartScheduler();
 
@@ -90,24 +92,24 @@ void animate_task(void *dummy)
 
     while (1)
     {
-        if (xQueueReceive(animate_queue, &message, 0) == pdTRUE) {
+        if (xQueueReceive(animate_queue, &message, 10) == pdTRUE) {
             printf("New message, type: %d\n", message.message_type);
 
             switch (message.message_type) {
                 case MESSAGE_WEATHER:
-                    anim.new_weather_data(message.weather_data);
+                    anim.new_weather_data(&message.weather_data);
                     break;
 
                 case MESSAGE_MEDIA_PLAYER:
-                    anim.new_media_player_data(message.media_player_data);
+                    anim.new_media_player_data(&message.media_player_data);
                     break;
 
                 case MESSAGE_NOTIFICATION:
-                    anim.new_notification(message.notification);
+                    anim.new_notification(&message.notification);
                     break;
                 
                 case MESSAGE_PORCH:
-                    anim.new_porch(message.porch);
+                    anim.new_porch(&message.porch);
                     break;
 
                 default:
@@ -124,7 +126,7 @@ void animate_task(void *dummy)
 
         fb.atomic_back_to_fore_copy();
 
-        vTaskDelay(10);
+        vTaskDelay(5);
     }
 }
 
@@ -152,7 +154,7 @@ void matrix_task(void *dummy)
         for (int rowsel = 0; rowsel < 16; ++rowsel) {
             for (int bit = 0; bit < 8; ++bit) {
                 hub75_data_rgb888_set_shift(pio, sm_data, data_prog_offs, bit);
-                for (int x = FB_WIDTH; x >= 0; x--) {
+                for (int x = FB_WIDTH - 1; x >= 0; x--) {
                     pio_sm_put_blocking(pio, sm_data, fb_uint32[rowsel][x]);
                     pio_sm_put_blocking(pio, sm_data, fb_uint32[rowsel + 16][x]);
                 }

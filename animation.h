@@ -52,11 +52,11 @@ class animation {
         void render_page(void);
         void render_notification(void);
 
-        void new_weather_data(weather_data_t& weather_data);
-        void new_media_player_data(media_player_data_t& media_player_data);
-        void new_notification(notification_t& notification);
+        void new_weather_data(weather_data_t *weather_data);
+        void new_media_player_data(media_player_data_t *media_player_data);
+        void new_notification(notification_t *notification);
         void clear_notification(void);
-        void new_porch(porch_t& porch);
+        void new_porch(porch_t *porch);
 
     private:
         framebuffer& fb;

@@ -21,9 +21,11 @@ add_executable(
     ${PROJECT}
     main.cpp
     mqtt.cpp
+    rtc.cpp
     framebuffer.cpp
     animation.cpp
     cJSON.c
+
 )
 
 add_subdirectory(

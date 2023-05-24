@@ -118,38 +118,45 @@ void animation::render_notification(void)
     }
 }
 
-void animation::new_weather_data(weather_data_t& weather_data)
+void animation::new_weather_data(weather_data_t *weather_data)
 {
-        weather_state.data = weather_data;
+    // printf("new_weather_data()\n");
+    weather_state.data = *weather_data;
     weather_state.framestamp = frame;
+    // printf("End of new_weather_data()\n");
 }
 
-void animation::new_media_player_data(media_player_data_t& media_player_data)
+void animation::new_media_player_data(media_player_data_t *media_player_data)
 {
+    // printf("new_media_player_data()\n");
     snprintf(media_player_state.message, sizeof(media_player_state.message),
         "'%s' by '%s' on '%s'",
-        media_player_data.media_title, media_player_data.media_artist,
-        media_player_data.media_album_name);
+        media_player_data->media_title, media_player_data->media_artist,
+        media_player_data->media_album_name);
     media_player_state.message_pixel_length = fb.stringlength(medium_font, media_player_state.message);
-    media_player_state.data = media_player_data;
+    media_player_state.data = *media_player_data;
+    // printf("End of new_media_player_data()\n");
 }
 
-void animation::new_notification(notification_t& notification)
+void animation::new_notification(notification_t *notification)
 {
-    notification_state.data = notification;
+    // printf("new_notification()\n");
+    notification_state.data = *notification;
     notification_state.framestamp = frame;
-    notification_state.pixel_length = fb.stringlength(medium_font, notification.text);
+    notification_state.pixel_length = fb.stringlength(medium_font, notification->text);
     notification_state.rgb = white;
 }
 
 void animation::clear_notification(void)
 {
+    // printf("clear_notification()\n");
     notification_state.framestamp = 0;
 }
 
-void animation::new_porch(porch_t& porch)
+void animation::new_porch(porch_t *porch)
 {
-    porch_state.data = porch;
+    // printf("new_porch()\n");
+    porch_state.data = *porch;
     porch_state.framestamp = frame;
 }
 
@@ -157,6 +164,7 @@ void animation::new_porch(porch_t& porch)
 
 void animation::change_page(page_t new_page)
 {
+    // printf("changing to new page %d\n");
     page_framestamp = frame;
 
     page = new_page;
@@ -258,7 +266,7 @@ bool animation::render_media_player_page(void)
     fb.showimage(state_image, 16, 0, 0x40);
 
     if (strcmp(mpd->state, "off") != 0 ) {
-        int message_offset = (frame - media_player_state.framestamp) / 2;
+        int message_offset = frame - media_player_state.framestamp;
         fb.printstring(medium_font, FB_WIDTH - message_offset, 8,
             media_player_state.message, cyan);
 
@@ -297,7 +305,7 @@ void animation::render_scroller(void)
     else {
         fb.shadowbox(0, 0, FB_WIDTH, 8, 0x10);
 
-        scroller.message_offset = (frame - scroller.framestamp) / 3;
+        scroller.message_offset = (frame - scroller.framestamp) / 2;
         fb.printstring(tiny_font, FB_WIDTH - scroller.message_offset, 0,
             scroller.message, blue);
 

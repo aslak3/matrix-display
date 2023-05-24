@@ -19,8 +19,8 @@ extern QueueHandle_t animate_queue;
 
 void led_task(void *dummy);
 
+static void connect_wifi(void);
 static int do_mqtt_connect(mqtt_client_t *client);
-
 static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection_status_t status);
 static void mqtt_sub_request_cb(void *arg, err_t result);
 static void mqtt_pub_request_cb(void *arg, err_t result);
@@ -54,6 +54,8 @@ void mqtt_task(void *dummy)
     printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
 
+    xTaskCreate(&led_task, "LED Task", 256, NULL, 0, NULL);
+
     while (1) {
         if (cyw43_arch_init_with_country(CYW43_COUNTRY_UK)) {
             printf("failed to initialise\n");
@@ -70,8 +72,6 @@ void mqtt_task(void *dummy)
             break;
         }
     }
-
-    xTaskCreate(&led_task, "LED Task", 256, NULL, 0, NULL);
 
     vTaskDelay(1000);
 
@@ -92,6 +92,10 @@ void mqtt_task(void *dummy)
     }
 }
 
+static void connect_wifi(void)
+{
+}
+
 static int do_mqtt_connect(mqtt_client_t *client)
 {
     struct mqtt_connect_client_info_t ci;
@@ -110,7 +114,7 @@ static int do_mqtt_connect(mqtt_client_t *client)
     cyw43_arch_lwip_begin();
 
     int err = mqtt_client_connect(client, &broker_addr, MQTT_PORT,
-            mqtt_connection_cb, 0, &ci);
+        mqtt_connection_cb, 0, &ci);
 
     cyw43_arch_lwip_end();
 
@@ -140,6 +144,7 @@ static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection
     } else {
         printf("Disconnected: %d\n", status);
         vTaskDelay(1000);
+        printf("Reconnecting MQTT\n");
         do_mqtt_connect(client);
     }
 }
@@ -153,7 +158,7 @@ char current_topic[128];
 
 static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len)
 {
-    strncpy(current_topic, topic, 128);
+    strncpy(current_topic, topic, sizeof(current_topic) - 1);
 }
 
 // extern QueueHandle_t animate_queue;
@@ -165,12 +170,17 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
 
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags)
 {
+    // printf("Start of mqtt_incoming_data_cb(flags: %d)\n", flags);
     static char data_as_chars[16384];
     static char *p = data_as_chars;
 
     memcpy(p, data, len);
     p += len;
     *p = '\0';
+
+    if (p - data_as_chars > 16384 - 1500) {
+        panic("mqtt_incoming_data_cb(): data is too long");
+    }
 
     if (flags & MQTT_DATA_FLAG_LAST) {
         if (strncmp(current_topic, WEATHER_TOPIC, strlen(WEATHER_TOPIC)) == 0) {
@@ -191,10 +201,15 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         memset(data_as_chars, 0, sizeof(data_as_chars));
         p = data_as_chars;
     }
+    // printf("Done incoming_data_cb()\n");
 }
+
+static message_t message;
 
 static void handle_weather_data(char *attribute, char *data_as_chars)
 {
+    // printf("start of handle_weather_data()\n");
+
     static weather_data_t weather_data;
 
     if (strcmp(attribute, "state") == 0) {
@@ -209,6 +224,10 @@ static void handle_weather_data(char *attribute, char *data_as_chars)
             if (error_ptr != NULL) {
                 fprintf(stderr, "Error before: %s\n", error_ptr);
             }
+            else {
+                fprintf(stderr, "Unknown JSON parse error\n");
+            }
+            return;
         }
         else {
             if (cJSON_IsArray(json)) {
@@ -271,21 +290,36 @@ static void handle_weather_data(char *attribute, char *data_as_chars)
     }
 
     if (weather_data.fetched_fields == FIELD_WD_ALL) {
-        message_t message = {
+        message = {
             message_type: MESSAGE_WEATHER,
             weather_data: weather_data,
         };
+        // printf("Sending weather_data\n");
         if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
             printf("Could not send weather data; dropping");
         }
 
         memset(&weather_data, 0, sizeof(weather_data_t));
     }
+
+    // printf("end of handle_weather_data()\n");
 }
 
 static void handle_media_player_data(char *attribute, char *data_as_chars)
 {
+    // printf("start of handle_media_player_data()\n");
+
     static media_player_data_t media_player_data;
+
+    if (!(
+        (strcmp(attribute, "state") == 0) ||
+        (strcmp(attribute, "media_title") == 0) ||
+        (strcmp(attribute, "media_artist") == 0) ||
+        (strcmp(attribute, "media_album_name") == 0)
+    )) {
+        // printf("Nothing to do\n");
+        return;
+    }
 
     bool send_update = false;
 
@@ -294,6 +328,7 @@ static void handle_media_player_data(char *attribute, char *data_as_chars)
         send_update = true;
     }
     else {
+        // printf("attribute: %s, value: %s\n", attribute, data_as_chars);
         cJSON *json = cJSON_Parse(data_as_chars);
 
         if (json == NULL) {
@@ -301,6 +336,10 @@ static void handle_media_player_data(char *attribute, char *data_as_chars)
             if (error_ptr != NULL) {
                 fprintf(stderr, "Error before: %s\n", error_ptr);
             }
+            else {
+                fprintf(stderr, "Unknown JSON parse error\n");
+            }
+            return;
         }
 
         if (cJSON_IsString(json)) {
@@ -324,36 +363,44 @@ static void handle_media_player_data(char *attribute, char *data_as_chars)
     }
 
     if (send_update)  {
-        message_t message = {
+        message = {
             message_type: MESSAGE_MEDIA_PLAYER,
             media_player_data: media_player_data,
         };
+        // printf("Sending media_player data\n");
         if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
             printf("Could not send media_player data; dropping");
         }
     }
+
+    // printf("end of handle_media_player_data()\n");
 }
 
 static void handle_porch_sensor_data(char *data_as_chars)
 {
-    printf("Porch update: %s\n", data_as_chars);
+    // printf("start of handle_porch_sensor_data()");
+
+    // printf("Porch update: %s\n", data_as_chars);
 
     porch_t porch = {
         occupied: (strcmp(data_as_chars, "on") == 0) ? true : false,
     };
 
-    message_t message = {
+    message = {
         message_type: MESSAGE_PORCH,
         porch: porch,
     };
+    // printf("Sending porch data\n");
     if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
         printf("Could not send media_player data; dropping");
     }
+
+    // printf("end of handle_porch_sensor_data()");
 }
 
 static void handle_notificaiton_data(char *data_as_chars)
 {
-    message_t message = {
+    message = {
         message_type: MESSAGE_NOTIFICATION,
     };
 
