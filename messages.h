@@ -57,8 +57,10 @@ typedef struct {
     bool occupied;
 } porch_t;
 
+#define RTC_DATETIME_LEN 7
+
 typedef struct {
-    uint8_t buffer[7];
+    uint8_t buffer[RTC_DATETIME_LEN];
 } rtc_t;
 
 #define MESSAGE_NULL 0

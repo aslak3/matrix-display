@@ -119,7 +119,7 @@ void animation::render_notification(void)
     // TODO: Line drawing
     fb.hollowbox(0, 8, FB_WIDTH, 1, white);
     fb.hollowbox(0, 8 + 15, FB_WIDTH, 1, white);
-    int notification_offset = (frame - notification_state.framestamp) / 3;
+    int notification_offset = (frame - notification_state.framestamp) / 2;
     fb.printstring(medium_font, FB_WIDTH - notification_offset, 8,
         notification_state.data.text, magenta);
     if (notification_offset > notification_state.pixel_length + FB_WIDTH + (FB_WIDTH / 2)) {
@@ -227,29 +227,38 @@ void animation::render_rtc_page(void)
     };
 
     uint8_t *buffer = rtc_state.data.buffer;
+
+    // Month field is crazy!! Flatten out the 4th bit of the BCD horrror.
+    if (buffer[5] == 0x10) {
+        buffer[5] = 0x09;
+    } else if (buffer[5] == 0x11) {
+        buffer[5] = 0x0a;
+    } else if (buffer[5] == 0x12) {
+        buffer[5] = 0x0b;
+    }
+
     char time[10];
     snprintf(time, sizeof(time), "%02x:%02x:%02x",
         buffer[2] & 0x3f,
         buffer[1] & 0x7f,
         buffer[0] & 0x7f
     );
-    fb.printstring(ibm_font, 0, FB_HEIGHT - 8 - 1, time, yellow);
+    fb.printstring(ibm_font, 0, FB_HEIGHT - 8 - 1 - 6, time, orange);
 
     char date[20];
 
-    if (buffer[4] <= 6 && (buffer[5] & 0x1f) <= 11) {
-        snprintf(date, sizeof(date), "%s %02x-%s-%02x",
+    if (buffer[4] <= 6 && (buffer[5] & 0x0f) <= 11) {
+        snprintf(date, sizeof(date), "%s %02x-%s",
             day_names[buffer[4]],
             buffer[3],
-            month_names[buffer[5] & 0x1f],
-            buffer[6]
+            month_names[buffer[5] & 0x0f]
         );
     }
     else {
         strncpy(date, "XXXX", sizeof(date));
     }
     fb.printstring(tiny_font, (FB_WIDTH / 2) - (fb.stringlength(tiny_font, date) / 2),
-        FB_HEIGHT - 8 - 10, date, white);
+        FB_HEIGHT - 8 - 10 - 6, date, white);
 }
 
 void animation::render_current_weather_page(void)

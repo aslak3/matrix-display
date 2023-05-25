@@ -153,11 +153,14 @@ void framebuffer::showimage(image_t *image, int x, int y, uint8_t gamma)
 
     for (int r = 0; r < image_dsc->height; r++) {
         for (int c = 0; c < image_dsc->width; c++) {
-            set_pixel(c + x, image_dsc->height + (y - r), (rgb_t) {
-                .red = *(off + 0),
-                .green = *(off + 1),
-                .blue = *(off + 2),
-            }, gamma);
+            rgb_t rgb = {
+                red: *(off + 0),
+                green: *(off + 1),
+                blue: *(off + 2),
+            };
+            if (rgb.red || rgb.green || rgb.blue) {
+                set_pixel(c + x, image_dsc->height + (y - r), rgb, gamma);
+            }
 
             off += 4;
         }

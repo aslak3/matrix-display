@@ -55,6 +55,7 @@ extern void mqtt_task(void *dummy);
 */
 
 QueueHandle_t animate_queue;
+QueueHandle_t rtc_queue;
 
 int main(void)
 {
@@ -63,6 +64,7 @@ int main(void)
     printf("Hello, matrix here\n");
 
     animate_queue = xQueueCreate(10, sizeof(message_t));
+    rtc_queue = xQueueCreate(10, sizeof(rtc_t));
 
     xTaskCreate(&animate_task, "Animate Task", 4096, NULL, 0, NULL);
     xTaskCreate(&matrix_task, "Matrix Task", 1024, NULL, 10, NULL);

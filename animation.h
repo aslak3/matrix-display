@@ -90,6 +90,7 @@ class animation {
         const rgb_t yellow = { red: 0xff, green: 0xff, blue: 0 };
         const rgb_t magenta = { red: 0xff, green: 0, blue: 0xff };
         const rgb_t grey = { red: 0x08, green: 0x08, blue: 0x08 };
+        const rgb_t orange { red: 0xff, green: 0xa5, blue: 0 };
 
         font_t *big_font;
         font_t *medium_font;

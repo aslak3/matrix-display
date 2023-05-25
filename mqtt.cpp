@@ -16,6 +16,7 @@
 #include "cJSON.h"
 
 extern QueueHandle_t animate_queue;
+extern QueueHandle_t rtc_queue;
 
 void led_task(void *dummy);
 
@@ -29,8 +30,13 @@ static void handle_weather_data(char *attribute, char *data_as_chars);
 static void handle_media_player_data(char *attribute, char *data_as_chars);
 static void handle_porch_sensor_data(char *data_as_chars);
 static void handle_notificaiton_data(char *data_as_chars);
+static void handle_set_rtc_time_data(char *data_as_chars);
 static void dump_weather_data(weather_data_t *weather_data);
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags);
+
+static uint8_t bcd_digit_to_byte(char c);
+static char *bcd_two_digits_to_byte(char *in, uint8_t *out);
+static void bcd_string_to_bytes(char *in, uint8_t *buffer, uint8_t len);
 
 void led_task(void *dummy)
 {
@@ -167,6 +173,7 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
 #define MEDIA_PLAYER_TOPIC "homeassistant/media_player/squeezebox_boom/"
 #define PORCH_SENSOR_TOPIC "homeassistant/binary_sensor/lumi_lumi_sensor_motion_aq2_iaszone/state"
 #define NOTIFICATION_TOPIC "matrix-display/notification"
+#define SET_RTC_TIME_TOPIC "matrix-display/set_rtc_time"
 
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags)
 {
@@ -194,6 +201,9 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         }
         else if (strcmp(current_topic, NOTIFICATION_TOPIC) == 0) {
             handle_notificaiton_data(data_as_chars);
+        }
+        else if (strcmp(current_topic, SET_RTC_TIME_TOPIC) == 0) {
+            handle_set_rtc_time_data(data_as_chars);
         }
         else {
             printf("Unknown topic %s\n", current_topic);
@@ -410,7 +420,20 @@ static void handle_notificaiton_data(char *data_as_chars)
         printf("Could not send weather data; dropping");
     }
 }
-    
+
+static void handle_set_rtc_time_data(char *data_as_chars)
+{
+    printf("handle_set_rtc_time_data()\n");
+
+    rtc_t rtc;
+
+    bcd_string_to_bytes(data_as_chars, rtc.buffer, RTC_DATETIME_LEN);
+
+    if (xQueueSend(rtc_queue, &rtc, 10) != pdTRUE) {
+        printf("Could not send rtc data; dropping");
+    }
+}
+
 static void dump_weather_data(weather_data_t *weather_data)
 {
     printf("--------------\n");
@@ -428,4 +451,59 @@ static void dump_weather_data(weather_data_t *weather_data)
 static void mqtt_pub_request_cb(void *arg, err_t result)
 {
     printf("Publish result: %d\n", result);
+}
+
+static uint8_t bcd_digit_to_byte(char c)
+{
+    if (c >= '0' && c <= '9') {
+        return c - '0';
+    } else if (c >= 'a' && c <= 'f') {
+        return c - 'a';
+    }
+    return 0;
+}
+
+static char *bcd_two_digits_to_byte(char *in, uint8_t *out)
+{
+    char *c = in;
+    uint8_t result = 0;
+
+    if (*c) {
+        result |= bcd_digit_to_byte(*c);
+        c++;
+        if (*c) {
+            result <<= 4;
+            result |= bcd_digit_to_byte(*c);
+            c++;
+        }
+        else {
+            return NULL;
+        }
+    }
+    else {
+        return NULL;
+    }
+
+    *out = result;
+
+    return c;
+}
+
+static void bcd_string_to_bytes(char *in, uint8_t *buffer, uint8_t len)
+{
+    uint8_t one_byte = 0;
+    uint8_t *out = buffer;
+
+    char *c = in;
+    while (*c) {
+        c = bcd_two_digits_to_byte(c, &one_byte);
+        if (!c) {
+            break;
+        }
+        if (out - buffer > len) {
+            break;
+        }
+        *out = one_byte;
+        out++;
+    }
 }
