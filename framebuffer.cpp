@@ -10,6 +10,7 @@
 
 framebuffer::framebuffer()
 {
+    brightness = 128;
 }
 
 void framebuffer::clear(rgb_t rgb) {
@@ -25,7 +26,7 @@ void framebuffer::point(int x, int y, rgb_t rgb)
     set_pixel(x, y, rgb);
 }
 
-void framebuffer::hollowbox(int x, int y, int width, int height, rgb_t rgb)
+void framebuffer::hollow_box(int x, int y, int width, int height, rgb_t rgb)
 {
     for (int p = x; p < x + width; p++) {
         set_pixel(p, y, rgb);
@@ -38,7 +39,7 @@ void framebuffer::hollowbox(int x, int y, int width, int height, rgb_t rgb)
     }
 }
 
-void framebuffer::filledbox(int x, int y, int width, int height, rgb_t rgb)
+void framebuffer::filled_box(int x, int y, int width, int height, rgb_t rgb)
 {
     for (int r = y; r < y + height; r++) {
         for (int c = x; c < x + width; c++) {
@@ -47,7 +48,7 @@ void framebuffer::filledbox(int x, int y, int width, int height, rgb_t rgb)
     }
 }
 
-void framebuffer::shadowbox(int x, int y, int width, int height, uint8_t gamma)
+void framebuffer::shadow_box(int x, int y, int width, int height, uint8_t gamma)
 {
     for (int r = y; r < y + height; r++) {
         for (int c = x; c < x + width; c++) {
@@ -57,7 +58,7 @@ void framebuffer::shadowbox(int x, int y, int width, int height, uint8_t gamma)
     }
 }
 
-int framebuffer::printchar(font_t *font, int x, int y, char c, rgb_t rgb, bool length_only)
+int framebuffer::print_char(font_t *font, int x, int y, char c, rgb_t rgb, bool length_only)
 {
     // Basic sanity please
     if (c < 0x20 || c > 0x7f) {
@@ -124,29 +125,29 @@ int framebuffer::printchar(font_t *font, int x, int y, char c, rgb_t rgb, bool l
     return width_allocation;
 }
 
-void framebuffer::printstring(font_t *font, int x, int y, const char *s, rgb_t rgb)
+void framebuffer::print_string(font_t *font, int x, int y, const char *s, rgb_t rgb)
 {
     int running_x = x;
     for (; *s; s++) {
-        running_x += printchar(font, running_x, y, *s, rgb, false);
+        running_x += print_char(font, running_x, y, *s, rgb, false);
     }
 }
 
-int framebuffer::stringlength(font_t *font, const char *s)
+int framebuffer::string_length(font_t *font, const char *s)
 {
     int running_x = 0;
     for (; *s; s++) {
-        running_x += printchar(font, running_x, 0, *s, (rgb_t) {}, true);
+        running_x += print_char(font, running_x, 0, *s, (rgb_t) {}, true);
     }
     return running_x;
 }
 
-void framebuffer::showimage(image_t *image, int x, int y)
+void framebuffer::show_image(image_t *image, int x, int y)
 {
-    showimage(image, x, y, 255);
+    show_image(image, x, y, 255);
 }
 
-void framebuffer::showimage(image_t *image, int x, int y, uint8_t gamma)
+void framebuffer::show_image(image_t *image, int x, int y, uint8_t gamma)
 {
     const image_dsc_t *image_dsc = image->image_dsc;
     uint8_t *off = (uint8_t *) image_dsc->data;
@@ -167,17 +168,36 @@ void framebuffer::showimage(image_t *image, int x, int y, uint8_t gamma)
     }
 }
 
+void framebuffer::set_brightness(uint8_t b)
+{
+    brightness = b;
+}
+
 void framebuffer::atomic_back_to_fore_copy(void)
 {
     taskENTER_CRITICAL();
-    memcpy(foreground_rgb, background_rgb, sizeof(rgb_t) * FB_HEIGHT * FB_WIDTH);
+    memcpy(&foreground, &background, sizeof(fb_t));
     taskEXIT_CRITICAL();
 }
 
-void framebuffer::atomic_fore_copy_out(rgb_t *out)
+void framebuffer::atomic_fore_copy_out(fb_t *out)
 {
     taskENTER_CRITICAL();
-    memcpy(out, foreground_rgb, sizeof(rgb_t) * FB_HEIGHT * FB_WIDTH);
+    if (brightness == 255) {
+        memcpy(out, foreground.rgb, sizeof(fb_t));
+    }
+    else {
+        for (int c = 0; c < FB_WIDTH; c++) {
+            for (int r = 0; r < FB_HEIGHT; r++) {
+                rgb_t rgb = foreground.rgb[r][c];
+                out->rgb[r][c] = {
+                    red: (uint8_t)((uint32_t)(rgb.red * brightness) / 255),
+                    green: (uint8_t)((uint32_t)(rgb.green * brightness) / 255),
+                    blue: (uint8_t)((uint32_t)(rgb.blue * brightness) / 255),
+                };
+            }
+        }
+    }
     taskEXIT_CRITICAL();
 }
 
@@ -186,14 +206,14 @@ void framebuffer::atomic_fore_copy_out(rgb_t *out)
 void framebuffer::set_pixel(int x, int y, rgb_t rgb)
 {
     if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
-        background_rgb[y][x] = rgb;
+        background.rgb[y][x] = rgb;
     }
 }
 
 rgb_t framebuffer::get_pixel(int x, int y)
 {
     if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
-        return background_rgb[y][x];
+        return background.rgb[y][x];
     }
     else {
         return (rgb_t) {};
@@ -208,6 +228,6 @@ void framebuffer::set_pixel(int x, int y, rgb_t rgb, uint8_t gamma)
         blue: (uint8_t)((uint32_t)(rgb.blue * gamma) / 255),
     };
     if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
-        background_rgb[y][x] = adjusted_rgb;
+        background.rgb[y][x] = adjusted_rgb;
     }
 }

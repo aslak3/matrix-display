@@ -69,6 +69,7 @@ typedef struct {
 #define MESSAGE_NOTIFICATION 3
 #define MESSAGE_PORCH 4
 #define MESSAGE_RTC 10
+#define MESSAGE_BRIGHTNESS 11
 
 typedef struct {
     uint8_t message_type;
@@ -78,5 +79,6 @@ typedef struct {
         notification_t notification;
         porch_t porch;
         rtc_t rtc;
+        uint8_t brightness;
     };    
 } message_t;

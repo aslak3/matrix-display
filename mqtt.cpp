@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <FreeRTOS.h>
 #include <task.h>
@@ -30,6 +31,7 @@ static void handle_weather_data(char *attribute, char *data_as_chars);
 static void handle_media_player_data(char *attribute, char *data_as_chars);
 static void handle_porch_sensor_data(char *data_as_chars);
 static void handle_notificaiton_data(char *data_as_chars);
+static void handle_set_brightness_data(char *data_as_chars);
 static void handle_set_rtc_time_data(char *data_as_chars);
 static void dump_weather_data(weather_data_t *weather_data);
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags);
@@ -96,10 +98,6 @@ void mqtt_task(void *dummy)
     while (1) {
        vTaskDelay(1000);
     }
-}
-
-static void connect_wifi(void)
-{
 }
 
 static int do_mqtt_connect(mqtt_client_t *client)
@@ -174,6 +172,7 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
 #define PORCH_SENSOR_TOPIC "homeassistant/binary_sensor/lumi_lumi_sensor_motion_aq2_iaszone/state"
 #define NOTIFICATION_TOPIC "matrix-display/notification"
 #define SET_RTC_TIME_TOPIC "matrix-display/set_rtc_time"
+#define SET_BRIGHTNESS_TOPIC "matrix-display/brightness"
 
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags)
 {
@@ -201,6 +200,9 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         }
         else if (strcmp(current_topic, NOTIFICATION_TOPIC) == 0) {
             handle_notificaiton_data(data_as_chars);
+        }
+        else if (strcmp(current_topic, SET_BRIGHTNESS_TOPIC) == 0) {
+            handle_set_brightness_data(data_as_chars);
         }
         else if (strcmp(current_topic, SET_RTC_TIME_TOPIC) == 0) {
             handle_set_rtc_time_data(data_as_chars);
@@ -418,6 +420,18 @@ static void handle_notificaiton_data(char *data_as_chars)
 
     if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
         printf("Could not send weather data; dropping");
+    }
+}
+
+static void handle_set_brightness_data(char *data_as_chars)
+{
+    message = {
+        message_type: MESSAGE_BRIGHTNESS,
+        brightness: (uint8_t) atol(data_as_chars),
+    };
+
+    if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+        printf("Could not send brightness data; dropping");
     }
 }
 

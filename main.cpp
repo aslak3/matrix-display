@@ -118,6 +118,9 @@ void animate_task(void *dummy)
                     anim.new_rtc(&message.rtc);
                     break;
 
+                case MESSAGE_BRIGHTNESS:
+                    fb.set_brightness(message.brightness);
+
                 default:
                     printf("Unknown message type: %d\n", message.message_type);
                     break;
@@ -152,17 +155,17 @@ void matrix_task(void *dummy)
     hub75_data_rgb888_program_init(pio, sm_data, data_prog_offs, DATA_BASE_PIN, CLK_PIN);
     hub75_row_program_init(pio, sm_row, row_prog_offs, ROWSEL_BASE_PIN, ROWSEL_N_PINS, STROBE_PIN);
 
-    static uint32_t fb_uint32[FB_HEIGHT][FB_WIDTH];
+    static fb_t output_fb;
 
     while (1) {
-        fb.atomic_fore_copy_out((rgb_t *) fb_uint32);
+        fb.atomic_fore_copy_out(&output_fb);
 
         for (int rowsel = 0; rowsel < 16; ++rowsel) {
             for (int bit = 0; bit < 8; ++bit) {
                 hub75_data_rgb888_set_shift(pio, sm_data, data_prog_offs, bit);
                 for (int x = FB_WIDTH - 1; x >= 0; x--) {
-                    pio_sm_put_blocking(pio, sm_data, fb_uint32[rowsel][x]);
-                    pio_sm_put_blocking(pio, sm_data, fb_uint32[rowsel + 16][x]);
+                    pio_sm_put_blocking(pio, sm_data, output_fb.uint32[rowsel][x]);
+                    pio_sm_put_blocking(pio, sm_data, output_fb.uint32[rowsel + 16][x]);
                 }
                 // Dummy pixel per lane
                 pio_sm_put_blocking(pio, sm_data, 0);

@@ -105,7 +105,7 @@ void animation::render_notification(void)
                 panic("Could not find porch image");
             }
 
-            fb.showimage(porch_image, 0, FB_HEIGHT - 1 - 8);
+            fb.show_image(porch_image, 0, FB_HEIGHT - 1 - 8);
         }
     }
 
@@ -115,12 +115,12 @@ void animation::render_notification(void)
 
     notification_state.rgb = rgb_grey(255 - ((frame - notification_state.framestamp) * 16));
 
-    fb.filledbox(0, 8, FB_WIDTH, 16, notification_state.rgb);
+    fb.filled_box(0, 8, FB_WIDTH, 16, notification_state.rgb);
     // TODO: Line drawing
-    fb.hollowbox(0, 8, FB_WIDTH, 1, white);
-    fb.hollowbox(0, 8 + 15, FB_WIDTH, 1, white);
+    fb.hollow_box(0, 8, FB_WIDTH, 1, white);
+    fb.hollow_box(0, 8 + 15, FB_WIDTH, 1, white);
     int notification_offset = (frame - notification_state.framestamp) / 2;
-    fb.printstring(medium_font, FB_WIDTH - notification_offset, 8,
+    fb.print_string(medium_font, FB_WIDTH - notification_offset, 8,
         notification_state.data.text, magenta);
     if (notification_offset > notification_state.pixel_length + FB_WIDTH + (FB_WIDTH / 2)) {
         clear_notification();
@@ -142,7 +142,7 @@ void animation::new_media_player_data(media_player_data_t *media_player_data)
         "'%s' by '%s' on '%s'",
         media_player_data->media_title, media_player_data->media_artist,
         media_player_data->media_album_name);
-    media_player_state.message_pixel_length = fb.stringlength(medium_font, media_player_state.message);
+    media_player_state.message_pixel_length = fb.string_length(medium_font, media_player_state.message);
     media_player_state.data = *media_player_data;
     // printf("End of new_media_player_data()\n");
 }
@@ -152,7 +152,7 @@ void animation::new_notification(notification_t *notification)
     // printf("new_notification()\n");
     notification_state.data = *notification;
     notification_state.framestamp = frame;
-    notification_state.pixel_length = fb.stringlength(medium_font, notification->text);
+    notification_state.pixel_length = fb.string_length(medium_font, notification->text);
     notification_state.rgb = white;
 }
 
@@ -194,7 +194,7 @@ void animation::change_page(page_t new_page)
             break;
 
         case PAGE_CURRENT_WEATHER:
-            frames_left_on_page = 1000;
+            frames_left_on_page = 500;
             break;
 
         case PAGE_WEATHER_FORECAST:
@@ -214,7 +214,7 @@ void animation::change_page(page_t new_page)
 
 void animation::render_waiting_page(void)
 {
-    fb.printstring(big_font, 6, 4, "Wait...", white);
+    fb.print_string(big_font, 6, 4, "Wait...", white);
 }
 
 void animation::render_rtc_page(void)
@@ -243,12 +243,12 @@ void animation::render_rtc_page(void)
         buffer[1] & 0x7f,
         buffer[0] & 0x7f
     );
-    fb.printstring(ibm_font, 0, FB_HEIGHT - 8 - 1 - 6, time, orange);
+    fb.print_string(ibm_font, 0, FB_HEIGHT - 8 - 1 - 6, time, orange);
 
     char date[20];
 
     if (buffer[4] <= 6 && (buffer[5] & 0x0f) <= 11) {
-        snprintf(date, sizeof(date), "%s %02x-%s",
+        snprintf(date, sizeof(date), "%s %02x %s",
             day_names[buffer[4]],
             buffer[3],
             month_names[buffer[5] & 0x0f]
@@ -257,7 +257,7 @@ void animation::render_rtc_page(void)
     else {
         strncpy(date, "XXXX", sizeof(date));
     }
-    fb.printstring(tiny_font, (FB_WIDTH / 2) - (fb.stringlength(tiny_font, date) / 2),
+    fb.print_string(tiny_font, (FB_WIDTH / 2) - (fb.string_length(tiny_font, date) / 2),
         FB_HEIGHT - 8 - 10 - 6, date, white);
 }
 
@@ -269,13 +269,13 @@ void animation::render_current_weather_page(void)
             weather_state.data.condition);
     }
 
-    fb.showimage(current_weather_image, 16, 0, 0x40);
+    fb.show_image(current_weather_image, 4, 0);
 
     char buffer[10];
     memset(buffer, 0, sizeof(buffer));
 
     snprintf(buffer, sizeof(buffer), "%dC", (int)weather_state.data.temperature);
-    fb.printstring(ibm_font, 40, 20, buffer, yellow);
+    fb.print_string(ibm_font, 40, 20, buffer, yellow);
 }
 
 void animation::render_weather_forecast_page(void)
@@ -284,7 +284,7 @@ void animation::render_weather_forecast_page(void)
     for (int forecast_count = 0; forecast_count < 3; forecast_count++) {
         forecast_t& forecast = weather_state.data.forecast[forecast_count];
 
-        fb.printstring(tiny_font, offset_x + 11 - (fb.stringlength(tiny_font, forecast.time) / 2),
+        fb.print_string(tiny_font, offset_x + 11 - (fb.string_length(tiny_font, forecast.time) / 2),
             24, forecast.time, white);
 
         char buffer[10];
@@ -292,11 +292,11 @@ void animation::render_weather_forecast_page(void)
 
         if ((frame % 600) < 300) {
             snprintf(buffer, sizeof(buffer), "%dC", (int)forecast.temperature);
-            fb.printstring(tiny_font, offset_x + 11 - (fb.stringlength(tiny_font, buffer) / 2), 16, buffer, yellow);
+            fb.print_string(tiny_font, offset_x + 11 - (fb.string_length(tiny_font, buffer) / 2), 16, buffer, yellow);
         }
         else {
             snprintf(buffer, sizeof(buffer), "%d%%", (int)forecast.precipitation_probability);
-            fb.printstring(tiny_font, offset_x + 11 - (fb.stringlength(tiny_font, buffer) / 2), 16, buffer, blue);
+            fb.print_string(tiny_font, offset_x + 11 - (fb.string_length(tiny_font, buffer) / 2), 16, buffer, blue);
         }
 
         image_t *current_weather_image = get_image(forecast.condition, 16, 16);
@@ -305,7 +305,7 @@ void animation::render_weather_forecast_page(void)
                 forecast.condition);
         }
 
-        fb.showimage(current_weather_image, offset_x + 2, 0);
+        fb.show_image(current_weather_image, offset_x + 2, 0);
 
         offset_x += 22;
     }
@@ -327,11 +327,11 @@ bool animation::render_media_player_page(void)
     if (! state_image) {
         panic("Could not load media_player state image for %s", mpd->state);
     }
-    fb.showimage(state_image, 16, 0, 0x40);
+    fb.show_image(state_image, 16, 0, 0x40);
 
     if (strcmp(mpd->state, "off") != 0 ) {
         int message_offset = frame - media_player_state.framestamp;
-        fb.printstring(medium_font, FB_WIDTH - message_offset, 8,
+        fb.print_string(medium_font, FB_WIDTH - message_offset, 8,
             media_player_state.message, cyan);
 
         if (message_offset >
@@ -351,7 +351,7 @@ void animation::update_scroller_message(void)
         (int) wd->humidty, (int) wd->pressure, (int) wd->wind_speed,
         (int) wd->wind_bearing);
 
-    scroller.message_pixel_length = fb.stringlength(tiny_font,
+    scroller.message_pixel_length = fb.string_length(tiny_font,
         scroller.message);
     scroller.message_offset = 0;
     scroller.framestamp = frame;
@@ -367,10 +367,10 @@ void animation::render_scroller(void)
         }
     }
     else {
-        fb.shadowbox(0, 0, FB_WIDTH, 8, 0x10);
+        fb.shadow_box(0, 0, FB_WIDTH, 8, 0x10);
 
         scroller.message_offset = (frame - scroller.framestamp) / 2;
-        fb.printstring(tiny_font, FB_WIDTH - scroller.message_offset, 0,
+        fb.print_string(tiny_font, FB_WIDTH - scroller.message_offset, 0,
             scroller.message, blue);
 
         if (scroller.message_offset >
