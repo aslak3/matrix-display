@@ -36,26 +36,33 @@ void rtc_task(void *dummy)
 
     setup_rtc();
 
+    rtc_t old_rtc = {};
+
     while (1) {
-        get_rtc_time(message.rtc.buffer);
         ticks_on_get_rtc_time = xTaskGetTickCount();
+        get_rtc_time(message.rtc.buffer);
 
-        rtc_t rtc;
+        // See if we are at the top of the next second
+        if (memcmp(&message.rtc, &old_rtc, sizeof(rtc_t)) != 0) {
+            if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+                printf("Could not send clock data; dropping");
+            }
+        }
 
-        if (xQueueReceive(rtc_queue, &rtc, 1000 / portTICK_PERIOD_MS) == pdTRUE) {
+        old_rtc = message.rtc;
+
+        rtc_t set_rtc = {};
+
+        if (xQueueReceive(rtc_queue, &set_rtc, 0) == pdTRUE) {
             printf("Clock set\n");
-            set_rtc_time(rtc.buffer);
+            set_rtc_time(set_rtc.buffer);
         }
 
-        if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
-            printf("Could not send clock data; dropping");
-        }
-
-        // Calculate one second later since we got the time at the top of of the loop
-        int one_second_delay = (((1000 / portTICK_PERIOD_MS) + ticks_on_get_rtc_time)) - xTaskGetTickCount();
+        // Calculate a tenth of a second later since we got the time at the top of of the loop
+        int tenth_second_delay = (((100 / portTICK_PERIOD_MS) + ticks_on_get_rtc_time)) - xTaskGetTickCount();
         
-        if (one_second_delay > 0) {
-            vTaskDelay(one_second_delay);
+        if (tenth_second_delay > 0) {
+            vTaskDelay(tenth_second_delay);
         }
     }
 }
