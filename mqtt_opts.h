@@ -68,7 +68,7 @@ extern "C" {
  * Maximum number of pending subscribe, unsubscribe and publish requests to server .
  */
 #ifndef MQTT_REQ_MAX_IN_FLIGHT
-#define MQTT_REQ_MAX_IN_FLIGHT 4
+#define MQTT_REQ_MAX_IN_FLIGHT 6
 #endif
 
 /**

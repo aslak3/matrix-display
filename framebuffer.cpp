@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "pico/stdlib.h"
+#include <pico/stdlib.h>
 
 #include <FreeRTOS.h>
 #include <task.h>
@@ -61,7 +61,7 @@ void framebuffer::shadow_box(int x, int y, int width, int height, uint8_t gamma)
 int framebuffer::print_char(font_t *font, int x, int y, char c, rgb_t rgb, bool length_only)
 {
     // Basic sanity please
-    if (c < 0x20 || c > 0x7f) {
+    if (!(c >= 0x20 && c <= 0x7f)) {
         // printf("Bad character in framebuffer::printchar(): %02x\n", (int) c);
         return 0;
     }
@@ -140,6 +140,50 @@ int framebuffer::string_length(font_t *font, const char *s)
         running_x += print_char(font, running_x, 0, *s, (rgb_t) {}, true);
     }
     return running_x;
+}
+
+int framebuffer::print_wrapped_string(font_t *font, int y, const char *s, rgb_t rgb)
+{
+    int running_x = 0;
+    int running_y = y;
+    int word_length = 0;
+    const char *word_length_s = s;
+    int space_width = print_char(font, 0, 0, ' ', (rgb_t) {}, true);
+
+    while (*s) {
+        word_length = 0;
+        for (; *word_length_s && *word_length_s != ' '; word_length_s++) {
+            word_length += print_char(font, running_x, 0, *word_length_s, (rgb_t) {}, true);
+        }
+        // Skip over spaces
+        while (*word_length_s && *word_length_s == ' ') {
+            word_length_s++;
+        }
+
+        // See if this word doens't fit
+        if (word_length + running_x >= FB_WIDTH) {
+            running_y -= font->height + 1;
+            running_x = 0;
+        }
+
+        // Print the word in the calculated location
+        for (; *s && *s != ' '; s++) {
+            running_x += print_char(font, running_x, running_y, *s, rgb, false);
+        }
+        // Skip over spaces
+        while (s && *s == ' ') {
+            s++;
+        }
+
+        // Add the room for a space char which we never printed
+        if (running_x + space_width < FB_WIDTH) {
+            running_x += space_width;
+        }
+    }
+
+    running_y -= font->height + 1;
+
+    return running_y;
 }
 
 void framebuffer::show_image(image_t *image, int x, int y)

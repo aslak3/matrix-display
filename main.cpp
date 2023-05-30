@@ -1,11 +1,10 @@
 #include <stdio.h>
 #include <math.h>
 
-#include "pico/stdlib.h"
-#include "hardware/gpio.h"
-#include "pico/cyw43_arch.h"
-
-#include "hardware/pio.h"
+#include <pico/stdlib.h>
+#include <hardware/gpio.h>
+#include <hardware/pio.h>
+#include <pico/cyw43_arch.h>
 
 #include <FreeRTOS.h>
 #include <task.h>
@@ -104,6 +103,10 @@ void animate_task(void *dummy)
 
                 case MESSAGE_MEDIA_PLAYER:
                     anim.new_media_player_data(&message.media_player_data);
+                    break;
+
+                case MESSAGE_CALENDAR:
+                    anim.new_calendar_data(&message.calendar_data);
                     break;
 
                 case MESSAGE_NOTIFICATION:

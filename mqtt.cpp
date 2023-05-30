@@ -5,12 +5,11 @@
 #include <task.h>
 #include <queue.h>
 
-#include "pico/stdlib.h"
-#include "pico/cyw43_arch.h"
+#include <pico/stdlib.h>
+#include <pico/cyw43_arch.h>
 
 #include "mqtt_opts.h"
-
-#include "lwip/apps/mqtt.h"
+#include <lwip/apps/mqtt.h>
 
 #include "messages.h"
 
@@ -23,12 +22,14 @@ void led_task(void *dummy);
 
 static void connect_wifi(void);
 static int do_mqtt_connect(mqtt_client_t *client);
+static void do_mqtt_subscribe(mqtt_client_t *client);
 static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection_status_t status);
 static void mqtt_sub_request_cb(void *arg, err_t result);
 static void mqtt_pub_request_cb(void *arg, err_t result);
 static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len);
 static void handle_weather_data(char *attribute, char *data_as_chars);
 static void handle_media_player_data(char *attribute, char *data_as_chars);
+static void handle_calendar_data(char *attribute, char *data_as_chars);
 static void handle_porch_sensor_data(char *data_as_chars);
 static void handle_notificaiton_data(char *data_as_chars);
 static void handle_set_brightness_data(char *data_as_chars);
@@ -125,7 +126,7 @@ static int do_mqtt_connect(mqtt_client_t *client)
     return err;
 }
 
-static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection_status_t status)
+static void do_mqtt_subscribe(mqtt_client_t *client)
 {
     const char *subscriptions[] = {
         "homeassistant/weather/openweathermap/#",
@@ -135,17 +136,39 @@ static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection
         NULL,
     };
 
-    err_t err;
-    if (status == MQTT_CONNECT_ACCEPTED) {
-        printf("mqtt_connection_cb: Successfully connected\n");
+    void *arg = NULL;
+    int err;
 
-        for (const char **s = subscriptions; *s; s++) {
-            err = mqtt_subscribe(client, *s, 1, mqtt_sub_request_cb, arg);
-            if(err != ERR_OK) {
-                printf("mqtt_subscribe on %s return: %d\n", *s, err);
-            }
+    for (const char **s = subscriptions; *s; s++) {
+        err = mqtt_subscribe(client, *s, 1, mqtt_sub_request_cb, arg);
+        if(err != ERR_OK) {
+            printf("mqtt_subscribe on %s return: %d\n", *s, err);
         }
-    } else {
+        vTaskDelay(10);
+    }
+
+    const char *sub_topics[] = { "start", "summary", NULL };
+    for (int a = 0; a < NO_APPOINTMENTS; a++) {
+        for (const char **st = sub_topics; **st; st++) {
+            char subscription[64];
+
+            snprintf(subscription, sizeof(subscription), "homeassistant/sensor/ical_our_house_event_%d/%s", a, *st);
+            err = mqtt_subscribe(client, subscription, 1, mqtt_sub_request_cb, arg);
+            if (err != ERR_OK) {
+                printf("mqtt_subscribe on %s return: %d\n", subscription, err);
+            }
+            vTaskDelay(10);
+        }
+    }
+}
+
+static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection_status_t status)
+{
+    if (status == MQTT_CONNECT_ACCEPTED) {
+        printf("Connected\n");
+        do_mqtt_subscribe(client);
+    }
+    else {
         printf("Disconnected: %d\n", status);
         vTaskDelay(1000);
         printf("Reconnecting MQTT\n");
@@ -169,6 +192,7 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
 
 #define WEATHER_TOPIC "homeassistant/weather/openweathermap/"
 #define MEDIA_PLAYER_TOPIC "homeassistant/media_player/squeezebox_boom/"
+#define CALENDAR_TOPIC "homeassistant/sensor/ical_our_house_event_"
 #define PORCH_SENSOR_TOPIC "homeassistant/binary_sensor/lumi_lumi_sensor_motion_aq2_iaszone/state"
 #define NOTIFICATION_TOPIC "matrix-display/notification"
 #define SET_RTC_TIME_TOPIC "matrix-display/set_rtc_time"
@@ -194,6 +218,9 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         }
         else if (strncmp(current_topic, MEDIA_PLAYER_TOPIC, strlen(MEDIA_PLAYER_TOPIC)) == 0) {
             handle_media_player_data(current_topic + strlen(MEDIA_PLAYER_TOPIC), data_as_chars);
+        }
+        else if (strncmp(current_topic, CALENDAR_TOPIC, strlen(CALENDAR_TOPIC)) == 0) {
+            handle_calendar_data(current_topic + strlen(CALENDAR_TOPIC), data_as_chars);
         }
         else if( strcmp(current_topic, PORCH_SENSOR_TOPIC) == 0) {
             handle_porch_sensor_data(data_as_chars);
@@ -386,6 +413,66 @@ static void handle_media_player_data(char *attribute, char *data_as_chars)
     }
 
     // printf("end of handle_media_player_data()\n");
+}
+
+static void handle_calendar_data(char *attribute, char *data_as_chars)
+{
+    static calendar_data_t calendar_data;
+
+    attribute[1] = '\0';
+
+    int appointment_index = atol(attribute);
+
+    if (!(appointment_index >= 0 && appointment_index <= NO_APPOINTMENTS)) {
+        panic("Can only deal with %d appointments, got %d\n", NO_APPOINTMENTS, appointment_index);
+    }
+
+    cJSON *json = cJSON_Parse(data_as_chars);
+
+    if (json == NULL) {
+        const char *error_ptr = cJSON_GetErrorPtr();
+        if (error_ptr != NULL) {
+            fprintf(stderr, "Error before: %s\n", error_ptr);
+        }
+        else {
+            fprintf(stderr, "Unknown JSON parse error\n");
+        }
+        return;
+    }
+
+    appointment_t *app = &calendar_data.appointments[appointment_index];
+
+    if (cJSON_IsString(json)) {
+        char *string = cJSON_GetStringValue(json);
+        if (strcmp(&attribute[2], "start") == 0) {
+            const char *value = cJSON_GetStringValue(json);
+            if (strlen(value) < 25) {
+                panic("Start datetime is badly formed: %s", value);
+            }
+            else {
+                strncpy(app->start, &value[5], 5);
+                app->start[5] = '\0';
+                strncat(app->start, " ", 2);
+                strncat(app->start, &value[11], 5);
+            }
+        }
+        else if (strcmp(&attribute[2], "summary") == 0) {
+            strncpy(app->summary, cJSON_GetStringValue(json), sizeof(app->summary));
+        }
+    }
+
+    cJSON_Delete(json);
+
+    message = {
+        message_type: MESSAGE_CALENDAR,
+        calendar_data: calendar_data,
+    };
+    // printf("Sending calendar data\n");
+    if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+        printf("Could not send calendar data; dropping");
+    }
+
+    printf("handle_calendar_data attribute %s data %s\n", attribute, data_as_chars);
 }
 
 static void handle_porch_sensor_data(char *data_as_chars)

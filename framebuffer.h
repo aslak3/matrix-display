@@ -1,4 +1,4 @@
-#include "pico/stdlib.h"
+#include <pico/stdlib.h>
 
 #include "fonts/fonts.h"
 #include "images/images.h"
@@ -29,6 +29,7 @@ class framebuffer {
         int print_char(font_t *font, int x, int y, char c, rgb_t rgb, bool length_only);
         void print_string(font_t *font, int x, int y, const char *s, rgb_t rgb);
         int string_length(font_t *font, const char *s);
+        int print_wrapped_string(font_t *font, int y, const char *s, rgb_t rgb);
         void show_image(image_t *image, int x, int y);
         void show_image(image_t *image, int x, int y, uint8_t gamma);
         void set_brightness(uint8_t b);

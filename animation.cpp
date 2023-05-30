@@ -1,7 +1,7 @@
+#include <pico/stdlib.h>
+
 #include <stdio.h>
 #include <string.h>
-
-#include "pico/stdlib.h"
 
 #include "animation.h"
 
@@ -70,6 +70,9 @@ void animation::render_page(void)
                 {
                     change_page(PAGE_MEDIA_PLAYER);
                 }
+                else if (calendar_state.framestamp) {
+                    change_page(PAGE_CALENDAR);
+                }
                 else {
                     change_page(PAGE_RTC);
                 }
@@ -78,11 +81,23 @@ void animation::render_page(void)
 
         case PAGE_MEDIA_PLAYER:
             if (render_media_player_page()) {
+                if (calendar_state.framestamp) {
+                    change_page(PAGE_CALENDAR);
+                }
+                else {
+                    change_page(PAGE_RTC);
+                }
+            }
+            break;
+
+        case PAGE_CALENDAR:
+            if (render_calendar_page()) {
                 change_page(PAGE_RTC);
             }
             break;
 
         default:
+            panic("Asked to render non existant page %d", page);
             break;
     }
 
@@ -147,6 +162,12 @@ void animation::new_media_player_data(media_player_data_t *media_player_data)
     // printf("End of new_media_player_data()\n");
 }
 
+void animation::new_calendar_data(calendar_data_t *calendar_data)
+{
+    calendar_state.data = *calendar_data;
+    calendar_state.message_pixel_height = 0;
+}
+
 void animation::new_notification(notification_t *notification)
 {
     // printf("new_notification()\n");
@@ -204,6 +225,11 @@ void animation::change_page(page_t new_page)
         case PAGE_MEDIA_PLAYER:
             frames_left_on_page = 0;
             media_player_state.framestamp = frame;
+            break;
+
+        case PAGE_CALENDAR:
+            frames_left_on_page = 0;
+            calendar_state.framestamp = frame;
             break;
 
         default:
@@ -341,6 +367,33 @@ bool animation::render_media_player_page(void)
         }
     }
     return false;
+}
+
+// true = go to next page
+bool animation::render_calendar_page(void)
+{
+    int running_y = 0 - tiny_font->height + ((frame - page_framestamp) / 3);
+
+    for (int appointment_index = 0; appointment_index < NO_APPOINTMENTS; appointment_index++) {
+        appointment_t *app = &calendar_state.data.appointments[appointment_index];
+
+        if (!strlen(app->start) || !strlen(app->summary)) {
+            continue;
+        }
+
+        fb.print_string(tiny_font, 0, running_y, app->start, yellow);
+        running_y -= tiny_font->height + 1;
+        running_y = fb.print_wrapped_string(tiny_font, running_y, app->summary, white);
+        running_y -= 3;
+    }
+
+    if (running_y > FB_HEIGHT) {
+        return true;
+    }
+    else {
+        return false;
+    }
+
 }
 
 void animation::update_scroller_message(void)

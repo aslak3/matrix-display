@@ -1,4 +1,4 @@
-#include "pico/stdlib.h"
+#include <pico/stdlib.h>
 
 typedef struct {
     char time[6];
@@ -44,10 +44,21 @@ typedef struct {
 typedef struct {
     int fetched_fields;
     char state[16];
-    char media_title[128];
-    char media_artist[128];
-    char media_album_name[128];
+    char media_title[64];
+    char media_artist[64];
+    char media_album_name[64];
 } media_player_data_t;
+
+typedef struct {
+    char start[16];
+    char summary[128];
+} appointment_t;
+
+#define NO_APPOINTMENTS 3
+
+typedef struct {
+    appointment_t appointments[NO_APPOINTMENTS];
+} calendar_data_t;
 
 typedef struct {
     char text[256];
@@ -66,16 +77,18 @@ typedef struct {
 #define MESSAGE_NULL 0
 #define MESSAGE_WEATHER 1
 #define MESSAGE_MEDIA_PLAYER 2
-#define MESSAGE_NOTIFICATION 3
-#define MESSAGE_PORCH 4
-#define MESSAGE_RTC 10
-#define MESSAGE_BRIGHTNESS 11
+#define MESSAGE_CALENDAR 3
+#define MESSAGE_NOTIFICATION 10
+#define MESSAGE_PORCH 11
+#define MESSAGE_RTC 12
+#define MESSAGE_BRIGHTNESS 13
 
 typedef struct {
     uint8_t message_type;
     union {
         weather_data_t weather_data;
         media_player_data_t media_player_data;
+        calendar_data_t calendar_data;
         notification_t notification;
         porch_t porch;
         rtc_t rtc;

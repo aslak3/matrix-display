@@ -1,4 +1,4 @@
-#include "pico/stdlib.h"
+#include <pico/stdlib.h>
 
 #include "framebuffer.h"
 #include "messages.h"
@@ -16,6 +16,12 @@ typedef struct {
     char message[512];
     int message_pixel_length;
 } media_player_state_t;
+
+typedef struct {
+    calendar_data_t data;
+    int framestamp;
+    int message_pixel_height;
+} calendar_state_t;
 
 typedef struct {
     notification_t data;
@@ -40,6 +46,7 @@ typedef enum {
     PAGE_CURRENT_WEATHER,
     PAGE_WEATHER_FORECAST,
     PAGE_MEDIA_PLAYER,
+    PAGE_CALENDAR,
 } page_t;
 
 typedef struct {
@@ -60,6 +67,7 @@ class animation {
 
         void new_weather_data(weather_data_t *weather_data);
         void new_media_player_data(media_player_data_t *media_player_data);
+        void new_calendar_data(calendar_data_t *calendar_data);
         void new_notification(notification_t *notification);
         void clear_notification(void);
         void new_porch(porch_t *porch);
@@ -77,6 +85,7 @@ class animation {
 
         weather_state_t weather_state;
         media_player_state_t media_player_state;
+        calendar_state_t calendar_state;
         notification_state_t notification_state;
         porch_state_t porch_state;
         rtc_state_t rtc_state;
@@ -107,6 +116,7 @@ class animation {
         void render_current_weather_page(void);
         void render_weather_forecast_page(void);
         bool render_media_player_page(void);
+        bool render_calendar_page(void);
         void update_scroller_message(void);
         void render_scroller(void);
 

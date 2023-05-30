@@ -25,7 +25,6 @@ add_executable(
     framebuffer.cpp
     animation.cpp
     cJSON.c
-
 )
 
 add_subdirectory(
