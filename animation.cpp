@@ -120,7 +120,7 @@ void animation::render_notification(void)
                 panic("Could not find porch image");
             }
 
-            fb.show_image(porch_image, 0, FB_HEIGHT - 1 - 8);
+            fb.show_image(porch_image, 0, FB_HEIGHT - 1 - 8, 255, false);
         }
     }
 
@@ -353,7 +353,7 @@ bool animation::render_media_player_page(void)
     if (! state_image) {
         panic("Could not load media_player state image for %s", mpd->state);
     }
-    fb.show_image(state_image, 16, 0, 0x40);
+    fb.show_image(state_image, 16, 0, 0x40, true);
 
     if (strcmp(mpd->state, "off") != 0 ) {
         int message_offset = frame - media_player_state.framestamp;

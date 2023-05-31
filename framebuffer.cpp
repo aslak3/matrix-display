@@ -188,10 +188,10 @@ int framebuffer::print_wrapped_string(font_t *font, int y, const char *s, rgb_t 
 
 void framebuffer::show_image(image_t *image, int x, int y)
 {
-    show_image(image, x, y, 255);
+    show_image(image, x, y, 255, true);
 }
 
-void framebuffer::show_image(image_t *image, int x, int y, uint8_t gamma)
+void framebuffer::show_image(image_t *image, int x, int y, uint8_t gamma, bool transparent)
 {
     const image_dsc_t *image_dsc = image->image_dsc;
     uint8_t *off = (uint8_t *) image_dsc->data;
@@ -203,7 +203,7 @@ void framebuffer::show_image(image_t *image, int x, int y, uint8_t gamma)
                 green: *(off + 1),
                 blue: *(off + 2),
             };
-            if (rgb.red || rgb.green || rgb.blue) {
+            if (rgb.red || rgb.green || rgb.blue || !transparent) {
                 set_pixel(c + x, image_dsc->height + (y - r), rgb, gamma);
             }
 

@@ -31,7 +31,7 @@ class framebuffer {
         int string_length(font_t *font, const char *s);
         int print_wrapped_string(font_t *font, int y, const char *s, rgb_t rgb);
         void show_image(image_t *image, int x, int y);
-        void show_image(image_t *image, int x, int y, uint8_t gamma);
+        void show_image(image_t *image, int x, int y, uint8_t gamma, bool transparent);
         void set_brightness(uint8_t b);
         void atomic_back_to_fore_copy(void);
         void atomic_fore_copy_out(fb_t *out);
