@@ -42,6 +42,5 @@ class framebuffer {
         void set_pixel(int x, int y, rgb_t rgb, uint8_t gamma);
         rgb_t get_pixel(int x, int y);
 
-        fb_t foreground;
-        fb_t background;
+        fb_t draw_fb;
 };

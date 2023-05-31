@@ -5,6 +5,7 @@
 
 #include <FreeRTOS.h>
 #include <task.h>
+#include <queue.h>
 
 #include "framebuffer.h"
 
@@ -217,24 +218,20 @@ void framebuffer::set_brightness(uint8_t b)
     brightness = b;
 }
 
+extern QueueHandle_t matrix_queue;
+
 void framebuffer::atomic_back_to_fore_copy(void)
 {
-    taskENTER_CRITICAL();
-    memcpy(&foreground, &background, sizeof(fb_t));
-    taskEXIT_CRITICAL();
-}
+    static fb_t transfer_fb;
 
-void framebuffer::atomic_fore_copy_out(fb_t *out)
-{
-    taskENTER_CRITICAL();
     if (brightness == 255) {
-        memcpy(out, foreground.rgb, sizeof(fb_t));
+        memcpy(&transfer_fb, &draw_fb, sizeof(fb_t));
     }
     else {
         for (int c = 0; c < FB_WIDTH; c++) {
             for (int r = 0; r < FB_HEIGHT; r++) {
-                rgb_t rgb = foreground.rgb[r][c];
-                out->rgb[r][c] = {
+                rgb_t rgb = draw_fb.rgb[r][c];
+                transfer_fb.rgb[r][c] = {
                     red: (uint8_t)((uint32_t)(rgb.red * brightness) / 255),
                     green: (uint8_t)((uint32_t)(rgb.green * brightness) / 255),
                     blue: (uint8_t)((uint32_t)(rgb.blue * brightness) / 255),
@@ -242,7 +239,13 @@ void framebuffer::atomic_fore_copy_out(fb_t *out)
             }
         }
     }
-    taskEXIT_CRITICAL();
+
+    xQueueOverwrite(matrix_queue, &transfer_fb);
+}
+
+void framebuffer::atomic_fore_copy_out(fb_t *out)
+{
+    xQueuePeek(matrix_queue, out, 0);
 }
 
 ////
@@ -250,14 +253,14 @@ void framebuffer::atomic_fore_copy_out(fb_t *out)
 void framebuffer::set_pixel(int x, int y, rgb_t rgb)
 {
     if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
-        background.rgb[y][x] = rgb;
+        draw_fb.rgb[y][x] = rgb;
     }
 }
 
 rgb_t framebuffer::get_pixel(int x, int y)
 {
     if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
-        return background.rgb[y][x];
+        return draw_fb.rgb[y][x];
     }
     else {
         return (rgb_t) {};
@@ -272,6 +275,6 @@ void framebuffer::set_pixel(int x, int y, rgb_t rgb, uint8_t gamma)
         blue: (uint8_t)((uint32_t)(rgb.blue * gamma) / 255),
     };
     if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
-        background.rgb[y][x] = adjusted_rgb;
+        draw_fb.rgb[y][x] = adjusted_rgb;
     }
 }

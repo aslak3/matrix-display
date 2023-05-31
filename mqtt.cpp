@@ -97,7 +97,7 @@ void mqtt_task(void *dummy)
     }
 
     while (1) {
-       vTaskDelay(1000);
+        vTaskDelay(1000);
     }
 }
 
@@ -130,7 +130,10 @@ static void do_mqtt_subscribe(mqtt_client_t *client)
 {
     const char *subscriptions[] = {
         "homeassistant/weather/openweathermap/#",
-        "homeassistant/media_player/squeezebox_boom/#",
+        "homeassistant/media_player/squeezebox_boom/state",
+        "homeassistant/media_player/squeezebox_boom/media_title",
+        "homeassistant/media_player/squeezebox_boom/media_artist",
+        "homeassistant/media_player/squeezebox_boom/media_album_name",
         "homeassistant/binary_sensor/lumi_lumi_sensor_motion_aq2_iaszone/state",
         "matrix-display/#",
         NULL,
@@ -335,7 +338,7 @@ static void handle_weather_data(char *attribute, char *data_as_chars)
         };
         // printf("Sending weather_data\n");
         if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
-            printf("Could not send weather data; dropping");
+            printf("Could not send weather data; dropping\n");
         }
 
         memset(&weather_data, 0, sizeof(weather_data_t));
@@ -408,7 +411,7 @@ static void handle_media_player_data(char *attribute, char *data_as_chars)
         };
         // printf("Sending media_player data\n");
         if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
-            printf("Could not send media_player data; dropping");
+            printf("Could not send media_player data; dropping\n");
         }
     }
 
@@ -469,10 +472,10 @@ static void handle_calendar_data(char *attribute, char *data_as_chars)
     };
     // printf("Sending calendar data\n");
     if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
-        printf("Could not send calendar data; dropping");
+        printf("Could not send calendar data; dropping\n");
     }
 
-    printf("handle_calendar_data attribute %s data %s\n", attribute, data_as_chars);
+    // printf("handle_calendar_data attribute %s data %s\n", attribute, data_as_chars);
 }
 
 static void handle_porch_sensor_data(char *data_as_chars)

@@ -55,6 +55,7 @@ extern void mqtt_task(void *dummy);
 
 QueueHandle_t animate_queue;
 QueueHandle_t rtc_queue;
+QueueHandle_t matrix_queue;
 
 int main(void)
 {
@@ -62,8 +63,9 @@ int main(void)
 
     printf("Hello, matrix here\n");
 
-    animate_queue = xQueueCreate(10, sizeof(message_t));
-    rtc_queue = xQueueCreate(10, sizeof(rtc_t));
+    animate_queue = xQueueCreate(3, sizeof(message_t));
+    rtc_queue = xQueueCreate(3, sizeof(rtc_t));
+    matrix_queue = xQueueCreate(1, sizeof(fb_t));
 
     xTaskCreate(&animate_task, "Animate Task", 4096, NULL, 0, NULL);
     xTaskCreate(&matrix_task, "Matrix Task", 1024, NULL, 10, NULL);
@@ -93,8 +95,8 @@ void animate_task(void *dummy)
 
     while (1)
     {
-        if (xQueueReceive(animate_queue, &message, 10) == pdTRUE) {
-            printf("New message, type: %d\n", message.message_type);
+        while (xQueueReceive(animate_queue, &message, 0) == pdTRUE) {
+            // printf("New message, type: %d\n", message.message_type);
 
             switch (message.message_type) {
                 case MESSAGE_WEATHER:
@@ -138,7 +140,7 @@ void animate_task(void *dummy)
 
         fb.atomic_back_to_fore_copy();
 
-        vTaskDelay(5);
+        vTaskDelay(10);
     }
 }
 
