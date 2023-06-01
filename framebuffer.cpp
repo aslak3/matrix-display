@@ -162,7 +162,7 @@ int framebuffer::print_wrapped_string(font_t *font, int y, const char *s, rgb_t 
         }
 
         // See if this word doens't fit
-        if (word_length + running_x >= FB_WIDTH) {
+        if (running_x && word_length + running_x >= FB_WIDTH) {
             running_y -= font->height + 1;
             running_x = 0;
         }
