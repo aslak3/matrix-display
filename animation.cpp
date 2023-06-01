@@ -400,8 +400,8 @@ void animation::update_scroller_message(void)
 {
     weather_data_t *wd = &weather_state.data;
     snprintf(scroller.message, sizeof(scroller.message),
-        "HUMIDTY: %d %%; PRESSURE: %d hPa; WIND: %d km/h FROM %d \x7f",
-        (int) wd->humidty, (int) wd->pressure, (int) wd->wind_speed,
+        "CURRENT CONDITIONS = TEMP: %d C; HUMIDTY: %d %%; PRESSURE: %d hPa; WIND: %d km/h FROM %d \x7f",
+        (int) wd->temperature, (int) wd->humidty, (int) wd->pressure, (int) wd->wind_speed,
         (int) wd->wind_bearing);
 
     scroller.message_pixel_length = fb.string_length(tiny_font,
@@ -429,7 +429,7 @@ void animation::render_scroller(void)
         if (scroller.message_offset >
             scroller.message_pixel_length + FB_WIDTH + (FB_WIDTH / 2))
         {
-            scroller.off_countdown = 4000;
+            scroller.off_countdown = 8000;
         }
     }
 }
