@@ -6,28 +6,39 @@
 
 module sync_pdp_ram
     (
+        input                   buffer_toggle,
         input                   write_clk,
-        input [10-1:0]          write_addr,
-        input [8-1:0]           write_data,
+        input [10:0]            write_addr,
+        input [31:0]            write_data,
         input                   write_en,
         input                   read_clk,
-        input [10-1:0]          read_addr,
-        output [8-1:0]          read_data,
+        input [9:0]             read_addr,
+        output [31:0]           read_data_top,
+        output [31:0]           read_data_bottom,
         input                   read_en
     );
 
-    reg [8-1:0] mem [1024];
-    reg [8-1:0] tmp_data;
+    reg [31:0] mem_top [2048];
+    reg [31:0] mem_bottom [2048];
+    reg [31:0] tmp_data_top;
+    reg [31:0] tmp_data_bottom;
 
     always @ (posedge write_clk) begin
-        if (write_en)
-            mem[write_addr] <= write_data;
+        if (write_en) begin
+            if (write_addr[10] == 1'b0)
+                mem_top[{buffer_toggle, write_addr[9:0]}] <= write_data;
+            else
+                mem_bottom[{buffer_toggle, write_addr[9:0]}] <= write_data;
+        end
     end
 
     always @ (posedge read_clk) begin
-       if (read_en) 
-            tmp_data <= mem[read_addr];
+       if (read_en) begin
+            tmp_data_top <= mem_top[{!buffer_toggle, read_addr}];
+            tmp_data_bottom <= mem_bottom[{!buffer_toggle, read_addr}];
+       end
     end
 
-    assign read_data = read_en ? tmp_data : 'hz;
+    assign read_data_top = read_en ? tmp_data_top : 'hz;
+    assign read_data_bottom = read_en ? tmp_data_bottom : 'hz;
 endmodule
