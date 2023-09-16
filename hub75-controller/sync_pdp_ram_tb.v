@@ -38,10 +38,10 @@ module sync_pdp_ram_tb;
         for (i = 0; i < 64 * 32; i++) begin
             #period;
             write_data = input_image[i];
-            write_clk = 1'b1;
+            write_clk = 1'b0;
 
             #period
-            write_clk = 1'b0;
+            write_clk = 1'b1;
             write_addr = write_addr + 1;
         end
 
@@ -51,13 +51,13 @@ module sync_pdp_ram_tb;
         read_en = 1'b1;
 
         for (i = 0; i < 64 * (32 / 2); i++) begin
-            #period;
             read_clk = 1'b1;
+            #period;
 
-            #period
             read_clk = 1'b0;
             $display("Read addr %d data_top: %x data_bottom: %x", read_addr, read_data_top, read_data_bottom);
             read_addr = read_addr + 1;
+            #period;
         end
     end    
 endmodule
