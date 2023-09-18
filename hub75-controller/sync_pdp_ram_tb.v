@@ -2,17 +2,17 @@ module sync_pdp_ram_tb;
     reg buffer_toggle;
     reg write_clk;
     reg [10:0] write_addr;
-    reg [31:0] write_data;
+    reg [15:0] write_data;
     reg write_en;
 
     reg read_clk;
     reg [9:0] read_addr;
-    wire [31:0] read_data_top;
-    wire [31:0] read_data_bottom;
+    wire [15:0] read_data_top;
+    wire [15:0] read_data_bottom;
     reg read_en;
 
     integer i;
-    reg [31:0] input_image [64 * 32];
+    reg [15:0] input_image [64 * 32];
 
     localparam period = 1;
 
@@ -26,7 +26,7 @@ module sync_pdp_ram_tb;
         buffer_toggle = 1'b0;
         write_clk = 1'b0;
         write_addr = 11'b0;
-        write_data = 31'b0;
+        write_data = 16'b0;
         write_en = 1'b0;
         read_clk = 1'b0;
         read_addr = 11'b0;

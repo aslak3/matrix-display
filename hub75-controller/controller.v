@@ -13,12 +13,12 @@ module controller
         input spi_mosi
     );
 
-    wire [31:0] write_data;
+    wire [15:0] write_data;
     wire write_pixel_clk;
     reg [11:0] write_addr; // top bit is the double-buffer flipper
     reg [9:0] read_addr;
-    wire [31:0] read_data_top;
-    wire [31:0] read_data_bottom;
+    wire [15:0] read_data_top;
+    wire [15:0] read_data_bottom;
 
     always @ (reset) begin
         if (reset == 1'b1) begin
@@ -45,8 +45,10 @@ module controller
         pixel_clk, read_addr, read_data_top, read_data_bottom, 1'b1
     );
 
-    assign hub75_red = {read_data_top[31], read_data_bottom[31]};
-    assign hub75_green = {read_data_top[23], read_data_bottom[23]};
-    assign hub75_blue = {read_data_top[15], read_data_bottom[15]};
+    assign hub75_red = {read_data_top[15], read_data_bottom[15]};
+    assign hub75_green = {read_data_top[11], read_data_bottom[11]};
+    assign hub75_blue = {read_data_top[7], read_data_bottom[7]};
+
+    assign hub75_addr = read_addr[9:6];
 
 endmodule

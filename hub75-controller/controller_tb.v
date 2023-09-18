@@ -11,7 +11,7 @@ module controller_tb;
     reg spi_clk;
     reg spi_mosi;
     
-    reg [31:0] input_image [64 * 32];
+    reg [15:0] input_image [64 * 32];
 
     localparam period = 1;
 
@@ -55,10 +55,10 @@ module controller_tb;
 
         for (write_buffers = 0; write_buffers < 2; write_buffers++) begin
             for (write_pixel_count = 0; write_pixel_count < 64 * 32; write_pixel_count++) begin
-                for (write_bit_count = 0; write_bit_count < 32; write_bit_count++) begin
+                for (write_bit_count = 0; write_bit_count < 16; write_bit_count++) begin
                     #period;
                     spi_clk = 1'b0;
-                    spi_mosi = input_image[write_pixel_count][31 - write_bit_count];
+                    spi_mosi = input_image[write_pixel_count][15 - write_bit_count];
 
                     #period;
                     spi_clk = 1'b1;
@@ -69,14 +69,14 @@ module controller_tb;
 
     integer read_pixel_count;
     initial begin
-        #(period * 10 + (64 * 32 * 2));
+        #(period * 10 + (64 * 32 * 16 * 2));
 
         for (read_pixel_count = 0; read_pixel_count < 64 * 32 * 32 * 2; read_pixel_count++) begin
             pixel_clk = 1'b1;
             #period;
 
             pixel_clk = 1'b0;
-            $display("Red %02b Green %02b Blue %02b", hub75_red, hub75_green, hub75_blue);
+            $display("Addr %01x Red %02b Green %02b Blue %02b", hub75_addr, hub75_red, hub75_green, hub75_blue);
             #period;
         end
     end

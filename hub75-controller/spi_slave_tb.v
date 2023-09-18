@@ -2,7 +2,7 @@ module spi_slave_tb;
     reg reset;
     reg spi_clk;
     reg spi_mosi;
-    wire [31:0] data;
+    wire [15:0] data;
     wire pixel_clock;
 
     localparam period = 1;
@@ -11,9 +11,9 @@ module spi_slave_tb;
         reset, spi_clk, spi_mosi, data, pixel_clock
     );
 
-    parameter [31:0] test_input = 31'h12345678;
+    parameter [31:0] test_input = 31'h1234;
 
-    reg [5:0] bit_counter;
+    integer bit_counter;
 
     initial begin
         $dumpfile("spi_slave.vcd");
@@ -30,16 +30,16 @@ module spi_slave_tb;
         reset = 1'b0;
 
         #period
-        for (bit_counter = 0; bit_counter [5] == 1'b0; bit_counter++) begin
+        for (bit_counter = 0; bit_counter < 16; bit_counter++) begin
             spi_clk = 1'b0;
-            spi_mosi = test_input[31 - bit_counter];
+            spi_mosi = test_input[15 - bit_counter];
             #period;
 
             spi_clk = 1'b1;
             #period;
         end
 
-        $display("Got %08x", data);
+        $display("Got %04x", data);
         #(period * 10);
     end
 endmodule

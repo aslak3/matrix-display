@@ -9,19 +9,19 @@ module sync_pdp_ram
         input                   buffer_toggle,
         input                   write_clk,
         input [10:0]            write_addr,
-        input [31:0]            write_data,
+        input [15:0]            write_data,
         input                   write_en,
         input                   read_clk,
         input [9:0]             read_addr,
-        output [31:0]           read_data_top,
-        output [31:0]           read_data_bottom,
+        output [15:0]           read_data_top,
+        output [15:0]           read_data_bottom,
         input                   read_en
     );
 
-    reg [31:0] mem_top [2048];
-    reg [31:0] mem_bottom [2048];
-    reg [31:0] tmp_data_top;
-    reg [31:0] tmp_data_bottom;
+    reg [15:0] mem_top [2048];
+    reg [15:0] mem_bottom [2048];
+    reg [15:0] tmp_data_top;
+    reg [15:0] tmp_data_bottom;
 
     always @ (posedge write_clk) begin
         if (write_en) begin
