@@ -71,7 +71,7 @@ module controller_tb;
     initial begin
         #(period * 10 + (64 * 32 * 16 * 2));
 
-        for (read_pixel_count = 0; read_pixel_count < 64 * 32 * 32 * 2; read_pixel_count++) begin
+        for (read_pixel_count = 0; read_pixel_count < 64 * 16 * 16; read_pixel_count++) begin
             pixel_clk = 1'b1;
             #period;
 
@@ -79,6 +79,7 @@ module controller_tb;
             $display("Addr %01x Red %02b Green %02b Blue %02b", hub75_addr, hub75_red, hub75_green, hub75_blue);
             #period;
         end
+        $finish();
     end
 
 endmodule

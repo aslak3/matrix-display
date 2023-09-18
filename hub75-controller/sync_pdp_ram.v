@@ -1,9 +1,3 @@
-    // #( 
-    //     parameter ADDR_WIDTH = 10,
-    //     parameter DATA_WIDTH = 8,
-    //     parameter DEPTH = 1024,
-    // )
-
 module sync_pdp_ram
     (
         input                   buffer_toggle,
