@@ -61,6 +61,17 @@ typedef struct {
 } calendar_data_t;
 
 typedef struct {
+    char towards[16];
+    char departures_summary[64];
+} journey_t;
+
+#define NO_BUS_JOURNIES 2
+
+typedef struct {
+    journey_t journies[NO_BUS_JOURNIES];
+} bluestar_data_t;
+
+typedef struct {
     char text[256];
 } notification_t;
 
@@ -78,6 +89,7 @@ typedef struct {
 #define MESSAGE_WEATHER 1
 #define MESSAGE_MEDIA_PLAYER 2
 #define MESSAGE_CALENDAR 3
+#define MESSAGE_BLUESTAR 4
 #define MESSAGE_NOTIFICATION 10
 #define MESSAGE_PORCH 11
 #define MESSAGE_RTC 12
@@ -89,6 +101,7 @@ typedef struct {
         weather_data_t weather_data;
         media_player_data_t media_player_data;
         calendar_data_t calendar_data;
+        bluestar_data_t bluestar_data;
         notification_t notification;
         porch_t porch;
         rtc_t rtc;

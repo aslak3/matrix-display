@@ -13,7 +13,7 @@
 
 #define PICO_I2C_SDA_PIN 16
 #define PICO_I2C_SCL_PIN 17
-#define PCF8563_I2C_ADDR 0x51
+#define RTC_I2C_ADDR 0x68
 
 static void setup_rtc(void);
 static void get_rtc_time(uint8_t *buffer);
@@ -39,6 +39,7 @@ void rtc_task(void *dummy)
     rtc_t old_rtc = {};
 
     while (1) {
+        printf("top of loop\n");
         ticks_on_get_rtc_time = xTaskGetTickCount();
         get_rtc_time(message.rtc.buffer);
 
@@ -69,10 +70,8 @@ void rtc_task(void *dummy)
 
 static void setup_rtc(void)
 {
-    i2c_init(i2c_default, 400 * 1000);
-
     // This example will use I2C0 on the default SDA and SCL pins (4, 5 on a Pico)
-    i2c_init(i2c_default, 400 * 1000);
+    i2c_init(i2c_default, 100 * 1000);
     gpio_set_function(PICO_I2C_SDA_PIN, GPIO_FUNC_I2C);
     gpio_set_function(PICO_I2C_SCL_PIN, GPIO_FUNC_I2C);
     gpio_pull_up(PICO_I2C_SDA_PIN);
@@ -81,28 +80,24 @@ static void setup_rtc(void)
 
 static void get_rtc_time(uint8_t *buffer)
 {
-    uint8_t val = 0x02; // device address to read from
+    uint8_t val = 0x00; // device address to read from
 
     // true to keep master control of bus
-    i2c_write_blocking(i2c_default, PCF8563_I2C_ADDR, &val, 1, true);
-    i2c_read_blocking(i2c_default, PCF8563_I2C_ADDR, buffer, RTC_DATETIME_LEN, false);
+    printf("1\n");
+    i2c_write_blocking(i2c_default, RTC_I2C_ADDR, &val, 1, true);
+    printf("2\n");
+    i2c_read_blocking(i2c_default, RTC_I2C_ADDR, buffer, RTC_DATETIME_LEN, false);
+    printf("3\n");
 
-    // Flatten all "x"s in the datasheet to 0 but do no other munging - these X do seem to
-    // be completely random and vary over reperated reads
-    buffer[0] &= 0x7f;
-    buffer[1] &= 0x7f;
-    buffer[2] &= 0x3f;
-    buffer[3] &= 0x3f;
-    buffer[4] &= 0x07;
-    buffer[5] &= 0x1f;
+    printf("%02x:%02x:%02x\n", buffer[2], buffer[1], buffer[0]);
 }
 
 static void set_rtc_time(uint8_t *buffer)
 {
-    uint8_t out[8];
+    uint8_t out[RTC_DATETIME_LEN + 1];
 
-    out[0] = 0x02;
+    out[0] = 0x00;
     memcpy(&out[1], buffer, RTC_DATETIME_LEN);
 
-    i2c_write_blocking(i2c_default, PCF8563_I2C_ADDR, out, 1 + RTC_DATETIME_LEN, false);
+    i2c_write_blocking(i2c_default, RTC_I2C_ADDR, out, 1 + RTC_DATETIME_LEN, false);
 }

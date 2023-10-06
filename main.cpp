@@ -111,6 +111,10 @@ void animate_task(void *dummy)
                     anim.new_calendar_data(&message.calendar_data);
                     break;
 
+                case MESSAGE_BLUESTAR:
+                    anim.new_bluestar_data(&message.bluestar_data);
+                    break;
+
                 case MESSAGE_NOTIFICATION:
                     anim.new_notification(&message.notification);
                     break;
@@ -168,7 +172,7 @@ void matrix_task(void *dummy)
         for (int rowsel = 0; rowsel < 16; ++rowsel) {
             for (int bit = 0; bit < 8; ++bit) {
                 hub75_data_rgb888_set_shift(pio, sm_data, data_prog_offs, bit);
-                for (int x = FB_WIDTH - 1; x >= 0; x--) {
+                for (int x = 0; x < FB_WIDTH; x++) {
                     pio_sm_put_blocking(pio, sm_data, output_fb.uint32[rowsel][x]);
                     pio_sm_put_blocking(pio, sm_data, output_fb.uint32[rowsel + 16][x]);
                 }

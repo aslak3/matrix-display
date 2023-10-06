@@ -42,56 +42,43 @@ void animation::render_page(void)
 {
     switch (page) {
         case PAGE_WAITING:
-            render_waiting_page();
-            if (rtc_state.framestamp) {
+            if (render_waiting_page() || rtc_state.framestamp) {
                 change_page(PAGE_RTC);
             }
             break;
 
         case PAGE_RTC:
-            render_rtc_page();
-            if (! frames_left_on_page && weather_state.framestamp) {
+            if (render_rtc_page() || !frames_left_on_page)  {
                 change_page(PAGE_CURRENT_WEATHER);
             }
             break;
 
         case PAGE_CURRENT_WEATHER:
-            render_current_weather_page();
-            if (! frames_left_on_page) {
+            if (render_current_weather_page() || !frames_left_on_page) {
                 change_page(PAGE_WEATHER_FORECAST);
             }
             break;
 
         case PAGE_WEATHER_FORECAST:
-            render_weather_forecast_page();
-            if (! frames_left_on_page) {
-                if ((strcmp(media_player_state.data.state, "playing") == 0) ||
-                    (strcmp(media_player_state.data.state, "paused") == 0))
-                {
-                    change_page(PAGE_MEDIA_PLAYER);
-                }
-                else if (calendar_state.framestamp) {
-                    change_page(PAGE_CALENDAR);
-                }
-                else {
-                    change_page(PAGE_RTC);
-                }
+            if (render_weather_forecast_page() || ! frames_left_on_page) {
+                change_page(PAGE_MEDIA_PLAYER);
             }
             break;
 
         case PAGE_MEDIA_PLAYER:
             if (render_media_player_page()) {
-                if (calendar_state.framestamp) {
-                    change_page(PAGE_CALENDAR);
-                }
-                else {
-                    change_page(PAGE_RTC);
-                }
+                change_page(PAGE_CALENDAR);
             }
             break;
 
         case PAGE_CALENDAR:
             if (render_calendar_page()) {
+                change_page(PAGE_BLUESTAR);
+            }
+            break;
+
+        case PAGE_BLUESTAR:
+            if (render_bluestar_page() || !frames_left_on_page) {
                 change_page(PAGE_RTC);
             }
             break;
@@ -168,6 +155,13 @@ void animation::new_calendar_data(calendar_data_t *calendar_data)
     calendar_state.message_pixel_height = 0;
 }
 
+void animation::new_bluestar_data(bluestar_data_t *bluestar_data)
+{
+    bluestar_state.data = *bluestar_data;
+    bluestar_state.framestamp = frame;
+    printf("End of new bluestar_data()\n");
+}
+
 void animation::new_notification(notification_t *notification)
 {
     // printf("new_notification()\n");
@@ -232,18 +226,24 @@ void animation::change_page(page_t new_page)
             calendar_state.framestamp = frame;
             break;
 
+        case PAGE_BLUESTAR:
+            frames_left_on_page = 500;
+            break;
+
         default:
             panic("Don't know how to switch page to %d\n", new_page);
             break;
     }
 }
 
-void animation::render_waiting_page(void)
+bool animation::render_waiting_page(void)
 {
     fb.print_string(big_font, 6, 4, "Wait...", white);
+
+    return false;
 }
 
-void animation::render_rtc_page(void)
+bool animation::render_rtc_page(void)
 {
     const char *month_names[] = {
         "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -254,15 +254,6 @@ void animation::render_rtc_page(void)
 
     uint8_t *buffer = rtc_state.data.buffer;
 
-    // Month field is crazy!! Flatten out the 4th bit of the BCD horrror.
-    if (buffer[5] == 0x10) {
-        buffer[5] = 0x09;
-    } else if (buffer[5] == 0x11) {
-        buffer[5] = 0x0a;
-    } else if (buffer[5] == 0x12) {
-        buffer[5] = 0x0b;
-    }
-
     char time[10];
     snprintf(time, sizeof(time), "%02x:%02x:%02x",
         buffer[2] & 0x3f,
@@ -272,12 +263,14 @@ void animation::render_rtc_page(void)
     fb.print_string(ibm_font, 0, FB_HEIGHT - 8 - 1 - 6, time, orange);
 
     char date[20];
+    const int day_number = (buffer[3] & 0x0f) + (((buffer[3] & 0xf0) >> 4) * 10) - 1;
+    const int month_number = (buffer[5] & 0x0f) + (((buffer[5] & 0xf0) >> 4) * 10) - 1;
 
-    if (buffer[4] <= 6 && (buffer[5] & 0x0f) <= 11) {
+    if (month_number < 12 && day_number < 7) {
         snprintf(date, sizeof(date), "%s %02x %s",
-            day_names[buffer[4]],
-            buffer[3],
-            month_names[buffer[5] & 0x0f]
+            day_names[day_number],
+            buffer[4],
+            month_names[month_number]
         );
     }
     else {
@@ -285,10 +278,14 @@ void animation::render_rtc_page(void)
     }
     fb.print_string(tiny_font, (FB_WIDTH / 2) - (fb.string_length(tiny_font, date) / 2),
         FB_HEIGHT - 8 - 10 - 6, date, white);
+
+    return false;
 }
 
-void animation::render_current_weather_page(void)
+bool animation::render_current_weather_page(void)
 {
+    if (! weather_state.framestamp) return true;
+
     image_t *current_weather_image = get_image(weather_state.data.condition, 32, 32);
     if (!current_weather_image) {
         panic("Could not load current weather condition image for %s %dx%d",
@@ -302,10 +299,14 @@ void animation::render_current_weather_page(void)
 
     snprintf(buffer, sizeof(buffer), "%dC", (int)weather_state.data.temperature);
     fb.print_string(ibm_font, 40, 20, buffer, yellow);
+
+    return false;
 }
 
-void animation::render_weather_forecast_page(void)
+bool animation::render_weather_forecast_page(void)
 {
+    if (! weather_state.framestamp) return true;
+
     int offset_x = 0;
     for (int forecast_count = 0; forecast_count < 3; forecast_count++) {
         forecast_t& forecast = weather_state.data.forecast[forecast_count];
@@ -322,7 +323,7 @@ void animation::render_weather_forecast_page(void)
         }
         else {
             snprintf(buffer, sizeof(buffer), "%d%%", (int)forecast.precipitation_probability);
-            fb.print_string(tiny_font, offset_x + 11 - (fb.string_length(tiny_font, buffer) / 2), 16, buffer, blue);
+            fb.print_string(tiny_font, offset_x + 11 - (fb.string_length(tiny_font, buffer) / 2), 16, buffer, light_blue);
         }
 
         image_t *current_weather_image = get_image(forecast.condition, 16, 16);
@@ -335,12 +336,18 @@ void animation::render_weather_forecast_page(void)
 
         offset_x += 22;
     }
+
+    return false;
 }
 
 // true = go to next page
 bool animation::render_media_player_page(void)
 {
     media_player_data_t *mpd = &media_player_state.data;
+
+    if ((strcmp(mpd->state, "playing") != 0) && strcmp(mpd->state, "paused") != 0) {
+        return true;
+    }
 
     const char *state_image_name = "mp-off";
     if (strcmp(mpd->state, "playing") == 0) {
@@ -396,11 +403,26 @@ bool animation::render_calendar_page(void)
 
 }
 
+bool animation::render_bluestar_page(void)
+{
+    if (!(strlen(bluestar_state.data.journies[0].towards)) && strlen(bluestar_state.data.journies[1].towards)) {
+        return true;
+    }
+
+    fb.print_string(tiny_font, 0, FB_HEIGHT - 8, bluestar_state.data.journies[0].towards, light_blue);
+    fb.print_string(tiny_font, 0, FB_HEIGHT - 16, bluestar_state.data.journies[0].departures_summary, cyan);
+
+    fb.print_string(tiny_font, 0, FB_HEIGHT - 24, bluestar_state.data.journies[1].towards, light_blue);
+    fb.print_string(tiny_font, 0, FB_HEIGHT - 32, bluestar_state.data.journies[1].departures_summary, cyan);
+
+    return false;
+}
+
 void animation::update_scroller_message(void)
 {
     weather_data_t *wd = &weather_state.data;
     snprintf(scroller.message, sizeof(scroller.message),
-        "CURRENT CONDITIONS = TEMP: %d C; HUMIDTY: %d %%; PRESSURE: %d hPa; WIND: %d km/h FROM %d \x7f",
+        "CURRENTLY... TEMP: %d C; HUMIDTY: %d %%; PRESSURE: %d hPa; WIND: %d km/h FROM %d \x7f",
         (int) wd->temperature, (int) wd->humidty, (int) wd->pressure, (int) wd->wind_speed,
         (int) wd->wind_bearing);
 
@@ -424,7 +446,7 @@ void animation::render_scroller(void)
 
         scroller.message_offset = (frame - scroller.framestamp) / 2;
         fb.print_string(tiny_font, FB_WIDTH - scroller.message_offset, 0,
-            scroller.message, blue);
+            scroller.message, light_blue);
 
         if (scroller.message_offset >
             scroller.message_pixel_length + FB_WIDTH + (FB_WIDTH / 2))

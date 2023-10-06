@@ -27,9 +27,11 @@ static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection
 static void mqtt_sub_request_cb(void *arg, err_t result);
 static void mqtt_pub_request_cb(void *arg, err_t result);
 static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len);
+
 static void handle_weather_data(char *attribute, char *data_as_chars);
 static void handle_media_player_data(char *attribute, char *data_as_chars);
 static void handle_calendar_data(char *attribute, char *data_as_chars);
+static void handle_bluestar_data(char *data_as_chars);
 static void handle_porch_sensor_data(char *data_as_chars);
 static void handle_notificaiton_data(char *data_as_chars);
 static void handle_set_brightness_data(char *data_as_chars);
@@ -130,12 +132,17 @@ static void do_mqtt_subscribe(mqtt_client_t *client)
 {
     const char *subscriptions[] = {
         "homeassistant/weather/openweathermap/#",
-        "homeassistant/media_player/squeezebox_boom/state",
-        "homeassistant/media_player/squeezebox_boom/media_title",
-        "homeassistant/media_player/squeezebox_boom/media_artist",
-        "homeassistant/media_player/squeezebox_boom/media_album_name",
+        "homeassistant/media_player/squeezebox/state",
+        "homeassistant/media_player/squeezebox/media_title",
+        "homeassistant/media_player/squeezebox/media_artist",
+        "homeassistant/media_player/squeezebox/media_album_name",
         "homeassistant/binary_sensor/lumi_lumi_sensor_motion_aq2_iaszone/state",
+        // "homeassistant/climate/hallway/temperature",
+        // "homeassistant/sensor/living_room_temperature_sensor_temperature/state",
+        // "homeassistant/sensor/porch_temperature/state",
+        // "homeassistant/sensor/lumi_lumi_weather_temperature/state",
         "matrix-display/#",
+        "bluestar-parser/#",
         NULL,
     };
 
@@ -194,8 +201,9 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
 // extern QueueHandle_t animate_queue;
 
 #define WEATHER_TOPIC "homeassistant/weather/openweathermap/"
-#define MEDIA_PLAYER_TOPIC "homeassistant/media_player/squeezebox_boom/"
+#define MEDIA_PLAYER_TOPIC "homeassistant/media_player/squeezebox/"
 #define CALENDAR_TOPIC "homeassistant/sensor/ical_our_house_event_"
+#define BUS_JOURNIES "bluestar-parser/journies"
 #define PORCH_SENSOR_TOPIC "homeassistant/binary_sensor/lumi_lumi_sensor_motion_aq2_iaszone/state"
 #define NOTIFICATION_TOPIC "matrix-display/notification"
 #define SET_RTC_TIME_TOPIC "matrix-display/set_rtc_time"
@@ -224,6 +232,9 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         }
         else if (strncmp(current_topic, CALENDAR_TOPIC, strlen(CALENDAR_TOPIC)) == 0) {
             handle_calendar_data(current_topic + strlen(CALENDAR_TOPIC), data_as_chars);
+        }
+        else if (strcmp(current_topic, BUS_JOURNIES) == 0) {
+            handle_bluestar_data(data_as_chars);
         }
         else if( strcmp(current_topic, PORCH_SENSOR_TOPIC) == 0) {
             handle_porch_sensor_data(data_as_chars);
@@ -476,6 +487,53 @@ static void handle_calendar_data(char *attribute, char *data_as_chars)
     }
 
     // printf("handle_calendar_data attribute %s data %s\n", attribute, data_as_chars);
+}
+
+static void handle_bluestar_data(char *data_as_chars)
+{
+    static bluestar_data_t bluestar_data;
+
+    cJSON *json = cJSON_Parse(data_as_chars);
+
+    if (json == NULL) {
+        const char *error_ptr = cJSON_GetErrorPtr();
+        if (error_ptr != NULL) {
+            fprintf(stderr, "Error before: %s\n", error_ptr);
+        }
+        else {
+            fprintf(stderr, "Unknown JSON parse error\n");
+        }
+        return;
+    }
+
+    if (cJSON_IsArray(json)) {
+        for (int i = 0; i < cJSON_GetArraySize(json) && i < NO_BUS_JOURNIES; i++) {
+            cJSON *item = cJSON_GetArrayItem(json, i);
+            cJSON *towards = cJSON_GetObjectItem(item, "Towards");
+            cJSON *departures_summary = cJSON_GetObjectItem(item, "DeparturesSummary");
+
+            if (!towards || !departures_summary) {
+                panic("Missing field(s)");
+            }
+
+            strncpy(bluestar_data.journies[i].towards, cJSON_GetStringValue(towards), 16);
+            strncpy(bluestar_data.journies[i].departures_summary, cJSON_GetStringValue(departures_summary), 64);
+        }
+
+        message_t message = {
+            message_type: MESSAGE_BLUESTAR,
+            bluestar_data: bluestar_data,
+        };
+        printf("Sending bluestar data\n");
+        if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+            printf("Could not send bluestar data; dropping\n");
+        }
+    }
+    else {
+        fprintf(stderr, "Not an arrray in bluestar data");
+    }
+
+    cJSON_Delete(json);
 }
 
 static void handle_porch_sensor_data(char *data_as_chars)
