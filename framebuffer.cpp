@@ -225,13 +225,15 @@ void framebuffer::atomic_back_to_fore_copy(void)
     static fb_t transfer_fb;
 
     if (brightness == 255) {
-        memcpy(&transfer_fb, &draw_fb, sizeof(fb_t));
+        for (int r = 0; r < FB_HEIGHT; r++) {
+            memcpy(&transfer_fb.rgb[FB_HEIGHT - r][0], &draw_fb.rgb[r][0], FB_WIDTH * sizeof(rgb_t));
+        }
     }
     else {
         for (int c = 0; c < FB_WIDTH; c++) {
             for (int r = 0; r < FB_HEIGHT; r++) {
                 rgb_t rgb = draw_fb.rgb[r][c];
-                transfer_fb.rgb[r][c] = {
+                transfer_fb.rgb[FB_HEIGHT - r][c] = {
                     red: (uint8_t)((uint32_t)(rgb.red * brightness) / 255),
                     green: (uint8_t)((uint32_t)(rgb.green * brightness) / 255),
                     blue: (uint8_t)((uint32_t)(rgb.blue * brightness) / 255),
