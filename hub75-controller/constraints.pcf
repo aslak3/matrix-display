@@ -1,0 +1,23 @@
+set_io --warn-no-port n_reset 35            # ~{CTRL_RESET}
+set_io --warn-no-port pixel_clk 44          # GLOBAL_CLK
+
+set_io --warn-no-port hub75_red[0] 23       # RED1
+set_io --warn-no-port hub75_red[1] 28       # RED2
+set_io --warn-no-port hub75_green[0] 25     # GREEN1
+set_io --warn-no-port hub75_green[1] 27     # GREEN2
+set_io --warn-no-port hub75_blue[0] 26      # BLUE1
+set_io --warn-no-port hub75_blue[1] 31      # BLUE2
+
+set_io --warn-no-port hub75_addr[0] 34      # ADDRA
+set_io --warn-no-port hub75_addr[1] 32      # ADDRB
+set_io --warn-no-port hub75_addr[2] 37      # ADDRC
+set_io --warn-no-port hub75_addr[3] 36      # ADDRD
+
+
+set_io --warn-no-port hub75_clk 39          # CLK
+set_io --warn-no-port hub75_latch 38        # LATCH
+set_io --warn-no-port hub75_oe 42           # OE
+
+set_io --warn-no-port spi_clk 43            # CTRL_CLK
+set_io --warn-no-port spi_mosi 40           # CTL_MOSI
+set_io --warn-no-port spi_miso 41           # CTRL_MISO

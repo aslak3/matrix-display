@@ -1,6 +1,6 @@
 module controller
     (
-        input reset,
+        input n_reset,
         input pixel_clk,
         output reg [1:0] hub75_red,
         output reg [1:0] hub75_green,
@@ -10,8 +10,12 @@ module controller
         output reg hub75_latch,
         output reg hub75_oe,
         input spi_clk,
-        input spi_mosi
+        input spi_mosi,
+        output spi_miso
     );
+
+    reg reset;
+    assign reset = ~n_reset;
 
     wire [15:0] write_data;
     wire write_pixel_clk;
@@ -84,7 +88,6 @@ module controller
                     1'b1 ? read_data_top[7:4] > intensity_test : 1'b0,
                     1'b1 ? read_data_bottom[7:4] > intensity_test : 1'b0
                 };
-
                 hub75_addr <= read_addr[9:6];
                 read_addr <= read_addr + 1;
                 x_count <= x_count + 1;
@@ -92,7 +95,6 @@ module controller
                     x_count <= 0;
                     read_state <= READ_STATE_SET_LATCH;
                 end
-
             end
 
             READ_STATE_SET_LATCH: begin
@@ -113,4 +115,5 @@ module controller
 
     assign hub75_clk = pixel_clk ? read_state == READ_STATE_PIXELS : 1'b0;
 
+    assign spi_miso = 1'b0;
 endmodule
