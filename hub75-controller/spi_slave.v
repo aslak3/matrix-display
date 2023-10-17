@@ -11,23 +11,21 @@ module spi_slave
     reg [15:0] last_data;
     reg [3:0] bit_counter;
 
-    always @ (reset) begin
+    always @ (posedge reset or posedge spi_clk) begin
         if (reset == 1) begin
             bit_counter <= 5'b0;
             last_data <= 32'b0;
-        end
-    end
+        end else begin
+            tmp_data[15 - bit_counter] = spi_mosi;
+            bit_counter = bit_counter + 1;
 
-    always @ (posedge spi_clk) begin
-        tmp_data[15 - bit_counter] = spi_mosi;
-        bit_counter = bit_counter + 1;
-
-        if (bit_counter == 4'b0) begin
-            last_data = tmp_data;
+            if (bit_counter == 4'b0) begin
+                last_data = tmp_data;
+            end
         end
     end
 
     assign data = last_data;
-    assign pixel_clock = !bit_counter[3];
+    assign pixel_clock = ~bit_counter[3];
 endmodule
 

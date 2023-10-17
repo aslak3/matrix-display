@@ -14,8 +14,7 @@ module controller
         output spi_miso
     );
 
-    reg reset;
-    assign reset = ~n_reset;
+    wire reset = ~n_reset;
 
     wire [15:0] write_data;
     wire write_pixel_clk;
@@ -25,20 +24,16 @@ module controller
     wire [15:0] read_data_bottom;
     integer read_state;
 
-    always @ (reset) begin
-        if (reset == 1'b1) begin
-            write_addr <= 11'b0;
-            read_state <= READ_STATE_RESET;
-            read_addr <= 10'b0;
-        end
-    end
-
     spi_slave spi_slave (
         reset, spi_clk, spi_mosi, write_data, write_pixel_clk
     );
 
-    always @ (negedge write_pixel_clk) begin
-        write_addr = write_addr + 1;
+    always @ (posedge reset or negedge write_pixel_clk) begin
+        if (reset == 1'b1) begin
+            write_addr <= 11'b0;
+        end else begin
+            write_addr = write_addr + 1;
+        end
     end
 
     sync_pdp_ram sync_pdp_ram (
@@ -56,61 +51,65 @@ module controller
     integer x_count;
     wire [3:0] intensity_test = read_addr [13:10];
 
-    always @ (negedge pixel_clk) begin
-
-        case (read_state)
-            READ_STATE_RESET: begin
-                hub75_red <= 2'b00;
-                hub75_green <= 2'b00;
-                hub75_blue <= 2'b00;
-                hub75_latch <= 1'b0;
-                hub75_oe <= 1'b0;
-                hub75_addr <= 4'b0000;
-                read_state <= READ_STATE_START_OF_LINE;
-                x_count <= 0;
-            end
-
-            READ_STATE_START_OF_LINE: begin
-                hub75_oe <= 1'b1;
-                read_state <= READ_STATE_PIXELS;
-            end
-
-            READ_STATE_PIXELS: begin
-                hub75_red <= {
-                    1'b1 ? read_data_top[15:12] > intensity_test : 1'b0,
-                    1'b1 ? read_data_bottom[15:12] > intensity_test : 1'b0
-                };
-                hub75_green <= {
-                    1'b1 ? read_data_top[11:8] > intensity_test : 1'b0,
-                    1'b1 ? read_data_bottom[11:8] > intensity_test : 1'b0
-                };
-                hub75_blue <= {
-                    1'b1 ? read_data_top[7:4] > intensity_test : 1'b0,
-                    1'b1 ? read_data_bottom[7:4] > intensity_test : 1'b0
-                };
-                hub75_addr <= read_addr[9:6];
-                read_addr <= read_addr + 1;
-                x_count <= x_count + 1;
-                if (x_count == 63) begin
+    always @ (posedge reset or negedge pixel_clk) begin
+        if (reset == 1'b1) begin
+            read_state <= READ_STATE_RESET;
+            read_addr <= 10'b0;
+        end else begin
+            case (read_state)
+                READ_STATE_RESET: begin
+                    hub75_red <= 2'b00;
+                    hub75_green <= 2'b00;
+                    hub75_blue <= 2'b00;
+                    hub75_latch <= 1'b0;
+                    hub75_oe <= 1'b0;
+                    hub75_addr <= 4'b0000;
+                    read_state <= READ_STATE_START_OF_LINE;
                     x_count <= 0;
-                    read_state <= READ_STATE_SET_LATCH;
                 end
-            end
 
-            READ_STATE_SET_LATCH: begin
-                hub75_red <= 2'b00;
-                hub75_green <= 2'b00;
-                hub75_blue <= 2'b00;
-                hub75_latch <= 1'b1;
-                read_state <= READ_STATE_END_OF_LINE;
-            end
+                READ_STATE_START_OF_LINE: begin
+                    hub75_oe <= 1'b1;
+                    read_state <= READ_STATE_PIXELS;
+                end
 
-            READ_STATE_END_OF_LINE: begin
-                hub75_latch <= 1'b0;
-                hub75_oe <= 1'b0;
-                read_state <= READ_STATE_START_OF_LINE;
-            end
-        endcase
+                READ_STATE_PIXELS: begin
+                    hub75_red <= {
+                        1'b1 ? read_data_top[15:12] > intensity_test : 1'b0,
+                        1'b1 ? read_data_bottom[15:12] > intensity_test : 1'b0
+                    };
+                    hub75_green <= {
+                        1'b1 ? read_data_top[11:8] > intensity_test : 1'b0,
+                        1'b1 ? read_data_bottom[11:8] > intensity_test : 1'b0
+                    };
+                    hub75_blue <= {
+                        1'b1 ? read_data_top[7:4] > intensity_test : 1'b0,
+                        1'b1 ? read_data_bottom[7:4] > intensity_test : 1'b0
+                    };
+                    hub75_addr <= read_addr[9:6];
+                    read_addr <= read_addr + 1;
+                    x_count <= x_count + 1;
+                    if (x_count == 63) begin
+                        x_count <= 0;
+                        read_state <= READ_STATE_SET_LATCH;
+                    end
+                end
+
+                READ_STATE_SET_LATCH: begin
+                    hub75_red <= 2'b00;
+                    hub75_green <= 2'b00;
+                    hub75_blue <= 2'b00;
+                    hub75_latch <= 1'b1;
+                    read_state <= READ_STATE_END_OF_LINE;
+                end
+
+                READ_STATE_END_OF_LINE: begin
+                    hub75_latch <= 1'b0;
+                    hub75_oe <= 1'b0;
+                    read_state <= READ_STATE_START_OF_LINE;
+                end
+            endcase
+        end
     end
 
     assign hub75_clk = pixel_clk ? read_state == READ_STATE_PIXELS : 1'b0;
