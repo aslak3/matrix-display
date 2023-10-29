@@ -87,11 +87,10 @@ typedef struct {
     uint8_t temperature_buffer[RTC_TEMPERATURE_LEN];
 } rtc_t;
 
-#define BRIGHTNESS_OVERALL 0
+#define BRIGHTNESS_UNKNWON 0
 #define BRIGHTNESS_RED 1
 #define BRIGHTNESS_GREEN 2
 #define BRIGHTNESS_BLUE 3
-#define BRIGHTNESS_UNKNWON -1
 
 typedef struct {
     uint8_t type;

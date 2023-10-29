@@ -128,9 +128,7 @@ void animate_task(void *dummy)
                     break;
 
                 case MESSAGE_BRIGHTNESS:
-                    if (message.brightness.type == BRIGHTNESS_OVERALL) {
-                        fb.set_brightness_overall(message.brightness.intensity);
-                    } else if (message.brightness.type == BRIGHTNESS_RED) {
+                    if (message.brightness.type == BRIGHTNESS_RED) {
                         fb.set_brightness_red(message.brightness.intensity);
                     } else if (message.brightness.type == BRIGHTNESS_GREEN) {
                         fb.set_brightness_green(message.brightness.intensity);

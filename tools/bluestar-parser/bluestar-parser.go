@@ -62,7 +62,7 @@ func downloadURL(url string) (string, error) {
 func main() {
 	mqtt.DEBUG = log.New(os.Stdout, "", 0)
 	mqtt.ERROR = log.New(os.Stdout, "", 0)
-	opts := mqtt.NewClientOptions().AddBroker("tcp://10.52.0.2:1883").SetClientID("bluestar-parser")
+	opts := mqtt.NewClientOptions().AddBroker("tcp://10.52.0.2:1883").SetClientID("bluestar_parser")
 	opts.SetKeepAlive(2 * time.Second)
 	opts.SetDefaultPublishHandler(f)
 	opts.SetPingTimeout(1 * time.Second)
@@ -87,13 +87,15 @@ func main() {
 			},
 			{
 				url:     "https://www.bluestarbus.co.uk/stops/1900HA080333",
-				towards: "Southampton",
+				towards: "So'ton",
 			},
 		}
 
 		var journies []journey
 
 		for _, q := range queries {
+			towards := "To: " + q.towards
+
 			if brightness > 0 {
 				text, err := downloadURL(q.url)
 				if err != nil {
@@ -109,23 +111,24 @@ func main() {
 
 				for i, n := range list {
 					m := extractionRe.FindStringSubmatch(htmlquery.InnerText(n))
+					shortDeparture := strings.Replace(m[2], " mins", "m", -1)
 					if len(m) > 0 && i < 3 {
-						departures = append(departures, m[2])
+						departures = append(departures, shortDeparture)
 					}
 				}
 				journies = append(journies, journey{
-					Towards:           q.towards,
+					Towards:           towards,
 					DeparturesSummary: strings.Join(departures, " "),
 				})
 			} else {
 				journies = append(journies, journey{
-					Towards:           q.towards,
+					Towards:           towards,
 					DeparturesSummary: "Unknown",
 				})
 			}
 		}
 		b, _ := json.Marshal(journies)
-		token := c.Publish("bluestar-parser/journies", 0, true, b)
+		token := c.Publish("bluestar_parser/journies", 0, true, b)
 		token.Wait()
 
 		time.Sleep(150 * time.Second)

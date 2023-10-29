@@ -32,7 +32,6 @@ class framebuffer {
         int print_wrapped_string(font_t *font, int y, const char *s, rgb_t rgb);
         void show_image(image_t *image, int x, int y);
         void show_image(image_t *image, int x, int y, uint8_t gamma, bool transparent);
-        void set_brightness_overall(uint8_t b);
         void set_brightness_red(uint8_t b);
         void set_brightness_green(uint8_t b);
         void set_brightness_blue(uint8_t b);

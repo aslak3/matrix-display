@@ -142,8 +142,8 @@ static void do_mqtt_subscribe(mqtt_client_t *client)
         // "homeassistant/sensor/living_room_temperature_sensor_temperature/state",
         // "homeassistant/sensor/porch_temperature/state",
         // "homeassistant/sensor/lumi_lumi_weather_temperature/state",
-        "matrix-display/#",
-        "bluestar-parser/#",
+        "matrix_display/#",
+        "bluestar_parser/#",
         NULL,
     };
 
@@ -204,13 +204,13 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
 #define WEATHER_TOPIC "homeassistant/weather/openweathermap/"
 #define MEDIA_PLAYER_TOPIC "homeassistant/media_player/squeezebox/"
 #define CALENDAR_TOPIC "homeassistant/sensor/ical_our_house_event_"
-#define BUS_JOURNIES "bluestar-parser/journies"
+#define BUS_JOURNIES "bluestar_parser/journies"
 #define PORCH_SENSOR_TOPIC "homeassistant/binary_sensor/porch_motion_sensor_iaszone/state"
-#define NOTIFICATION_TOPIC "matrix-display/notification"
-#define SET_RTC_TIME_TOPIC "matrix-display/set_rtc_time"
+#define NOTIFICATION_TOPIC "matrix_display/notification"
+#define SET_RTC_TIME_TOPIC "matrix_display/set_rtc_time"
 // Includes brightness and brightness_red etc
-#define SET_BRIGHTNESS_TOPIC "matrix-display/brightness"
-#define SET_GRAYSCALE_TOPIC "matrix-display/grayscale"
+#define SET_BRIGHTNESS_TOPIC "matrix_display/brightness_"
+#define SET_GRAYSCALE_TOPIC "matrix_display/grayscale"
 
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags)
 {
@@ -591,13 +591,11 @@ static void handle_set_brightness_data(char *attribute, char *data_as_chars)
 
     brightness_t brightness;
 
-    if (strlen(attribute) == 0) {
-        brightness.type = BRIGHTNESS_OVERALL;
-    } else if (strcmp(attribute, "-red") == 0) {
+    if (strcmp(attribute, "red") == 0) {
         brightness.type = BRIGHTNESS_RED;
-    } else if (strcmp(attribute, "-green") == 0) {
+    } else if (strcmp(attribute, "green") == 0) {
         brightness.type = BRIGHTNESS_GREEN;
-    } else if (strcmp(attribute, "-blue") == 0) {
+    } else if (strcmp(attribute, "blue") == 0) {
         brightness.type = BRIGHTNESS_BLUE;
     } else {
         brightness.type = BRIGHTNESS_UNKNWON;

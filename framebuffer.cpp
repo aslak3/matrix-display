@@ -216,13 +216,6 @@ void framebuffer::show_image(image_t *image, int x, int y, uint8_t gamma, bool t
     }
 }
 
-void framebuffer::set_brightness_overall(uint8_t b)
-{
-    brightness_red = b;
-    brightness_green = b;
-    brightness_blue = b;
-}
-
 void framebuffer::set_brightness_red(uint8_t b)
 {
     brightness_red = b;
