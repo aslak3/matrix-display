@@ -80,10 +80,23 @@ typedef struct {
 } porch_t;
 
 #define RTC_DATETIME_LEN 7
+#define RTC_TEMPERATURE_LEN 2
 
 typedef struct {
-    uint8_t buffer[RTC_DATETIME_LEN];
+    uint8_t datetime_buffer[RTC_DATETIME_LEN];
+    uint8_t temperature_buffer[RTC_TEMPERATURE_LEN];
 } rtc_t;
+
+#define BRIGHTNESS_OVERALL 0
+#define BRIGHTNESS_RED 1
+#define BRIGHTNESS_GREEN 2
+#define BRIGHTNESS_BLUE 3
+#define BRIGHTNESS_UNKNWON -1
+
+typedef struct {
+    uint8_t type;
+    uint8_t intensity;
+} brightness_t;
 
 #define MESSAGE_NULL 0
 #define MESSAGE_WEATHER 1
@@ -94,6 +107,7 @@ typedef struct {
 #define MESSAGE_PORCH 11
 #define MESSAGE_RTC 12
 #define MESSAGE_BRIGHTNESS 13
+#define MESSAGE_GRAYSCALE 14
 
 typedef struct {
     uint8_t message_type;
@@ -105,6 +119,7 @@ typedef struct {
         notification_t notification;
         porch_t porch;
         rtc_t rtc;
-        uint8_t brightness;
-    };    
+        brightness_t brightness;
+        bool grayscale;
+    };
 } message_t;

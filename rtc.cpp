@@ -17,6 +17,7 @@
 
 static void setup_rtc(void);
 static void get_rtc_time(uint8_t *buffer);
+static void get_rtc_temperature(uint8_t *buffer);
 static void set_rtc_time(uint8_t *buffer);
 
 extern QueueHandle_t rtc_queue;
@@ -39,12 +40,13 @@ void rtc_task(void *dummy)
     rtc_t old_rtc = {};
 
     while (1) {
-        printf("top of loop\n");
         ticks_on_get_rtc_time = xTaskGetTickCount();
-        get_rtc_time(message.rtc.buffer);
+        get_rtc_time(message.rtc.datetime_buffer);
 
         // See if we are at the top of the next second
         if (memcmp(&message.rtc, &old_rtc, sizeof(rtc_t)) != 0) {
+            get_rtc_temperature(message.rtc.temperature_buffer);
+
             if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
                 printf("Could not send clock data; dropping");
             }
@@ -56,7 +58,7 @@ void rtc_task(void *dummy)
 
         if (xQueueReceive(rtc_queue, &set_rtc, 0) == pdTRUE) {
             printf("Clock set\n");
-            set_rtc_time(set_rtc.buffer);
+            set_rtc_time(set_rtc.datetime_buffer);
         }
 
         // Calculate a tenth of a second later since we got the time at the top of of the loop
@@ -83,13 +85,17 @@ static void get_rtc_time(uint8_t *buffer)
     uint8_t val = 0x00; // device address to read from
 
     // true to keep master control of bus
-    printf("1\n");
     i2c_write_blocking(i2c_default, RTC_I2C_ADDR, &val, 1, true);
-    printf("2\n");
     i2c_read_blocking(i2c_default, RTC_I2C_ADDR, buffer, RTC_DATETIME_LEN, false);
-    printf("3\n");
+}
 
-    printf("%02x:%02x:%02x\n", buffer[2], buffer[1], buffer[0]);
+static void get_rtc_temperature(uint8_t *buffer)
+{
+    uint8_t val = 0x11; // device address to read from
+
+    // true to keep master control of bus
+    i2c_write_blocking(i2c_default, RTC_I2C_ADDR, &val, 1, true);
+    i2c_read_blocking(i2c_default, RTC_I2C_ADDR, buffer, RTC_TEMPERATURE_LEN, false);
 }
 
 static void set_rtc_time(uint8_t *buffer)

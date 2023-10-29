@@ -11,7 +11,10 @@
 
 framebuffer::framebuffer()
 {
-    brightness = 128;
+    brightness_red = 128;
+    brightness_green = 128;
+    brightness_blue = 128;
+    grayscale = false;
 }
 
 void framebuffer::clear(rgb_t rgb) {
@@ -213,9 +216,31 @@ void framebuffer::show_image(image_t *image, int x, int y, uint8_t gamma, bool t
     }
 }
 
-void framebuffer::set_brightness(uint8_t b)
+void framebuffer::set_brightness_overall(uint8_t b)
 {
-    brightness = b;
+    brightness_red = b;
+    brightness_green = b;
+    brightness_blue = b;
+}
+
+void framebuffer::set_brightness_red(uint8_t b)
+{
+    brightness_red = b;
+}
+
+void framebuffer::set_brightness_green(uint8_t b)
+{
+    brightness_green = b;
+}
+
+void framebuffer::set_brightness_blue(uint8_t b)
+{
+    brightness_blue = b;
+}
+
+void framebuffer::set_grayscale(bool g)
+{
+    grayscale = g;
 }
 
 extern QueueHandle_t matrix_queue;
@@ -224,21 +249,18 @@ void framebuffer::atomic_back_to_fore_copy(void)
 {
     static fb_t transfer_fb;
 
-    if (brightness == 255) {
+    for (int c = 0; c < FB_WIDTH; c++) {
         for (int r = 0; r < FB_HEIGHT; r++) {
-            memcpy(&transfer_fb.rgb[FB_HEIGHT - r][0], &draw_fb.rgb[r][0], FB_WIDTH * sizeof(rgb_t));
-        }
-    }
-    else {
-        for (int c = 0; c < FB_WIDTH; c++) {
-            for (int r = 0; r < FB_HEIGHT; r++) {
-                rgb_t rgb = draw_fb.rgb[r][c];
-                transfer_fb.rgb[FB_HEIGHT - r][c] = {
-                    red: (uint8_t)((uint32_t)(rgb.red * brightness) / 255),
-                    green: (uint8_t)((uint32_t)(rgb.green * brightness) / 255),
-                    blue: (uint8_t)((uint32_t)(rgb.blue * brightness) / 255),
-                };
+            rgb_t rgb = draw_fb.rgb[r][c];
+            if (grayscale) {
+                uint8_t intensity = (uint8_t)((uint32_t) (rgb.red + rgb.green + rgb.blue) / 3);
+                rgb.red = rgb.green = rgb.blue = intensity;
             }
+            transfer_fb.rgb[FB_HEIGHT - r][c] = {
+                red: (uint8_t)((uint32_t)(rgb.red * brightness_red) / 255),
+                green: (uint8_t)((uint32_t)(rgb.green * brightness_green) / 255),
+                blue: (uint8_t)((uint32_t)(rgb.blue * brightness_blue) / 255),
+            };
         }
     }
 

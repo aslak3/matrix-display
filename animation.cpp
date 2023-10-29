@@ -131,22 +131,18 @@ void animation::render_notification(void)
 
 void animation::new_weather_data(weather_data_t *weather_data)
 {
-    // printf("new_weather_data()\n");
     weather_state.data = *weather_data;
     weather_state.framestamp = frame;
-    // printf("End of new_weather_data()\n");
 }
 
 void animation::new_media_player_data(media_player_data_t *media_player_data)
 {
-    // printf("new_media_player_data()\n");
     snprintf(media_player_state.message, sizeof(media_player_state.message),
         "'%s' by '%s' on '%s'",
         media_player_data->media_title, media_player_data->media_artist,
         media_player_data->media_album_name);
     media_player_state.message_pixel_length = fb.string_length(medium_font, media_player_state.message);
     media_player_state.data = *media_player_data;
-    // printf("End of new_media_player_data()\n");
 }
 
 void animation::new_calendar_data(calendar_data_t *calendar_data)
@@ -159,12 +155,10 @@ void animation::new_bluestar_data(bluestar_data_t *bluestar_data)
 {
     bluestar_state.data = *bluestar_data;
     bluestar_state.framestamp = frame;
-    printf("End of new bluestar_data()\n");
 }
 
 void animation::new_notification(notification_t *notification)
 {
-    // printf("new_notification()\n");
     notification_state.data = *notification;
     notification_state.framestamp = frame;
     notification_state.pixel_length = fb.string_length(medium_font, notification->text);
@@ -173,20 +167,17 @@ void animation::new_notification(notification_t *notification)
 
 void animation::clear_notification(void)
 {
-    // printf("clear_notification()\n");
     notification_state.framestamp = 0;
 }
 
 void animation::new_porch(porch_t *porch)
 {
-    // printf("new_porch()\n");
     porch_state.data = *porch;
     porch_state.framestamp = frame;
 }
 
 void animation::new_rtc(rtc_t *rtc)
 {
-    // printf("new_rtc()\n");
     rtc_state.data = *rtc;
     rtc_state.framestamp = frame;
 }
@@ -195,7 +186,7 @@ void animation::new_rtc(rtc_t *rtc)
 
 void animation::change_page(page_t new_page)
 {
-    // printf("changing to new page %d\n");
+    printf("changing to new page %d\n");
     page_framestamp = frame;
 
     page = new_page;
@@ -252,7 +243,7 @@ bool animation::render_rtc_page(void)
         "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
     };
 
-    uint8_t *buffer = rtc_state.data.buffer;
+    uint8_t *buffer = rtc_state.data.datetime_buffer;
 
     char time[10];
     snprintf(time, sizeof(time), "%02x:%02x:%02x",
@@ -299,6 +290,10 @@ bool animation::render_current_weather_page(void)
 
     snprintf(buffer, sizeof(buffer), "%dC", (int)weather_state.data.temperature);
     fb.print_string(ibm_font, 40, 20, buffer, yellow);
+
+    snprintf(buffer, sizeof(buffer), "%0.2fC",
+        (float)(rtc_state.data.temperature_buffer[0]) + ((float)(rtc_state.data.temperature_buffer[1] >> 6)) / 4.0);
+    fb.print_string(tiny_font, 36, 10, buffer, yellow);
 
     return false;
 }
@@ -400,7 +395,6 @@ bool animation::render_calendar_page(void)
     else {
         return false;
     }
-
 }
 
 bool animation::render_bluestar_page(void)

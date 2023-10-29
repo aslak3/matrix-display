@@ -96,7 +96,7 @@ void animate_task(void *dummy)
     while (1)
     {
         while (xQueueReceive(animate_queue, &message, 0) == pdTRUE) {
-            // printf("New message, type: %d\n", message.message_type);
+            printf("New message, type: %d\n", message.message_type);
 
             switch (message.message_type) {
                 case MESSAGE_WEATHER:
@@ -118,7 +118,7 @@ void animate_task(void *dummy)
                 case MESSAGE_NOTIFICATION:
                     anim.new_notification(&message.notification);
                     break;
-                
+
                 case MESSAGE_PORCH:
                     anim.new_porch(&message.porch);
                     break;
@@ -128,7 +128,22 @@ void animate_task(void *dummy)
                     break;
 
                 case MESSAGE_BRIGHTNESS:
-                    fb.set_brightness(message.brightness);
+                    if (message.brightness.type == BRIGHTNESS_OVERALL) {
+                        fb.set_brightness_overall(message.brightness.intensity);
+                    } else if (message.brightness.type == BRIGHTNESS_RED) {
+                        fb.set_brightness_red(message.brightness.intensity);
+                    } else if (message.brightness.type == BRIGHTNESS_GREEN) {
+                        fb.set_brightness_green(message.brightness.intensity);
+                    } else if (message.brightness.type == BRIGHTNESS_BLUE) {
+                        fb.set_brightness_blue(message.brightness.intensity);
+                    } else {
+                        printf("Invalid message.brightness.type\n");
+                    }
+                    break;
+
+                case MESSAGE_GRAYSCALE:
+                    fb.set_grayscale(message.grayscale);
+                    break;
 
                 default:
                     printf("Unknown message type: %d\n", message.message_type);
