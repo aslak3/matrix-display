@@ -11,7 +11,7 @@ module spi_slave_tb;
         reset, spi_clk, spi_mosi, data, pixel_clock
     );
 
-    parameter [31:0] test_input = 32'h1234;
+    parameter [15:0] test_input = 16'h1234;
 
     integer bit_counter;
 
@@ -38,6 +38,11 @@ module spi_slave_tb;
             spi_clk = 1'b1;
             #period;
         end
+
+        spi_clk = 1'b0;
+        #period;
+        spi_clk = 1'b1;
+        #period;
 
         $display("Got %04x", data);
         #(period * 10);
