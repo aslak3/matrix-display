@@ -143,6 +143,10 @@ void animate_task(void *dummy)
                     fb.set_grayscale(message.grayscale);
                     break;
 
+                case MESSAGE_CONFIGURATION:
+                    anim.update_configuration(&message.configuration);
+                    break;
+
                 default:
                     printf("Unknown message type: %d\n", message.message_type);
                     break;

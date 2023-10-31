@@ -97,6 +97,17 @@ typedef struct {
     uint8_t intensity;
 } brightness_t;
 
+typedef struct {
+    int rtc_duration;
+    int current_weather_duration;
+    int weather_forecast_duration;
+    int media_player_scroll_speed;
+    int calendar_scroll_speed;
+    int bluestar_duration;
+    int scroller_interval;
+    int scroller_speed;
+} configuration_t;
+
 #define MESSAGE_NULL 0
 #define MESSAGE_WEATHER 1
 #define MESSAGE_MEDIA_PLAYER 2
@@ -107,6 +118,7 @@ typedef struct {
 #define MESSAGE_RTC 12
 #define MESSAGE_BRIGHTNESS 13
 #define MESSAGE_GRAYSCALE 14
+#define MESSAGE_CONFIGURATION 15
 
 typedef struct {
     uint8_t message_type;
@@ -120,5 +132,6 @@ typedef struct {
         rtc_t rtc;
         brightness_t brightness;
         bool grayscale;
+        configuration_t configuration;
     };
 } message_t;

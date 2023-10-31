@@ -27,6 +27,15 @@ animation::animation(framebuffer& f) : fb(f)
 
     scroller.off_countdown = 1000;
 
+    configuration.rtc_duration = 1000;
+    configuration.current_weather_duration = 500;
+    configuration.weather_forecast_duration = 1000;
+    configuration.media_player_scroll_speed = 1;
+    configuration.calendar_scroll_speed = 3;
+    configuration.bluestar_duration = 500;
+    configuration.scroller_interval = 8000;
+    configuration.scroller_speed = 2;
+
     frame = 0;
 
     change_page(PAGE_WAITING);
@@ -48,19 +57,19 @@ void animation::render_page(void)
             break;
 
         case PAGE_RTC:
-            if (render_rtc_page() || !frames_left_on_page)  {
+            if (!frames_left_on_page || render_rtc_page())  {
                 change_page(PAGE_CURRENT_WEATHER);
             }
             break;
 
         case PAGE_CURRENT_WEATHER:
-            if (render_current_weather_page() || !frames_left_on_page) {
+            if (!frames_left_on_page || render_current_weather_page()) {
                 change_page(PAGE_WEATHER_FORECAST);
             }
             break;
 
         case PAGE_WEATHER_FORECAST:
-            if (render_weather_forecast_page() || ! frames_left_on_page) {
+            if (!frames_left_on_page || render_weather_forecast_page()) {
                 change_page(PAGE_MEDIA_PLAYER);
             }
             break;
@@ -78,7 +87,7 @@ void animation::render_page(void)
             break;
 
         case PAGE_BLUESTAR:
-            if (render_bluestar_page() || !frames_left_on_page) {
+            if (!frames_left_on_page || render_bluestar_page()) {
                 change_page(PAGE_RTC);
             }
             break;
@@ -182,6 +191,34 @@ void animation::new_rtc(rtc_t *rtc)
     rtc_state.framestamp = frame;
 }
 
+void animation::update_configuration(configuration_t *config)
+{
+    if (config->rtc_duration >= 0) {
+        configuration.rtc_duration = config->rtc_duration;
+    }
+    if (config->current_weather_duration >= 0) {
+        configuration.current_weather_duration = config->current_weather_duration;
+    }
+    if (config->weather_forecast_duration >= 0) {
+        configuration.weather_forecast_duration = config->weather_forecast_duration;
+    }
+    if (config->media_player_scroll_speed >= 0) {
+        configuration.media_player_scroll_speed = config->media_player_scroll_speed;
+    }
+    if (config->calendar_scroll_speed > 0) {
+        configuration.calendar_scroll_speed = config->calendar_scroll_speed;
+    }
+    if (config->bluestar_duration >= 0) {
+        configuration.bluestar_duration = config->bluestar_duration;
+    }
+    if (config->scroller_interval >= 0) {
+        configuration.scroller_interval = config->scroller_interval;
+    }
+    if (config->scroller_speed > 0) {
+        configuration.scroller_speed = config->scroller_speed;
+    }
+}
+
 ////
 
 void animation::change_page(page_t new_page)
@@ -196,15 +233,15 @@ void animation::change_page(page_t new_page)
             break;
 
         case PAGE_RTC:
-            frames_left_on_page = 1000;
+            frames_left_on_page = configuration.rtc_duration;
             break;
 
         case PAGE_CURRENT_WEATHER:
-            frames_left_on_page = 500;
+            frames_left_on_page = configuration.current_weather_duration;
             break;
 
         case PAGE_WEATHER_FORECAST:
-            frames_left_on_page = 1000;
+            frames_left_on_page = configuration.weather_forecast_duration;
             break;
 
         case PAGE_MEDIA_PLAYER:
@@ -218,7 +255,7 @@ void animation::change_page(page_t new_page)
             break;
 
         case PAGE_BLUESTAR:
-            frames_left_on_page = 500;
+            frames_left_on_page = configuration.bluestar_duration;
             break;
 
         default:
@@ -358,7 +395,7 @@ bool animation::render_media_player_page(void)
     fb.show_image(state_image, 16, 0, 0x40, true);
 
     if (strcmp(mpd->state, "off") != 0 ) {
-        int message_offset = frame - media_player_state.framestamp;
+        int message_offset = (frame - media_player_state.framestamp) / configuration.media_player_scroll_speed;
         fb.print_string(medium_font, FB_WIDTH - message_offset, 8,
             media_player_state.message, cyan);
 
@@ -374,7 +411,7 @@ bool animation::render_media_player_page(void)
 // true = go to next page
 bool animation::render_calendar_page(void)
 {
-    int running_y = 0 - tiny_font->height + ((frame - page_framestamp) / 3);
+    int running_y = 0 - tiny_font->height + ((frame - page_framestamp) / configuration.calendar_scroll_speed);
 
     for (int appointment_index = 0; appointment_index < NO_APPOINTMENTS; appointment_index++) {
         appointment_t *app = &calendar_state.data.appointments[appointment_index];
@@ -438,14 +475,14 @@ void animation::render_scroller(void)
     else {
         fb.shadow_box(0, 0, FB_WIDTH, 8, 0x10);
 
-        scroller.message_offset = (frame - scroller.framestamp) / 2;
+        scroller.message_offset = (frame - scroller.framestamp) / configuration.scroller_speed;
         fb.print_string(tiny_font, FB_WIDTH - scroller.message_offset, 0,
             scroller.message, light_blue);
 
         if (scroller.message_offset >
             scroller.message_pixel_length + FB_WIDTH + (FB_WIDTH / 2))
         {
-            scroller.off_countdown = 8000;
+            scroller.off_countdown = configuration.scroller_interval;
         }
     }
 }

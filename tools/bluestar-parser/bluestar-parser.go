@@ -41,10 +41,18 @@ var f mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
 	// panic("oops")
 	fmt.Printf("TOPIC: %s\n", msg.Topic())
 	fmt.Printf("MSG: %s\n", msg.Payload())
-	brightness, _ = strconv.Atoi(string(msg.Payload()))
+	if msg.Topic() == "matrix_display/brightness/red" {
+		brightness_red, _ = strconv.Atoi(string(msg.Payload()))
+	} else if msg.Topic() == "matrix_display/brightness/green" {
+		brightness_green, _ = strconv.Atoi(string(msg.Payload()))
+	} else if msg.Topic() == "matrix_display/brightness/blue" {
+		brightness_blue, _ = strconv.Atoi(string(msg.Payload()))
+	}
 }
 
-var brightness int = 0
+var brightness_red int = 0
+var brightness_green int = 0
+var brightness_blue int = 0
 
 func downloadURL(url string) (string, error) {
 	cmd := exec.Command("curl", "-s", url)
@@ -62,7 +70,7 @@ func downloadURL(url string) (string, error) {
 func main() {
 	mqtt.DEBUG = log.New(os.Stdout, "", 0)
 	mqtt.ERROR = log.New(os.Stdout, "", 0)
-	opts := mqtt.NewClientOptions().AddBroker("tcp://10.52.0.2:1883").SetClientID("bluestar_parser")
+	opts := mqtt.NewClientOptions().AddBroker("tcp://10.52.0.2:1883").SetClientID("bluestar-parser")
 	opts.SetKeepAlive(2 * time.Second)
 	opts.SetDefaultPublishHandler(f)
 	opts.SetPingTimeout(1 * time.Second)
@@ -73,7 +81,13 @@ func main() {
 	if token := c.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())
 	}
-	if token := c.Subscribe("matrix-display/brightness", 1, nil); token.Wait() && token.Error() != nil {
+	if token := c.Subscribe("matrix_display/brightness/red", 1, nil); token.Wait() && token.Error() != nil {
+		panic(token.Error())
+	}
+	if token := c.Subscribe("matrix_display/brightness/green", 1, nil); token.Wait() && token.Error() != nil {
+		panic(token.Error())
+	}
+	if token := c.Subscribe("matrix_display/brightness/blue", 1, nil); token.Wait() && token.Error() != nil {
 		panic(token.Error())
 	}
 
@@ -96,7 +110,8 @@ func main() {
 		for _, q := range queries {
 			towards := "To: " + q.towards
 
-			if brightness > 0 {
+			fmt.Printf("Brightness %d %d %d\n", brightness_red, brightness_green, brightness_blue)
+			if brightness_red > 0 || brightness_green > 0 || brightness_blue > 0 {
 				text, err := downloadURL(q.url)
 				if err != nil {
 					panic(err)

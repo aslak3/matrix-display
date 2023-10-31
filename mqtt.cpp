@@ -37,6 +37,8 @@ static void handle_notificaiton_data(char *data_as_chars);
 static void handle_set_rtc_time_data(char *data_as_chars);
 static void handle_set_brightness_data(char *attribute, char *data_as_chars);
 static void handle_set_grayscale_data(char *data_as_chars);
+static void handle_configuration_data(char *attribute, char *data_as_chars);
+
 static void dump_weather_data(weather_data_t *weather_data);
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags);
 
@@ -209,8 +211,9 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
 #define NOTIFICATION_TOPIC "matrix_display/notification"
 #define SET_RTC_TIME_TOPIC "matrix_display/set_rtc_time"
 // Includes brightness and brightness_red etc
-#define SET_BRIGHTNESS_TOPIC "matrix_display/brightness_"
+#define SET_BRIGHTNESS_TOPIC "matrix_display/brightness/"
 #define SET_GRAYSCALE_TOPIC "matrix_display/grayscale"
+#define CONFIGURATION_TOPIC "matrix_display/configuration/"
 
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags)
 {
@@ -253,6 +256,9 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         }
         else if (strcmp(current_topic, SET_GRAYSCALE_TOPIC) == 0) {
             handle_set_grayscale_data(data_as_chars);
+        }
+        else if (strncmp(current_topic, CONFIGURATION_TOPIC, strlen(CONFIGURATION_TOPIC)) == 0) {
+            handle_configuration_data(current_topic + strlen(CONFIGURATION_TOPIC), data_as_chars);
         }
         else {
             printf("Unknown topic %s\n", current_topic);
@@ -632,6 +638,62 @@ static void handle_set_grayscale_data(char *data_as_chars)
 
     if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
         printf("Could not send grayscale data; dropping");
+    }
+}
+
+static void handle_configuration_data(char *attribute, char *data_as_chars)
+{
+    printf("Configuration update\n");
+
+    configuration_t configuration;
+
+    configuration.rtc_duration = -1;
+    configuration.current_weather_duration = -1;
+    configuration.weather_forecast_duration = -1;
+    configuration.media_player_scroll_speed = -1;
+    configuration.calendar_scroll_speed = -1;
+    configuration.bluestar_duration = -1;
+    configuration.scroller_interval = -1;
+    configuration.scroller_speed = -1;
+
+    int value = atol(data_as_chars);
+
+    // Update just the changing field
+    if (strcmp(attribute, "rtc_duration") == 0) {
+        configuration.rtc_duration = value;
+    }
+    else if (strcmp(attribute, "current_weather_duration") == 0) {
+        configuration.current_weather_duration = value;
+    }
+    else if (strcmp(attribute, "weather_forecast_duration") == 0) {
+        configuration.weather_forecast_duration = value;
+    }
+    else if (strcmp(attribute, "media_player_scroll_speed") == 0) {
+        configuration.media_player_scroll_speed = value;
+    }
+    else if (strcmp(attribute, "calendar_scroll_speed") == 0) {
+        configuration.calendar_scroll_speed = value;
+    }
+    else if (strcmp(attribute, "bluestar_duration") == 0) {
+        configuration.bluestar_duration = value;
+    }
+    else if (strcmp(attribute, "scroller_interval") == 0) {
+        configuration.scroller_interval = value;
+    }
+    else if (strcmp(attribute, "scroller_speed") == 0) {
+        configuration.scroller_speed = value;
+    }
+    else {
+        printf("Unknown configuration attribute: %s", attribute);
+    }
+
+    message = {
+        message_type: MESSAGE_CONFIGURATION,
+        configuration: configuration,
+    };
+
+    if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+        printf("Could not send configuration data; dropping");
     }
 }
 

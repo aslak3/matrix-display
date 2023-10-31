@@ -79,6 +79,7 @@ class animation {
         void clear_notification(void);
         void new_porch(porch_t *porch);
         void new_rtc(rtc_t *rtc);
+        void update_configuration(configuration_t *config);
 
     private:
         framebuffer& fb;
@@ -97,6 +98,8 @@ class animation {
         notification_state_t notification_state;
         porch_state_t porch_state;
         rtc_state_t rtc_state;
+
+        configuration_t configuration;
 
         const rgb_t black = { red: 0, green: 0, blue: 0 };
         const rgb_t white = { red: 0xff, green: 0xff, blue: 0xff };
@@ -127,7 +130,7 @@ class animation {
         bool render_media_player_page(void);
         bool render_calendar_page(void);
         bool render_bluestar_page(void);
-        
+
         void update_scroller_message(void);
         void render_scroller(void);
 
