@@ -33,6 +33,6 @@ module sync_pdp_ram
        end
     end
 
-    assign read_data_top = read_en ? tmp_data_top : 'hz;
-    assign read_data_bottom = read_en ? tmp_data_bottom : 'hz;
+    assign read_data_top = read_en ? tmp_data_top : 16'bzzzzzzzzzzzzzzzz;
+    assign read_data_bottom = read_en ? tmp_data_bottom : 16'bzzzzzzzzzzzzzzzz;
 endmodule

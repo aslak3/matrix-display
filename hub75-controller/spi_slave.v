@@ -13,14 +13,14 @@ module spi_slave
 
     always @ (posedge reset or posedge spi_clk) begin
         if (reset == 1) begin
-            bit_counter <= 5'b0;
-            last_data <= 32'b0;
+            bit_counter <= 4'b0;
+            last_data <= 16'b0;
         end else begin
-            tmp_data[15 - bit_counter] = spi_mosi;
-            bit_counter = bit_counter + 1;
+            tmp_data[15 - bit_counter] <= spi_mosi;
+            bit_counter <= bit_counter + 1;
 
             if (bit_counter == 4'b0) begin
-                last_data = tmp_data;
+                last_data <= tmp_data;
             end
         end
     end

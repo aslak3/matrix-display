@@ -29,7 +29,7 @@ module sync_pdp_ram_tb;
         write_data = 16'b0;
         write_en = 1'b0;
         read_clk = 1'b0;
-        read_addr = 11'b0;
+        read_addr = 10'b0;
         read_en = 1'b0;
 
         $readmemh("test-bars.txt", input_image);

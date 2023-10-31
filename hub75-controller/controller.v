@@ -30,9 +30,9 @@ module controller
 
     always @ (posedge reset or negedge write_pixel_clk) begin
         if (reset == 1'b1) begin
-            write_addr <= 11'b0;
+            write_addr <= 12'b0;
         end else begin
-            write_addr = write_addr + 1;
+            write_addr <= write_addr + 1;
         end
     end
 
@@ -54,7 +54,7 @@ module controller
     always @ (posedge reset or negedge pixel_clk) begin
         if (reset == 1'b1) begin
             read_state <= READ_STATE_RESET;
-            read_addr <= 10'b0;
+            read_addr <= 14'b0;
         end else begin
             case (read_state)
                 READ_STATE_RESET: begin

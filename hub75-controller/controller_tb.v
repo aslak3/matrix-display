@@ -10,7 +10,8 @@ module controller_tb;
     wire hub75_oe;
     reg spi_clk;
     reg spi_mosi;
-    
+    reg spi_miso;
+
     reg [15:0] input_image [64 * 32];
 
     localparam period = 1;
@@ -26,7 +27,8 @@ module controller_tb;
         hub75_latch,
         hub75_oe,
         spi_clk,
-        spi_mosi
+        spi_mosi,
+        spi_miso
     );
 
     reg [3:0] screen_red[64][32];
@@ -51,7 +53,7 @@ module controller_tb;
             end
         end
 
-        hub75_oe_count <= 10'b0;
+        hub75_oe_count = 10'b0;
 
         #period;
         n_reset = 1'b0;
@@ -120,12 +122,12 @@ module controller_tb;
     always @ (posedge pixel_clk) begin
         if (hub75_oe == 1'b0) begin
             for (integer x_count = 0; x_count < 64; x_count++) begin
-                screen_red[x_count][{1'b0, hub75_addr}] += latched_line_red[x_count][0];
-                screen_red[x_count][{1'b1 ,hub75_addr}] += latched_line_red[x_count][1];
-                screen_green[x_count][{1'b0, hub75_addr}] += latched_line_green[x_count][0];
-                screen_green[x_count][{1'b1, hub75_addr}] += latched_line_green[x_count][1];
-                screen_blue[x_count][{1'b0, hub75_addr}] += latched_line_blue[x_count][0];
-                screen_blue[x_count][{1'b1, hub75_addr}] += latched_line_blue[x_count][1];
+                screen_red[x_count][{1'b0, hub75_addr}] += {3'b000, latched_line_red[x_count][0]};
+                screen_red[x_count][{1'b1 ,hub75_addr}] += {3'b000, latched_line_red[x_count][1]};
+                screen_green[x_count][{1'b0, hub75_addr}] += {3'b000, latched_line_green[x_count][0]};
+                screen_green[x_count][{1'b1, hub75_addr}] += {3'b000, latched_line_green[x_count][1]};
+                screen_blue[x_count][{1'b0, hub75_addr}] += {3'b000, latched_line_blue[x_count][0]};
+                screen_blue[x_count][{1'b1, hub75_addr}] += {3'b000, latched_line_blue[x_count][1]};
             end
 
             if (hub75_oe_count == 10'b1111111111) begin

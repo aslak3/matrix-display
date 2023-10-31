@@ -11,7 +11,7 @@ module spi_slave_tb;
         reset, spi_clk, spi_mosi, data, pixel_clock
     );
 
-    parameter [31:0] test_input = 31'h1234;
+    parameter [31:0] test_input = 32'h1234;
 
     integer bit_counter;
 
