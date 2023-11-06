@@ -16,7 +16,7 @@ module sync_pdp_ram_tb;
 
     localparam period = 1;
 
-    sync_pdp_ram dup (
+    sync_pdp_ram dut (
         buffer_toggle,
         write_clk, write_addr, write_data, write_en,
         read_clk, read_addr, read_data_top, read_data_bottom, read_en

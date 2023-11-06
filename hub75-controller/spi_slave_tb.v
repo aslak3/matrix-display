@@ -3,16 +3,17 @@ module spi_slave_tb;
     reg spi_clk;
     reg spi_mosi;
     wire [15:0] data;
-    wire pixel_clock;
+    wire pixel_clk;
 
     localparam period = 1;
 
-    spi_slave dup (
-        reset, spi_clk, spi_mosi, data, pixel_clock
+    spi_slave dut (
+        reset, spi_clk, spi_mosi, data, pixel_clk
     );
 
-    parameter [15:0] test_input = 16'h1234;
+    parameter [15:0] test_input = 16'hfff0;
 
+    integer word_counter;
     integer bit_counter;
 
     initial begin
@@ -30,21 +31,19 @@ module spi_slave_tb;
         reset = 1'b0;
 
         #period
-        for (bit_counter = 0; bit_counter < 16; bit_counter++) begin
-            spi_clk = 1'b0;
-            spi_mosi = test_input[15 - bit_counter];
-            #period;
+        for (word_counter = 0; word_counter < 2; word_counter++) begin
+            for (bit_counter = 0; bit_counter < 16; bit_counter++) begin
+                spi_clk = 1'b0;
+                spi_mosi = test_input[15 - bit_counter];
+                #period;
 
-            spi_clk = 1'b1;
-            #period;
+                spi_clk = 1'b1;
+                #period;
+            end
         end
+    end
 
-        spi_clk = 1'b0;
-        #period;
-        spi_clk = 1'b1;
-        #period;
-
+    always @ (posedge pixel_clk) begin
         $display("Got %04x", data);
-        #(period * 10);
     end
 endmodule

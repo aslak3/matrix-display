@@ -10,8 +10,7 @@ module controller
         output reg hub75_latch,
         output reg hub75_oe,
         input spi_clk,
-        input spi_mosi,
-        output spi_miso
+        input spi_mosi
     );
 
     wire reset = ~n_reset;
@@ -30,9 +29,10 @@ module controller
 
     always @ (posedge reset or negedge write_pixel_clk) begin
         if (reset == 1'b1) begin
-            write_addr <= 12'b0;
+            // Won't get the first word until the first clock, not before
+            write_addr <= 12'b111111111111;
         end else begin
-            write_addr <= write_addr + 1;
+            write_addr <= write_addr + 12'b1;
         end
     end
 
@@ -43,12 +43,11 @@ module controller
     );
 
     localparam READ_STATE_RESET = 0,
-        READ_STATE_START_OF_LINE = 1,
-        READ_STATE_PIXELS = 2,
-        READ_STATE_SET_LATCH = 3,
-        READ_STATE_END_OF_LINE = 4;
+        READ_STATE_PIXELS = 1,
+        READ_STATE_SET_LATCH = 2,
+        READ_STATE_END_OF_LINE = 3,
+        READ_STATE_NEXT_LINE = 4;
 
-    integer x_count;
     wire [3:0] intensity_test = read_addr [13:10];
 
     always @ (posedge reset or negedge pixel_clk) begin
@@ -62,43 +61,31 @@ module controller
                     hub75_green <= 2'b00;
                     hub75_blue <= 2'b00;
                     hub75_latch <= 1'b0;
-                    hub75_oe <= 1'b0;
-                    hub75_addr <= 4'b0000;
-                    read_state <= READ_STATE_START_OF_LINE;
-                    x_count <= 0;
-                end
-
-                READ_STATE_START_OF_LINE: begin
                     hub75_oe <= 1'b1;
                     read_state <= READ_STATE_PIXELS;
                 end
 
                 READ_STATE_PIXELS: begin
                     hub75_red <= {
-                        1'b1 ? read_data_top[15:12] > intensity_test : 1'b0,
-                        1'b1 ? read_data_bottom[15:12] > intensity_test : 1'b0
+                        read_data_bottom[15:12] >= intensity_test ? 1'b1 : 1'b0,
+                        read_data_top[15:12] >= intensity_test ? 1'b1 : 1'b0
                     };
                     hub75_green <= {
-                        1'b1 ? read_data_top[11:8] > intensity_test : 1'b0,
-                        1'b1 ? read_data_bottom[11:8] > intensity_test : 1'b0
+                        read_data_bottom[11:8] >= intensity_test ? 1'b1 : 1'b0,
+                        read_data_top[11:8] >= intensity_test ? 1'b1 : 1'b0
                     };
                     hub75_blue <= {
-                        1'b1 ? read_data_top[7:4] > intensity_test : 1'b0,
-                        1'b1 ? read_data_bottom[7:4] > intensity_test : 1'b0
+                        read_data_bottom[7:4] >= intensity_test ? 1'b1 : 1'b0,
+                        read_data_top[7:4] >= intensity_test ? 1'b1 : 1'b0
                     };
-                    hub75_addr <= read_addr[9:6];
-                    read_addr <= read_addr + 1;
-                    x_count <= x_count + 1;
-                    if (x_count == 63) begin
-                        x_count <= 0;
+
+                    read_addr <= read_addr + 14'b1;
+                    if (read_addr[5:0] == 6'b0) begin
                         read_state <= READ_STATE_SET_LATCH;
                     end
                 end
 
                 READ_STATE_SET_LATCH: begin
-                    hub75_red <= 2'b00;
-                    hub75_green <= 2'b00;
-                    hub75_blue <= 2'b00;
                     hub75_latch <= 1'b1;
                     read_state <= READ_STATE_END_OF_LINE;
                 end
@@ -106,13 +93,23 @@ module controller
                 READ_STATE_END_OF_LINE: begin
                     hub75_latch <= 1'b0;
                     hub75_oe <= 1'b0;
-                    read_state <= READ_STATE_START_OF_LINE;
+                    read_state <= READ_STATE_NEXT_LINE;
+                end
+
+                READ_STATE_NEXT_LINE: begin
+                    hub75_oe <= 1'b1;
+                    hub75_addr <= hub75_addr + 4'b1;
+                    read_state <= READ_STATE_PIXELS;
                 end
             endcase
         end
     end
 
-    assign hub75_clk = pixel_clk ? read_state == READ_STATE_PIXELS : 1'b0;
+    wire _unused_ok = &{1'b0,
+        read_data_bottom[3:0],
+        read_data_top[3:0],
+        1'b0};
 
-    assign spi_miso = 1'b0;
+    //assign hub75_addr = read_addr[9:6];
+    assign hub75_clk = pixel_clk ? read_state == READ_STATE_PIXELS : 1'b0;
 endmodule
