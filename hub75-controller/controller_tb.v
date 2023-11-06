@@ -111,7 +111,7 @@ module controller_tb;
         this_line_x <= this_line_x + 6'b1;
     end
 
-    always @ (hub75_latch) begin
+    always @ (posedge pixel_clk) begin
         if (hub75_latch == 1'b1) begin
             for (integer x_count = 0; x_count < 64; x_count++) begin
                 latched_line_red[x_count] <= this_line_red[x_count];
@@ -121,7 +121,7 @@ module controller_tb;
         end
     end
 
-    always @ (hub75_oe) begin
+    always @ (posedge pixel_clk) begin
         if (hub75_oe == 1'b0) begin
             for (integer x_count = 0; x_count < 64; x_count++) begin
                 screen_red[x_count][{1'b0, hub75_addr}] <= screen_red[x_count][{1'b0, hub75_addr}] +

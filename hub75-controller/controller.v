@@ -62,21 +62,22 @@ module controller
                     hub75_blue <= 2'b00;
                     hub75_latch <= 1'b0;
                     hub75_oe <= 1'b1;
+                    hub75_addr <= 4'b0000;
                     read_state <= READ_STATE_PIXELS;
                 end
 
                 READ_STATE_PIXELS: begin
                     hub75_red <= {
-                        read_data_bottom[15:12] >= intensity_test ? 1'b1 : 1'b0,
-                        read_data_top[15:12] >= intensity_test ? 1'b1 : 1'b0
+                        read_data_bottom[15:12] > intensity_test ? 1'b1 : 1'b0,
+                        read_data_top[15:12] > intensity_test ? 1'b1 : 1'b0
                     };
                     hub75_green <= {
-                        read_data_bottom[11:8] >= intensity_test ? 1'b1 : 1'b0,
-                        read_data_top[11:8] >= intensity_test ? 1'b1 : 1'b0
+                        read_data_bottom[11:8] > intensity_test ? 1'b1 : 1'b0,
+                        read_data_top[11:8] > intensity_test ? 1'b1 : 1'b0
                     };
                     hub75_blue <= {
-                        read_data_bottom[7:4] >= intensity_test ? 1'b1 : 1'b0,
-                        read_data_top[7:4] >= intensity_test ? 1'b1 : 1'b0
+                        read_data_bottom[7:4] > intensity_test ? 1'b1 : 1'b0,
+                        read_data_top[7:4] > intensity_test ? 1'b1 : 1'b0
                     };
 
                     read_addr <= read_addr + 14'b1;
@@ -101,6 +102,7 @@ module controller
                     hub75_addr <= hub75_addr + 4'b1;
                     read_state <= READ_STATE_PIXELS;
                 end
+
             endcase
         end
     end
@@ -110,6 +112,5 @@ module controller
         read_data_top[3:0],
         1'b0};
 
-    //assign hub75_addr = read_addr[9:6];
     assign hub75_clk = pixel_clk ? read_state == READ_STATE_PIXELS : 1'b0;
 endmodule
