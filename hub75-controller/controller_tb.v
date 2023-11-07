@@ -153,4 +153,12 @@ module controller_tb;
         end
     end
 
+    // always @ (n_reset, hub75_clk or hub75_latch or hub75_oe or hub75_addr or
+    //     hub75_red or hub75_green or hub75_blue)
+    // begin
+    //     $display("%d,%d,%d,%d,%d,%x,%d,%d,%d",
+    //         $time(), n_reset, hub75_clk, hub75_latch, hub75_oe, hub75_addr,
+    //         hub75_red, hub75_green, hub75_blue);
+    // end
+
 endmodule

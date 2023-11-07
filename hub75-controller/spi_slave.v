@@ -26,6 +26,6 @@ module spi_slave
     end
 
     assign data = last_data;
-    assign pixel_clk = ~bit_counter[3];
+    assign pixel_clk = bit_counter[3];
 endmodule
 

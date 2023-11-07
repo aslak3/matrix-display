@@ -42,30 +42,26 @@ module controller
         pixel_clk, read_addr[9:0], read_data_top, read_data_bottom, 1'b1
     );
 
-    localparam READ_STATE_RESET = 0,
-        READ_STATE_PIXELS = 1,
-        READ_STATE_SET_LATCH = 2,
-        READ_STATE_END_OF_LINE = 3,
-        READ_STATE_NEXT_LINE = 4;
+    localparam
+        READ_STATE_PIXELS = 0,
+        READ_STATE_SET_LATCH = 1,
+        READ_STATE_END_OF_LINE = 2,
+        READ_STATE_NEXT_LINE = 3;
 
     wire [3:0] intensity_test = read_addr [13:10];
 
     always @ (posedge reset or negedge pixel_clk) begin
         if (reset == 1'b1) begin
-            read_state <= READ_STATE_RESET;
             read_addr <= 14'b0;
+            hub75_red <= 2'b00;
+            hub75_green <= 2'b00;
+            hub75_blue <= 2'b00;
+            hub75_latch <= 1'b0;
+            hub75_oe <= 1'b1;
+            hub75_addr <= 4'b0000;
+            read_state <= READ_STATE_PIXELS;
         end else begin
             case (read_state)
-                READ_STATE_RESET: begin
-                    hub75_red <= 2'b00;
-                    hub75_green <= 2'b00;
-                    hub75_blue <= 2'b00;
-                    hub75_latch <= 1'b0;
-                    hub75_oe <= 1'b1;
-                    hub75_addr <= 4'b0000;
-                    read_state <= READ_STATE_PIXELS;
-                end
-
                 READ_STATE_PIXELS: begin
                     hub75_red <= {
                         read_data_bottom[15:12] > intensity_test ? 1'b1 : 1'b0,
@@ -81,7 +77,7 @@ module controller
                     };
 
                     read_addr <= read_addr + 14'b1;
-                    if (read_addr[5:0] == 6'b0) begin
+                    if (read_addr[5:0] == 6'b111111) begin
                         read_state <= READ_STATE_SET_LATCH;
                     end
                 end
