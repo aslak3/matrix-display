@@ -49,6 +49,7 @@ module controller
         READ_STATE_NEXT_LINE = 3;
 
     wire [3:0] intensity_test = read_addr [13:10];
+    reg run_hub75_clk;
 
     always @ (posedge reset or negedge pixel_clk) begin
         if (reset == 1'b1) begin
@@ -63,6 +64,7 @@ module controller
         end else begin
             case (read_state)
                 READ_STATE_PIXELS: begin
+                    run_hub75_clk <= 1'b1;
                     hub75_red <= {
                         read_data_bottom[15:12] > intensity_test ? 1'b1 : 1'b0,
                         read_data_top[15:12] > intensity_test ? 1'b1 : 1'b0
@@ -83,6 +85,7 @@ module controller
                 end
 
                 READ_STATE_SET_LATCH: begin
+                    run_hub75_clk <= 1'b0;
                     hub75_latch <= 1'b1;
                     read_state <= READ_STATE_END_OF_LINE;
                 end
@@ -108,5 +111,5 @@ module controller
         read_data_top[3:0],
         1'b0};
 
-    assign hub75_clk = pixel_clk ? read_state == READ_STATE_PIXELS : 1'b0;
+    assign hub75_clk = run_hub75_clk == 1'b1 ? pixel_clk : 1'b0;
 endmodule
