@@ -11,7 +11,7 @@ module spi_slave_tb;
         reset, spi_clk, spi_mosi, data, pixel_clk
     );
 
-    parameter [15:0] test_input = 16'hfff0;
+    parameter [47:0] test_input = 48'hdeadbeef0000;
 
     integer word_counter;
     integer bit_counter;
@@ -31,15 +31,13 @@ module spi_slave_tb;
         reset = 1'b0;
 
         #period
-        for (word_counter = 0; word_counter < 2; word_counter++) begin
-            for (bit_counter = 0; bit_counter < 16; bit_counter++) begin
+            for (bit_counter = 0; bit_counter < 48; bit_counter++) begin
                 spi_clk = 1'b0;
-                spi_mosi = test_input[15 - bit_counter];
+                spi_mosi = test_input[47 - bit_counter];
                 #period;
 
                 spi_clk = 1'b1;
                 #period;
-            end
         end
     end
 
