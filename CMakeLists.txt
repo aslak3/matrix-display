@@ -41,7 +41,7 @@ target_include_directories(${PROJECT} PRIVATE
 
 # pull in common dependencies
 target_link_libraries(matrix-display fonts images
-    pico_stdlib hardware_i2c
+    pico_stdlib hardware_i2c hardware_spi    
     pico_cyw43_arch_lwip_sys_freertos
     pico_lwip_mqtt
     FreeRTOS-Kernel-Heap4
