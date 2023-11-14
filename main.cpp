@@ -164,20 +164,23 @@ void matrix_task(void *dummy)
 
     printf("Configure TX DMA\n");
     dma_channel_config dma_config_c = dma_channel_get_default_config(dma_tx);
+    // TODO: investigate DMA_SIZE_32 transfers
     channel_config_set_transfer_data_size(&dma_config_c, DMA_SIZE_8);
     channel_config_set_dreq(&dma_config_c, spi_get_dreq(spi_default, true));
+
+    dma_channel_configure(dma_tx, &dma_config_c,
+        &spi_get_hw(spi_default)->dr,               // write address
+        NULL,                                       // read address (set later)
+        FB_WIDTH * FB_HEIGHT * sizeof(uint32_t),    // element count
+        false);                                     // don't start it now
 
     while (1) {
         fb.atomic_fore_copy_out(&output_fb);
 
         gpio_put(PICO_DEFAULT_SPI_CSN_PIN, false);
 
-        // dma_channel_start(dma_tx);
-        dma_channel_configure(dma_tx, &dma_config_c,
-            &spi_get_hw(spi_default)->dr,               // write address
-            &output_fb.uint32,                          // read address
-            FB_WIDTH * FB_HEIGHT * sizeof(uint32_t),    // element count
-            true);                                      // start it now
+        // Set the read address to the top of frame and trigger
+        dma_channel_set_read_addr(dma_tx, &output_fb.uint32, true);
         dma_channel_wait_for_finish_blocking(dma_tx);
 
         gpio_put(PICO_DEFAULT_SPI_CSN_PIN, true);
