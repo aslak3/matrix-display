@@ -4,6 +4,7 @@
 #include <pico/stdlib.h>
 #include <hardware/gpio.h>
 #include <hardware/spi.h>
+#include <hardware/dma.h>
 #include <pico/cyw43_arch.h>
 
 #include <FreeRTOS.h>
@@ -150,22 +151,35 @@ void matrix_task(void *dummy)
     printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
 
-    spi_init(spi_default, 1 * 1000 * 1000);
+    static fb_t output_fb;
+
+    spi_init(spi_default, 10 * 1000 * 1000);
     gpio_set_function(PICO_DEFAULT_SPI_RX_PIN, GPIO_FUNC_SPI);
     gpio_set_function(PICO_DEFAULT_SPI_SCK_PIN, GPIO_FUNC_SPI);
     gpio_set_function(PICO_DEFAULT_SPI_TX_PIN, GPIO_FUNC_SPI);
     gpio_init(PICO_DEFAULT_SPI_CSN_PIN);
     gpio_set_dir(PICO_DEFAULT_SPI_CSN_PIN, true);
 
-    static fb_t output_fb;
+    const uint dma_tx = dma_claim_unused_channel(true);
+
+    printf("Configure TX DMA\n");
+    dma_channel_config dma_config_c = dma_channel_get_default_config(dma_tx);
+    channel_config_set_transfer_data_size(&dma_config_c, DMA_SIZE_8);
+    channel_config_set_dreq(&dma_config_c, spi_get_dreq(spi_default, true));
 
     while (1) {
         fb.atomic_fore_copy_out(&output_fb);
 
         gpio_put(PICO_DEFAULT_SPI_CSN_PIN, false);
-        for (int rowsel = 0; rowsel < FB_HEIGHT; rowsel++) {
-            spi_write_blocking(spi_default, (uint8_t *) &output_fb.uint32[rowsel][0], FB_WIDTH * sizeof(uint32_t));
-        }
+
+        // dma_channel_start(dma_tx);
+        dma_channel_configure(dma_tx, &dma_config_c,
+            &spi_get_hw(spi_default)->dr,               // write address
+            &output_fb.uint32,                          // read address
+            FB_WIDTH * FB_HEIGHT * sizeof(uint32_t),    // element count
+            true);                                      // start it now
+        dma_channel_wait_for_finish_blocking(dma_tx);
+
         gpio_put(PICO_DEFAULT_SPI_CSN_PIN, true);
     }
 }
