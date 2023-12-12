@@ -10,6 +10,8 @@ module controller_tb;
     wire hub75_oe;
     reg spi_clk;
     reg spi_mosi;
+    reg spi_miso;
+    reg user_led;
 
     reg [15:0] input_image [64 * 32];
 
@@ -26,7 +28,9 @@ module controller_tb;
         hub75_latch,
         hub75_oe,
         spi_clk,
-        spi_mosi
+        spi_mosi,
+        spi_miso,
+        user_led,
     );
 
     initial begin
