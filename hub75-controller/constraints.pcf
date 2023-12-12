@@ -1,5 +1,5 @@
 set_io --warn-no-port n_reset 35            # ~{CTRL_RESET}
-set_io --warn-no-port pixel_clk 20          # GLOBAL_CLK
+set_io --warn-no-port clk 20                # GLOBAL_CLK
 
 set_io --warn-no-port hub75_red[0] 23       # RED1
 set_io --warn-no-port hub75_red[1] 28       # RED2
