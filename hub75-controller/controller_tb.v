@@ -110,7 +110,19 @@ module controller_tb;
     reg [3:0] screen_red[64][32];
     reg [3:0] screen_green[64][32];
     reg [3:0] screen_blue[64][32];
-    reg [7:0] hub75_oe_count;
+
+    // Must init the screen memory as we add to it through the frame
+    initial begin
+        for (integer y_count = 0; y_count < 32; y_count++) begin
+            for (integer x_count = 0; x_count < 64; x_count++) begin
+                screen_red[x_count][y_count] = 4'b0;
+                screen_green[x_count][y_count] = 4'b0;
+                screen_blue[x_count][y_count] = 4'b0;
+            end
+        end
+    end
+
+    reg [7:0] hub75_oe_count = 8'b0;
 
     always @ (posedge clk) begin
         if (hub75_oe == 1'b0) begin
