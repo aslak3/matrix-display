@@ -10,7 +10,10 @@ module controller
         output reg hub75_latch,
         output reg hub75_oe,
         input spi_clk,
-        input spi_mosi
+        input spi_mosi,
+        input spi_ss,
+        output spi_miso,
+        output user_led
     );
 
     wire reset = ~n_reset;
@@ -113,4 +116,7 @@ module controller
         1'b0};
 
     assign hub75_clk = run_hub75_clk == 1'b1 ? clk : 1'b0;
+
+    assign spi_miso = 1'b0;
+    assign user_led = 1'b0;
 endmodule
