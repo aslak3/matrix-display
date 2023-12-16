@@ -63,6 +63,8 @@ int main(void)
 
     printf("Hello, matrix here\n");
 
+    srand(0);
+
     animate_queue = xQueueCreate(3, sizeof(message_t));
     rtc_queue = xQueueCreate(3, sizeof(rtc_t));
     matrix_queue = xQueueCreate(1, sizeof(fb_t));

@@ -10,8 +10,10 @@ typedef struct {
     uint8_t red;
     uint8_t green;
     uint8_t blue;
-    uint8_t dummy;
+    uint8_t flags;
 } rgb_t;
+
+#define RGB_FLAGS_BRIGHT 1
 
 typedef union {
     rgb_t rgb[FB_HEIGHT][FB_WIDTH];

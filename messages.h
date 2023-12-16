@@ -95,6 +95,7 @@ typedef struct {
     int bluestar_duration;
     int scroller_interval;
     int scroller_speed;
+    int snowflake_count;
 } configuration_t;
 
 #define MESSAGE_NULL 0
@@ -107,7 +108,7 @@ typedef struct {
 #define MESSAGE_RTC 12
 #define MESSAGE_BRIGHTNESS 13
 #define MESSAGE_GRAYSCALE 14
-#define MESSAGE_CONFIGURATION 15
+#define MESSAGE_CONFIGURATION 100
 
 typedef struct {
     uint8_t message_type;

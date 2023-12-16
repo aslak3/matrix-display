@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 #include "animation.h"
 
@@ -20,6 +21,8 @@ animation::animation(framebuffer& f) : fb(f)
 
     weather_state.framestamp = 0;
 
+    calendar_state.framestamp = 0;
+
     notification_state.framestamp = 0;
     notification_state.rgb = black;
 
@@ -35,12 +38,14 @@ animation::animation(framebuffer& f) : fb(f)
     configuration.bluestar_duration = 500;
     configuration.scroller_interval = 8000;
     configuration.scroller_speed = 2;
+    configuration.snowflake_count = 0;
 
     frame = 0;
 
     change_page(PAGE_WAITING);
-}
 
+    init_snowflakes();
+}
 
 void animation::prepare_screen(void)
 {
@@ -100,6 +105,9 @@ void animation::render_page(void)
     if (page != PAGE_WAITING) {
         render_scroller();
     }
+
+    update_snowflakes();
+    render_snowflakes();
 
     if (frames_left_on_page) {
         frames_left_on_page--;
@@ -189,13 +197,39 @@ void animation::new_porch(porch_t *porch)
 void animation::new_rtc(rtc_t *rtc)
 {
     rtc_state.data = *rtc;
+    rtc_state.frames_per_second = frame - rtc_state.framestamp;
     rtc_state.framestamp = frame;
 
-    char time[10];
-    char date[20];
+    const char *month_names[] = {
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    };
+    const char *day_names[] = {
+        "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
+    };
 
-    format_time_and_date(time, date);
-    printf("New Time: %s Date: %s\n", time, date);
+    uint8_t *buffer = rtc_state.data.datetime_buffer;
+
+    snprintf(rtc_state.time, sizeof(rtc_state.time), "%02x:%02x:%02x",
+        buffer[2] & 0x3f,
+        buffer[1] & 0x7f,
+        buffer[0] & 0x7f
+    );
+
+    const int day_number = (buffer[3] & 0x0f) + (((buffer[3] & 0xf0) >> 4) * 10) - 1;
+    const int month_number = (buffer[5] & 0x0f) + (((buffer[5] & 0xf0) >> 4) * 10) - 1;
+
+    if (month_number < 12 && day_number < 7) {
+        snprintf(rtc_state.date, sizeof(rtc_state.date), "%s %02x %s",
+            day_names[day_number],
+            buffer[4],
+            month_names[month_number]
+        );
+    }
+    else {
+        strncpy(rtc_state.date, "XXXX", sizeof(rtc_state.date));
+    }
+
+    printf("New Time: %s Date: %s\n", rtc_state.time, rtc_state.date);
 }
 
 void animation::update_configuration(configuration_t *config)
@@ -223,6 +257,9 @@ void animation::update_configuration(configuration_t *config)
     }
     if (config->scroller_speed > 0) {
         configuration.scroller_speed = config->scroller_speed;
+    }
+    if (config->snowflake_count >= 0) {
+        configuration.snowflake_count = config->snowflake_count;
     }
 }
 
@@ -280,12 +317,10 @@ bool animation::render_waiting_page(void)
 
 bool animation::render_rtc_page(void)
 {
-    char time[10];
-    fb.print_string(ibm_font, 0, FB_HEIGHT - 8 - 1 - 6, time, orange);
+    fb.print_string(ibm_font, 0, FB_HEIGHT - 8 - 1 - 6, rtc_state.time, orange);
 
-    char date[20];
-    fb.print_string(tiny_font, (FB_WIDTH / 2) - (fb.string_length(tiny_font, date) / 2),
-        FB_HEIGHT - 8 - 10 - 6, date, white);
+    fb.print_string(tiny_font, (FB_WIDTH / 2) - (fb.string_length(tiny_font, rtc_state.date) / 2),
+        FB_HEIGHT - 8 - 10 - 6, rtc_state.date, white);
 
     return false;
 }
@@ -420,11 +455,23 @@ bool animation::render_bluestar_page(void)
         return true;
     }
 
-    fb.print_string(tiny_font, 0, FB_HEIGHT - 8, bluestar_state.data.journies[0].towards, light_blue);
-    fb.print_string(tiny_font, 0, FB_HEIGHT - 16, bluestar_state.data.journies[0].departures_summary, cyan);
+    rgb_t towards_colour = light_blue;
+    rgb_t departures_colour = cyan;
+    // If bus info is stale (older then 5 minutes) make it red instead of blue
+    if (frame - rtc_state.framestamp > 300 * rtc_state.frames_per_second) {
+        towards_colour = dark_red;
+        departures_colour = red;
+    }
 
-    fb.print_string(tiny_font, 0, FB_HEIGHT - 24, bluestar_state.data.journies[1].towards, light_blue);
-    fb.print_string(tiny_font, 0, FB_HEIGHT - 32, bluestar_state.data.journies[1].departures_summary, cyan);
+    fb.print_string(tiny_font, 0, FB_HEIGHT - 8, bluestar_state.data.journies[0].towards,
+        towards_colour);
+    fb.print_string(tiny_font, 0, FB_HEIGHT - 16, bluestar_state.data.journies[0].departures_summary,
+        departures_colour);
+
+    fb.print_string(tiny_font, 0, FB_HEIGHT - 24, bluestar_state.data.journies[1].towards,
+        towards_colour);
+    fb.print_string(tiny_font, 0, FB_HEIGHT - 32, bluestar_state.data.journies[1].departures_summary,
+        departures_colour);
 
     return false;
 }
@@ -467,6 +514,49 @@ void animation::render_scroller(void)
     }
 }
 
+int16_t animation::random_snowflake_x(void)
+{
+    return rand() % (128 * 256) - (64 * 256);
+}
+
+void animation::init_snowflakes(void)
+{
+    snowflake_wind_vector = 0;
+
+    for (int c = 0; c < NO_SNOWFLAKES; c++) {
+        snowflakes[c].weight = rand() % 64 + 32;
+        snowflakes[c].x = random_snowflake_x();
+        snowflakes[c].y = rand() % (32 * 256);
+    }
+}
+
+void animation::update_snowflakes(void)
+{
+    snowflake_wind_vector += (rand() % 32) - 16;
+    if (snowflake_wind_vector > 128) {
+        snowflake_wind_vector = 128;
+    }
+    if (snowflake_wind_vector < -128) {
+        snowflake_wind_vector = -128;
+    }
+
+    for (int c = 0; c < configuration.snowflake_count && c < NO_SNOWFLAKES; c++) {
+        snowflakes[c].x += snowflake_wind_vector;
+        snowflakes[c].y -= snowflakes[c].weight;
+        if (snowflakes[c].y <= 0) {
+            snowflakes[c].x = random_snowflake_x();
+            snowflakes[c].y = 31 * 256;
+        }
+    }
+}
+
+void animation::render_snowflakes(void)
+{
+    for (int c = 0; c < configuration.snowflake_count && c < NO_SNOWFLAKES; c++) {
+        fb.point((snowflakes[c].x + (32 * 256)) / 256, snowflakes[c].y / 256, bright_white);
+    }
+}
+
 rgb_t animation::rgb_grey(int grey_level)
 {
     if (grey_level < 0) {
@@ -482,38 +572,5 @@ rgb_t animation::rgb_grey(int grey_level)
             blue: (uint8_t) grey_level,
         };
         return rgb;
-    }
-}
-
-// fomarts the RTC data into strings; time > 10 chars, date > 20 chars
-void animation::format_time_and_date(char *time, char *date)
-{
-    const char *month_names[] = {
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    };
-    const char *day_names[] = {
-        "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
-    };
-
-    uint8_t *buffer = rtc_state.data.datetime_buffer;
-
-    snprintf(time, sizeof(time), "%02x:%02x:%02x",
-        buffer[2] & 0x3f,
-        buffer[1] & 0x7f,
-        buffer[0] & 0x7f
-    );
-
-    const int day_number = (buffer[3] & 0x0f) + (((buffer[3] & 0xf0) >> 4) * 10) - 1;
-    const int month_number = (buffer[5] & 0x0f) + (((buffer[5] & 0xf0) >> 4) * 10) - 1;
-
-    if (month_number < 12 && day_number < 7) {
-        snprintf(date, sizeof(date), "%s %02x %s",
-            day_names[day_number],
-            buffer[4],
-            month_names[month_number]
-        );
-    }
-    else {
-        strncpy(date, "XXXX", sizeof(date));
     }
 }

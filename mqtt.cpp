@@ -37,6 +37,7 @@ static void handle_notificaiton_data(char *data_as_chars);
 static void handle_set_rtc_time_data(char *data_as_chars);
 static void handle_set_brightness_data(char *attribute, char *data_as_chars);
 static void handle_set_grayscale_data(char *data_as_chars);
+static void handle_set_snowflakes_data(char *data_as_chars);
 static void handle_configuration_data(char *attribute, char *data_as_chars);
 
 static void dump_weather_data(weather_data_t *weather_data);
@@ -640,6 +641,7 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
     configuration.bluestar_duration = -1;
     configuration.scroller_interval = -1;
     configuration.scroller_speed = -1;
+    configuration.snowflake_count = -1;
 
     int value = atol(data_as_chars);
 
@@ -667,6 +669,9 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
     }
     else if (strcmp(attribute, "scroller_speed") == 0) {
         configuration.scroller_speed = value;
+    }
+    else if (strcmp(attribute, "snowflake_count") == 0) {
+        configuration.snowflake_count = value;
     }
     else {
         printf("Unknown configuration attribute: %s", attribute);

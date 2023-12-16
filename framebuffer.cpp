@@ -249,11 +249,20 @@ void framebuffer::atomic_back_to_fore_copy(void)
                 uint8_t intensity = (uint8_t)((uint32_t) (rgb.red + rgb.green + rgb.blue) / 3);
                 rgb.red = rgb.green = rgb.blue = intensity;
             }
-            transfer_fb.rgb[FB_HEIGHT - r][c] = {
-                red: (uint8_t)((uint32_t)(rgb.red * brightness_red) / 255),
-                green: (uint8_t)((uint32_t)(rgb.green * brightness_green) / 255),
-                blue: (uint8_t)((uint32_t)(rgb.blue * brightness_blue) / 255),
-            };
+            if ((rgb.flags & RGB_FLAGS_BRIGHT) && brightness_red && brightness_green && brightness_blue) {
+                transfer_fb.rgb[FB_HEIGHT - r][c] = {
+                    red: rgb.red,
+                    green: rgb.green,
+                    blue: rgb.blue,
+                };
+            }
+            else {
+                transfer_fb.rgb[FB_HEIGHT - r][c] = {
+                    red: (uint8_t)((uint32_t)(rgb.red * brightness_red) / 255),
+                    green: (uint8_t)((uint32_t)(rgb.green * brightness_green) / 255),
+                    blue: (uint8_t)((uint32_t)(rgb.blue * brightness_blue) / 255),
+                };
+            }
         }
     }
 

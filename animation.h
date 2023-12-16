@@ -43,6 +43,9 @@ typedef struct {
 typedef struct {
     rtc_t data;
     int framestamp;
+    int frames_per_second;
+    char time[10];
+    char date[20];
 } rtc_state_t;
 
 typedef enum {
@@ -62,6 +65,13 @@ typedef struct {
     int framestamp;
     int off_countdown;
 } scroller_t;
+
+#define NO_SNOWFLAKES 255
+
+typedef struct {
+    int16_t x, y;
+    int16_t weight;
+} snowflake_t;
 
 class animation {
     public:
@@ -99,19 +109,27 @@ class animation {
         porch_state_t porch_state;
         rtc_state_t rtc_state;
 
+        snowflake_t snowflakes[NO_SNOWFLAKES];
+        int16_t snowflake_wind_vector;
+
         configuration_t configuration;
 
         const rgb_t black = { red: 0, green: 0, blue: 0 };
         const rgb_t white = { red: 0xff, green: 0xff, blue: 0xff };
         const rgb_t red = { red: 0xff, green: 0, blue: 0 };
+        const rgb_t dark_red = { red: 0x80, green: 0, blue: 0 };
         const rgb_t green = { red: 0, green: 0xff, blue: 0 };
+        const rgb_t dark_green { red: 0, green: 0x80, blue: 0 };
         const rgb_t blue = { red: 0, green: 0, blue: 0xff };
+        const rgb_t dark_blue = { red: 0, green: 0, blue: 0x80 };
         const rgb_t cyan = { red: 0, green: 0xff, blue: 0xff };
         const rgb_t yellow = { red: 0xff, green: 0xff, blue: 0 };
         const rgb_t magenta = { red: 0xff, green: 0, blue: 0xff };
         const rgb_t grey = { red: 0x08, green: 0x08, blue: 0x08 };
         const rgb_t orange { red: 0xff, green: 0xa5, blue: 0 };
         const rgb_t light_blue = { red: 0, green: 0x40, blue: 0xff };
+
+        const rgb_t bright_white = { red: 0xff, green: 0xff, blue: 0xff, flags: RGB_FLAGS_BRIGHT };
 
         font_t *big_font;
         font_t *medium_font;
@@ -134,6 +152,10 @@ class animation {
         void update_scroller_message(void);
         void render_scroller(void);
 
+        int16_t random_snowflake_x(void);
+        void init_snowflakes(void);
+        void update_snowflakes(void);
+        void render_snowflakes(void);
+
         rgb_t rgb_grey(int grey_level);
-        void format_time_and_date(char *time, char *date);
 };
