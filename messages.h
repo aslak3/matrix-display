@@ -7,18 +7,7 @@ typedef struct {
     double precipitation_probability;
 } forecast_t;
 
-#define NO_FORECASTS 8
-
-#define FIELD_WD_CONDITION (1<<0)
-#define FIELD_WD_TEMPERATURE (1<<1)
-#define FIELD_WD_HUMIDITY (1<<2)
-#define FIELD_WD_WIND_SPEED (1<<3)
-#define FIELD_WD_WIND_BEARING (1<<4)
-#define FIELD_WD_PRESSURE (1<<5)
-#define FIELD_WD_FORECAST (1<<6)
-
-#define FIELD_WD_ALL (FIELD_WD_CONDITION | FIELD_WD_TEMPERATURE | FIELD_WD_HUMIDITY | FIELD_WD_FORECAST | \
-    FIELD_WD_WIND_SPEED | FIELD_WD_WIND_BEARING | FIELD_WD_PRESSURE)
+#define NO_FORECASTS 3
 
 typedef struct {
     int fetched_fields;
