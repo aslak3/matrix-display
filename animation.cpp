@@ -158,6 +158,7 @@ void animation::new_calendar_data(calendar_data_t *calendar_data)
 {
     calendar_state.data = *calendar_data;
     calendar_state.message_pixel_height = 0;
+    calendar_state.framestamp = frame;
 }
 
 void animation::new_bluestar_data(bluestar_data_t *bluestar_data)
@@ -189,6 +190,12 @@ void animation::new_rtc(rtc_t *rtc)
 {
     rtc_state.data = *rtc;
     rtc_state.framestamp = frame;
+
+    char time[10];
+    char date[20];
+
+    format_time_and_date(time, date);
+    printf("New Time: %s Date: %s\n", time, date);
 }
 
 void animation::update_configuration(configuration_t *config)
@@ -273,37 +280,10 @@ bool animation::render_waiting_page(void)
 
 bool animation::render_rtc_page(void)
 {
-    const char *month_names[] = {
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    };
-    const char *day_names[] = {
-        "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
-    };
-
-    uint8_t *buffer = rtc_state.data.datetime_buffer;
-
     char time[10];
-    snprintf(time, sizeof(time), "%02x:%02x:%02x",
-        buffer[2] & 0x3f,
-        buffer[1] & 0x7f,
-        buffer[0] & 0x7f
-    );
     fb.print_string(ibm_font, 0, FB_HEIGHT - 8 - 1 - 6, time, orange);
 
     char date[20];
-    const int day_number = (buffer[3] & 0x0f) + (((buffer[3] & 0xf0) >> 4) * 10) - 1;
-    const int month_number = (buffer[5] & 0x0f) + (((buffer[5] & 0xf0) >> 4) * 10) - 1;
-
-    if (month_number < 12 && day_number < 7) {
-        snprintf(date, sizeof(date), "%s %02x %s",
-            day_names[day_number],
-            buffer[4],
-            month_names[month_number]
-        );
-    }
-    else {
-        strncpy(date, "XXXX", sizeof(date));
-    }
     fb.print_string(tiny_font, (FB_WIDTH / 2) - (fb.string_length(tiny_font, date) / 2),
         FB_HEIGHT - 8 - 10 - 6, date, white);
 
@@ -502,5 +482,38 @@ rgb_t animation::rgb_grey(int grey_level)
             blue: (uint8_t) grey_level,
         };
         return rgb;
+    }
+}
+
+// fomarts the RTC data into strings; time > 10 chars, date > 20 chars
+void animation::format_time_and_date(char *time, char *date)
+{
+    const char *month_names[] = {
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    };
+    const char *day_names[] = {
+        "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
+    };
+
+    uint8_t *buffer = rtc_state.data.datetime_buffer;
+
+    snprintf(time, sizeof(time), "%02x:%02x:%02x",
+        buffer[2] & 0x3f,
+        buffer[1] & 0x7f,
+        buffer[0] & 0x7f
+    );
+
+    const int day_number = (buffer[3] & 0x0f) + (((buffer[3] & 0xf0) >> 4) * 10) - 1;
+    const int month_number = (buffer[5] & 0x0f) + (((buffer[5] & 0xf0) >> 4) * 10) - 1;
+
+    if (month_number < 12 && day_number < 7) {
+        snprintf(date, sizeof(date), "%s %02x %s",
+            day_names[day_number],
+            buffer[4],
+            month_names[month_number]
+        );
+    }
+    else {
+        strncpy(date, "XXXX", sizeof(date));
     }
 }

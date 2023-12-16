@@ -135,4 +135,5 @@ class animation {
         void render_scroller(void);
 
         rgb_t rgb_grey(int grey_level);
+        void format_time_and_date(char *time, char *date);
 };
