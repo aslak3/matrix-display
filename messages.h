@@ -1,5 +1,7 @@
 #include <pico/stdlib.h>
 
+// Messages destined at the animation task
+
 typedef struct {
     char time[6];
     char condition[32];
@@ -69,11 +71,9 @@ typedef struct {
 } porch_t;
 
 #define RTC_DATETIME_LEN 7
-#define RTC_TEMPERATURE_LEN 2
 
 typedef struct {
     uint8_t datetime_buffer[RTC_DATETIME_LEN];
-    uint8_t temperature_buffer[RTC_TEMPERATURE_LEN];
 } rtc_t;
 
 #define BRIGHTNESS_UNKNWON 0
@@ -98,17 +98,17 @@ typedef struct {
     int snowflake_count;
 } configuration_t;
 
-#define MESSAGE_NULL 0
-#define MESSAGE_WEATHER 1
-#define MESSAGE_MEDIA_PLAYER 2
-#define MESSAGE_CALENDAR 3
-#define MESSAGE_BLUESTAR 4
-#define MESSAGE_NOTIFICATION 10
-#define MESSAGE_PORCH 11
-#define MESSAGE_RTC 12
-#define MESSAGE_BRIGHTNESS 13
-#define MESSAGE_GRAYSCALE 14
-#define MESSAGE_CONFIGURATION 100
+#define MESSAGE_ANIM_NULL 0
+#define MESSAGE_ANIM_WEATHER 1
+#define MESSAGE_ANIM_MEDIA_PLAYER 2
+#define MESSAGE_ANIM_CALENDAR 3
+#define MESSAGE_ANIM_BLUESTAR 4
+#define MESSAGE_ANIM_NOTIFICATION 10
+#define MESSAGE_ANIM_PORCH 11
+#define MESSAGE_ANIM_RTC 12
+#define MESSAGE_ANIM_BRIGHTNESS 13
+#define MESSAGE_ANIM_GRAYSCALE 14
+#define MESSAGE_ANIM_CONFIGURATION 100
 
 typedef struct {
     uint8_t message_type;
@@ -124,4 +124,28 @@ typedef struct {
         bool grayscale;
         configuration_t configuration;
     };
-} message_t;
+} message_anim_t;
+
+// Messages destined at RTC task
+
+#define MESSAGE_RTC_NULL 0
+#define MESSAGE_RTC_RTC 1
+
+typedef struct {
+    uint8_t message_type;
+    union {
+        rtc_t rtc;
+    };
+} message_rtc_t;
+
+// Messages destined at MQTT task
+
+#define MESSAGE_MQTT_NULL 0
+#define MESSAGE_MQTT_TEMPERATURE 1
+
+typedef struct {
+    uint8_t message_type;
+    union {
+        double temperature;
+    };
+} message_mqtt_t;

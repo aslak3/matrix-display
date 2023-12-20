@@ -46,6 +46,7 @@ typedef struct {
     int frames_per_second;
     char time[10];
     char date[20];
+    float temperature;
 } rtc_state_t;
 
 typedef enum {

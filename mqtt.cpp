@@ -15,6 +15,7 @@
 
 #include "cJSON.h"
 
+extern QueueHandle_t mqtt_queue;
 extern QueueHandle_t animate_queue;
 extern QueueHandle_t rtc_queue;
 
@@ -41,6 +42,8 @@ static void handle_set_snowflakes_data(char *data_as_chars);
 static void handle_configuration_data(char *attribute, char *data_as_chars);
 
 static void dump_weather_data(weather_data_t *weather_data);
+
+static void publish_loop_body(mqtt_client_t *client);
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags);
 
 static uint8_t bcd_digit_to_byte(char c);
@@ -61,6 +64,8 @@ void led_task(void *dummy)
         vTaskDelay(1000);
     }
 }
+
+#define TEMPERATURE_TOPIC "matrix_display/temperature"
 
 void mqtt_task(void *dummy)
 {
@@ -103,7 +108,7 @@ void mqtt_task(void *dummy)
     }
 
     while (1) {
-        vTaskDelay(1000);
+        publish_loop_body(client);
     }
 }
 
@@ -173,6 +178,9 @@ static void do_mqtt_subscribe(mqtt_client_t *client)
             err = mqtt_subscribe(client, subscription, 1, mqtt_sub_request_cb, arg);
             if (err != ERR_OK) {
                 printf("mqtt_subscribe on %s return: %d\n", subscription, err);
+            }
+            else {
+                printf("mqtt_subscribe on %s success\n", subscription);
             }
             vTaskDelay(10);
         }
@@ -275,7 +283,7 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
     // printf("Done incoming_data_cb()\n");
 }
 
-static message_t message;
+static message_anim_t message_anim;
 
 static void handle_weather_data(char *data_as_chars)
 {
@@ -342,11 +350,11 @@ static void handle_weather_data(char *data_as_chars)
         cJSON_Delete(json);
     }
 
-    message = {
-        message_type: MESSAGE_WEATHER,
+    message_anim = {
+        message_type: MESSAGE_ANIM_WEATHER,
         weather_data: weather_data,
     };
-    if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+    if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
         printf("Could not send weather data; dropping\n");
     }
 
@@ -411,11 +419,11 @@ static void handle_media_player_data(char *attribute, char *data_as_chars)
     }
 
     if (send_update)  {
-        message = {
-            message_type: MESSAGE_MEDIA_PLAYER,
+        message_anim = {
+            message_type: MESSAGE_ANIM_MEDIA_PLAYER,
             media_player_data: media_player_data,
         };
-        if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+        if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
             printf("Could not send media_player data; dropping\n");
         }
     }
@@ -471,12 +479,12 @@ static void handle_calendar_data(char *attribute, char *data_as_chars)
 
     cJSON_Delete(json);
 
-    message = {
-        message_type: MESSAGE_CALENDAR,
+    message_anim = {
+        message_type: MESSAGE_ANIM_CALENDAR,
         calendar_data: calendar_data,
     };
     // printf("Sending calendar data\n");
-    if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+    if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
         printf("Could not send calendar data; dropping\n");
     }
 
@@ -516,12 +524,12 @@ static void handle_bluestar_data(char *data_as_chars)
             strncpy(bluestar_data.journies[i].departures_summary, cJSON_GetStringValue(departures_summary), 64);
         }
 
-        message_t message = {
-            message_type: MESSAGE_BLUESTAR,
+        message_anim_t message_anim = {
+            message_type: MESSAGE_ANIM_BLUESTAR,
             bluestar_data: bluestar_data,
         };
         printf("Sending bluestar data\n");
-        if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+        if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
             printf("Could not send bluestar data; dropping\n");
         }
     }
@@ -540,11 +548,11 @@ static void handle_porch_sensor_data(char *data_as_chars)
         occupied: (strcmp(data_as_chars, "on") == 0) ? true : false,
     };
 
-    message = {
-        message_type: MESSAGE_PORCH,
+    message_anim = {
+        message_type: MESSAGE_ANIM_PORCH,
         porch: porch,
     };
-    if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+    if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
         printf("Could not send media_player data; dropping");
     }
 }
@@ -553,13 +561,13 @@ static void handle_notificaiton_data(char *data_as_chars)
 {
     printf("Notifation update: %s", data_as_chars);
 
-    message = {
-        message_type: MESSAGE_NOTIFICATION,
+    message_anim = {
+        message_type: MESSAGE_ANIM_NOTIFICATION,
     };
 
-    strncpy(message.notification.text, data_as_chars, sizeof(message.notification.text));
+    strncpy(message_anim.notification.text, data_as_chars, sizeof(message_anim.notification.text));
 
-    if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+    if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
         printf("Could not send weather data; dropping");
     }
 }
@@ -595,12 +603,12 @@ static void handle_set_brightness_data(char *attribute, char *data_as_chars)
     }
     brightness.intensity = atol(data_as_chars);
 
-    message = {
-        message_type: MESSAGE_BRIGHTNESS,
+    message_anim = {
+        message_type: MESSAGE_ANIM_BRIGHTNESS,
         brightness: brightness,
     };
 
-    if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+    if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
         printf("Could not send brightness data; dropping");
     }
 }
@@ -609,20 +617,20 @@ static void handle_set_grayscale_data(char *data_as_chars)
 {
     printf("Grayscale update: %s", data_as_chars);
 
-    message = {
-        message_type: MESSAGE_GRAYSCALE,
+    message_anim = {
+        message_type: MESSAGE_ANIM_GRAYSCALE,
     };
 
     if (strcmp(data_as_chars, "ON") == 0) {
-        message.grayscale = true;
+        message_anim.grayscale = true;
     } else if (strcmp(data_as_chars, "OFF") == 0) {
-        message.grayscale = false;
+        message_anim.grayscale = false;
     } else {
-        message.grayscale = false;
+        message_anim.grayscale = false;
         printf("Malformed grayscale %s\n", data_as_chars);
     }
 
-    if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+    if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
         printf("Could not send grayscale data; dropping");
     }
 }
@@ -677,12 +685,12 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
         printf("Unknown configuration attribute: %s", attribute);
     }
 
-    message = {
-        message_type: MESSAGE_CONFIGURATION,
+    message_anim = {
+        message_type: MESSAGE_ANIM_CONFIGURATION,
         configuration: configuration,
     };
 
-    if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+    if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
         printf("Could not send configuration data; dropping");
     }
 }
@@ -699,6 +707,39 @@ static void dump_weather_data(weather_data_t *weather_data)
             weather_data->forecast[i].precipitation_probability);
     }
     printf("--------------\n");
+}
+
+static void publish_loop_body(mqtt_client_t *client)
+{
+    static message_mqtt_t message_mqtt;
+
+    if (mqtt_client_is_connected(client)) {
+        if (xQueueReceive(mqtt_queue, &message_mqtt, portTICK_PERIOD_MS * 10) == pdTRUE) {
+            switch (message_mqtt.message_type) {
+                char buffer[10];
+                int err;
+                case MESSAGE_MQTT_TEMPERATURE:
+                    snprintf(buffer, sizeof(buffer), "%.2f", message_mqtt.temperature);
+                    printf("Got a temperature: %s\n", buffer);
+
+                    cyw43_arch_lwip_begin();
+                    err = mqtt_publish(client, TEMPERATURE_TOPIC, buffer, strlen(buffer), 0, 1, mqtt_pub_request_cb, NULL);
+                    if (err != ERR_OK) {
+                        printf("mqtt_publish on %s return: %d\n", TEMPERATURE_TOPIC, err);
+                    }
+                    cyw43_arch_lwip_end();
+
+                    break;
+
+                default:
+                    panic("Invalid message type (%d)", message_mqtt.message_type);
+                    break;
+            }
+        }
+    }
+    else {
+        vTaskDelay(100 * portTICK_PERIOD_MS);
+    }
 }
 
 static void mqtt_pub_request_cb(void *arg, err_t result)

@@ -343,10 +343,6 @@ bool animation::render_current_weather_page(void)
     snprintf(buffer, sizeof(buffer), "%dC", (int)weather_state.data.temperature);
     fb.print_string(ibm_font, 40, 20, buffer, yellow);
 
-    snprintf(buffer, sizeof(buffer), "%0.2fC",
-        (float)(rtc_state.data.temperature_buffer[0]) + ((float)(rtc_state.data.temperature_buffer[1] >> 6)) / 4.0);
-    fb.print_string(tiny_font, 36, 10, buffer, yellow);
-
     return false;
 }
 

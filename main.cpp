@@ -54,8 +54,9 @@ extern void mqtt_task(void *dummy);
 */
 
 QueueHandle_t animate_queue;
-QueueHandle_t rtc_queue;
 QueueHandle_t matrix_queue;
+QueueHandle_t mqtt_queue;
+QueueHandle_t rtc_queue;
 
 int main(void)
 {
@@ -65,14 +66,17 @@ int main(void)
 
     srand(0);
 
-    animate_queue = xQueueCreate(3, sizeof(message_t));
-    rtc_queue = xQueueCreate(3, sizeof(rtc_t));
+    animate_queue = xQueueCreate(3, sizeof(message_anim_t));
+    mqtt_queue = xQueueCreate(3, sizeof(message_mqtt_t));
+    rtc_queue = xQueueCreate(3, sizeof(message_rtc_t));
+
     matrix_queue = xQueueCreate(1, sizeof(fb_t));
 
     xTaskCreate(&animate_task, "Animate Task", 4096, NULL, 0, NULL);
-    xTaskCreate(&matrix_task, "Matrix Task", 1024, NULL, 10, NULL);
     xTaskCreate(&mqtt_task, "MQTT Task", 4096, NULL, 0, NULL);
     xTaskCreate(&rtc_task, "RTC Task", 4096, NULL, 0, NULL);
+
+    xTaskCreate(&matrix_task, "Matrix Task", 1024, NULL, 10, NULL);
 
     vTaskStartScheduler();
 
@@ -90,8 +94,8 @@ void animate_task(void *dummy)
     printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
 
-    message_t message;
-    memset(&message, 0, sizeof(message_t));
+    message_anim_t message;
+    memset(&message, 0, sizeof(message_anim_t));
 
     animation anim(fb);
 
@@ -101,35 +105,35 @@ void animate_task(void *dummy)
             printf("New message, type: %d\n", message.message_type);
 
             switch (message.message_type) {
-                case MESSAGE_WEATHER:
+                case MESSAGE_ANIM_WEATHER:
                     anim.new_weather_data(&message.weather_data);
                     break;
 
-                case MESSAGE_MEDIA_PLAYER:
+                case MESSAGE_ANIM_MEDIA_PLAYER:
                     anim.new_media_player_data(&message.media_player_data);
                     break;
 
-                case MESSAGE_CALENDAR:
+                case MESSAGE_ANIM_CALENDAR:
                     anim.new_calendar_data(&message.calendar_data);
                     break;
 
-                case MESSAGE_BLUESTAR:
+                case MESSAGE_ANIM_BLUESTAR:
                     anim.new_bluestar_data(&message.bluestar_data);
                     break;
 
-                case MESSAGE_NOTIFICATION:
+                case MESSAGE_ANIM_NOTIFICATION:
                     anim.new_notification(&message.notification);
                     break;
 
-                case MESSAGE_PORCH:
+                case MESSAGE_ANIM_PORCH:
                     anim.new_porch(&message.porch);
                     break;
 
-                case MESSAGE_RTC:
+                case MESSAGE_ANIM_RTC:
                     anim.new_rtc(&message.rtc);
                     break;
 
-                case MESSAGE_BRIGHTNESS:
+                case MESSAGE_ANIM_BRIGHTNESS:
                     if (message.brightness.type == BRIGHTNESS_RED) {
                         fb.set_brightness_red(message.brightness.intensity);
                     } else if (message.brightness.type == BRIGHTNESS_GREEN) {
@@ -141,11 +145,11 @@ void animate_task(void *dummy)
                     }
                     break;
 
-                case MESSAGE_GRAYSCALE:
+                case MESSAGE_ANIM_GRAYSCALE:
                     fb.set_grayscale(message.grayscale);
                     break;
 
-                case MESSAGE_CONFIGURATION:
+                case MESSAGE_ANIM_CONFIGURATION:
                     anim.update_configuration(&message.configuration);
                     break;
 
