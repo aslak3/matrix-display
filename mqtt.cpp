@@ -196,8 +196,6 @@ static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection
     else {
         printf("Disconnected: %d\n", status);
         vTaskDelay(1000);
-        printf("Reconnecting MQTT\n");
-        do_mqtt_connect(client);
     }
 }
 
@@ -738,6 +736,10 @@ static void publish_loop_body(mqtt_client_t *client)
         }
     }
     else {
+        if (mqtt_client_is_connected(client) == 0) {
+            printf("MQTT not connected; reconnecting\n");
+            do_mqtt_connect(client);
+        }
         vTaskDelay(100 * portTICK_PERIOD_MS);
     }
 }
