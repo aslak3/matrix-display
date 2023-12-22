@@ -520,20 +520,21 @@ void animation::init_snowflakes(void)
     snowflake_wind_vector = 0;
 
     for (int c = 0; c < NO_SNOWFLAKES; c++) {
-        snowflakes[c].weight = rand() % 64 + 32;
+        snowflakes[c].weight = rand() % 64 + 8;
         snowflakes[c].x = random_snowflake_x();
         snowflakes[c].y = rand() % (32 * 256);
     }
 }
 
+#define MAX_WIND_SPEED 64
 void animation::update_snowflakes(void)
 {
     snowflake_wind_vector += (rand() % 32) - 16;
-    if (snowflake_wind_vector > 128) {
-        snowflake_wind_vector = 128;
+    if (snowflake_wind_vector > MAX_WIND_SPEED) {
+        snowflake_wind_vector = MAX_WIND_SPEED;
     }
-    if (snowflake_wind_vector < -128) {
-        snowflake_wind_vector = -128;
+    if (snowflake_wind_vector < -MAX_WIND_SPEED) {
+        snowflake_wind_vector = -MAX_WIND_SPEED;
     }
 
     for (int c = 0; c < configuration.snowflake_count && c < NO_SNOWFLAKES; c++) {
