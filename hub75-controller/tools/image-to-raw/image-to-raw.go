@@ -17,7 +17,7 @@ func output_bmp_as_raw(filename string) {
 		for x := 0; x < bounds.Dx(); x++ {
 			pixel := img.At(x, y)
 			r, g, b, _ := pixel.RGBA()
-			fmt.Printf("%01x%01x%01x0\n", r/4096, g/4096, b/4096)
+			fmt.Printf("%02x%02x%02x00\n", r/256, g/256, b/256)
 		}
 	}
 }
