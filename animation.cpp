@@ -31,6 +31,7 @@ animation::animation(framebuffer& f) : fb(f)
     scroller.off_countdown = 1000;
 
     configuration.rtc_duration = 1000;
+    configuration.inside_temperatures_scroll_speed = 4;
     configuration.current_weather_duration = 500;
     configuration.weather_forecast_duration = 1000;
     configuration.media_player_scroll_speed = 1;
@@ -63,6 +64,12 @@ void animation::render_page(void)
 
         case PAGE_RTC:
             if (!frames_left_on_page || render_rtc_page())  {
+                change_page(PAGE_INSIDE_TEMPERATURES);
+            }
+            break;
+
+        case PAGE_INSIDE_TEMPERATURES:
+            if (render_inside_temperatures_page())  {
                 change_page(PAGE_CURRENT_WEATHER);
             }
             break;
@@ -164,6 +171,7 @@ void animation::new_media_player_data(media_player_data_t *media_player_data)
 
 void animation::new_calendar_data(calendar_data_t *calendar_data)
 {
+    printf("Got new calendar data\n");
     calendar_state.data = *calendar_data;
     calendar_state.message_pixel_height = 0;
     calendar_state.framestamp = frame;
@@ -171,6 +179,7 @@ void animation::new_calendar_data(calendar_data_t *calendar_data)
 
 void animation::new_bluestar_data(bluestar_data_t *bluestar_data)
 {
+    printf("Got new bluestar data\n");
     bluestar_state.data = *bluestar_data;
     bluestar_state.framestamp = frame;
 }
@@ -237,6 +246,9 @@ void animation::update_configuration(configuration_t *config)
     if (config->rtc_duration >= 0) {
         configuration.rtc_duration = config->rtc_duration;
     }
+    if (config->inside_temperatures_scroll_speed >= 0) {
+        configuration.inside_temperatures_scroll_speed = config->inside_temperatures_scroll_speed;
+    }
     if (config->current_weather_duration >= 0) {
         configuration.current_weather_duration = config->current_weather_duration;
     }
@@ -278,6 +290,10 @@ void animation::change_page(page_t new_page)
 
         case PAGE_RTC:
             frames_left_on_page = configuration.rtc_duration;
+            break;
+
+        case PAGE_INSIDE_TEMPERATURES:
+            frames_left_on_page = 0;
             break;
 
         case PAGE_CURRENT_WEATHER:
@@ -325,6 +341,37 @@ bool animation::render_rtc_page(void)
     return false;
 }
 
+bool animation::render_inside_temperatures_page(void)
+{
+    if (!(weather_state.framestamp && weather_state.data.inside_temperatures_count)) return true;
+
+    int running_y = 0 - tiny_font->height + ((frame - page_framestamp) / configuration.inside_temperatures_scroll_speed);
+
+    for (int c = 0; c < weather_state.data.inside_temperatures_count; c++) {
+        inside_temperature_t *inside_temp = &weather_state.data.inside_temperatures[c];
+
+        if (!strlen(inside_temp->name)) {
+            continue;
+        }
+
+        fb.print_string(tiny_font, 0, running_y, inside_temp->name, orange);
+        // running_y -= tiny_font->height + 1;
+
+        char buf[10];
+        snprintf(buf, sizeof(buf), "%.1fC", inside_temp->temperature);
+        fb.print_string(tiny_font, 42, running_y, buf, yellow);
+        running_y -= tiny_font->height + 1;
+        running_y -= 3;
+    }
+
+    if (running_y > FB_HEIGHT) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
 bool animation::render_current_weather_page(void)
 {
     if (! weather_state.framestamp) return true;
@@ -351,8 +398,8 @@ bool animation::render_weather_forecast_page(void)
     if (! weather_state.framestamp) return true;
 
     int offset_x = 0;
-    for (int forecast_count = 0; forecast_count < 3; forecast_count++) {
-        forecast_t& forecast = weather_state.data.forecast[forecast_count];
+    for (int c = 0; c < 3; c++) {
+        forecast_t& forecast = weather_state.data.forecasts[c];
 
         fb.print_string(tiny_font, offset_x + 11 - (fb.string_length(tiny_font, forecast.time) / 2),
             24, forecast.time, white);
@@ -422,10 +469,12 @@ bool animation::render_media_player_page(void)
 // true = go to next page
 bool animation::render_calendar_page(void)
 {
+    if (!(calendar_state.framestamp)) return true;
+
     int running_y = 0 - tiny_font->height + ((frame - page_framestamp) / configuration.calendar_scroll_speed);
 
-    for (int appointment_index = 0; appointment_index < NO_APPOINTMENTS; appointment_index++) {
-        appointment_t *app = &calendar_state.data.appointments[appointment_index];
+    for (int c = 0; c < NO_APPOINTMENTS; c++) {
+        appointment_t *app = &calendar_state.data.appointments[c];
 
         if (!strlen(app->start) || !strlen(app->summary)) {
             continue;
@@ -447,6 +496,8 @@ bool animation::render_calendar_page(void)
 
 bool animation::render_bluestar_page(void)
 {
+    if (!(bluestar_state.framestamp)) return true;
+
     if (!(strlen(bluestar_state.data.journies[0].towards)) && strlen(bluestar_state.data.journies[1].towards)) {
         return true;
     }

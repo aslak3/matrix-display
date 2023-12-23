@@ -108,7 +108,8 @@ void mqtt_task(void *dummy)
     }
 
     while (1) {
-        publish_loop_body(client);
+        // publish_loop_body(client);
+        vTaskDelay(100 * portTICK_PERIOD_MS);
     }
 }
 
@@ -146,10 +147,6 @@ static void do_mqtt_subscribe(mqtt_client_t *client)
         "homeassistant/media_player/squeezebox/media_artist",
         "homeassistant/media_player/squeezebox/media_album_name",
         "homeassistant/binary_sensor/porch_motion_sensor_iaszone/state",
-        // "homeassistant/climate/hallway/temperature",
-        // "homeassistant/sensor/living_room_temperature_sensor_temperature/state",
-        // "homeassistant/sensor/porch_temperature/state",
-        // "homeassistant/sensor/lumi_lumi_weather_temperature/state",
         "matrix_display/#",
         "bluestar_parser/#",
         NULL,
@@ -211,8 +208,6 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
     strncpy(current_topic, topic, sizeof(current_topic) - 1);
 }
 
-// extern QueueHandle_t animate_queue;
-
 #define WEATHER_TOPIC "home/weather"
 #define MEDIA_PLAYER_TOPIC "homeassistant/media_player/squeezebox/"
 #define CALENDAR_TOPIC "homeassistant/sensor/ical_our_house_event_"
@@ -227,7 +222,7 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
 
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags)
 {
-    // printf("Start of mqtt_incoming_data_cb(flags: %d)\n", flags);
+    printf("Start of mqtt_incoming_data_cb(flags: %d)\n", flags);
     static char data_as_chars[16384];
     static char *p = data_as_chars;
 
@@ -302,6 +297,27 @@ static void handle_weather_data(char *data_as_chars)
         return;
     }
     else {
+        cJSON *inside_temperatures = cJSON_GetObjectItem(json, "inside_temperatures");
+        if (!inside_temperatures) {
+               panic("Missing inside_temperatures");
+        }
+
+        for (int i = 0; i < cJSON_GetArraySize(inside_temperatures) && i < NO_INSIDE_TEMPERATURES; i++) {
+            cJSON *item = cJSON_GetArrayItem(inside_temperatures, i);
+            cJSON *name = cJSON_GetObjectItem(item, "name");
+            cJSON *temperature = cJSON_GetObjectItem(item, "temperature");
+        
+            if (!name || !temperature) {
+                panic("Missing field(s) in inside_temperatures");
+            }
+
+            strncpy(weather_data.inside_temperatures[i].name, cJSON_GetStringValue(name),
+                sizeof(weather_data.inside_temperatures[i].name));
+            weather_data.inside_temperatures[i].temperature = cJSON_GetNumberValue(temperature);
+
+            weather_data.inside_temperatures_count = i + 1;
+        }
+
         cJSON *forecasts = cJSON_GetObjectItem(json, "forecasts");
         if (!forecasts) {
                panic("Missing forecasts");
@@ -313,16 +329,16 @@ static void handle_weather_data(char *data_as_chars)
             cJSON *temperature = cJSON_GetObjectItem(item, "temperature");
             cJSON *precipitation_probability = cJSON_GetObjectItem(item, "precipitation_probability");
             if (!datetime || !condition || !temperature || !precipitation_probability) {
-                panic("Missing field(s)");
+                panic("Missing field(s) in forecasts");
             }
 
-            strncpy(weather_data.forecast[i].time, cJSON_GetStringValue(datetime) + 11, 2 + 1);
-            strncpy(weather_data.forecast[i].condition, cJSON_GetStringValue(condition),
-                sizeof(weather_data.forecast[i].condition));
-            weather_data.forecast[i].temperature = cJSON_GetNumberValue(temperature);
-            weather_data.forecast[i].precipitation_probability = cJSON_GetNumberValue(precipitation_probability);
+            strncpy(weather_data.forecasts[i].time, cJSON_GetStringValue(datetime) + 11, 2 + 1);
+            strncpy(weather_data.forecasts[i].condition, cJSON_GetStringValue(condition),
+                sizeof(weather_data.forecasts[i].condition));
+            weather_data.forecasts[i].temperature = cJSON_GetNumberValue(temperature);
+            weather_data.forecasts[i].precipitation_probability = cJSON_GetNumberValue(precipitation_probability);
 
-            weather_data.forecast_count = i + 1;
+            weather_data.forecasts_count = i + 1;
         }
 
         cJSON *condition = cJSON_GetObjectItem(json, "condition");
@@ -613,7 +629,7 @@ static void handle_set_brightness_data(char *attribute, char *data_as_chars)
 
 static void handle_set_grayscale_data(char *data_as_chars)
 {
-    printf("Grayscale update: %s", data_as_chars);
+    printf("Grayscale update: %\ns", data_as_chars);
 
     message_anim = {
         message_type: MESSAGE_ANIM_GRAYSCALE,
@@ -640,6 +656,7 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
     configuration_t configuration;
 
     configuration.rtc_duration = -1;
+    configuration.inside_temperatures_scroll_speed = -1;
     configuration.current_weather_duration = -1;
     configuration.weather_forecast_duration = -1;
     configuration.media_player_scroll_speed = -1;
@@ -654,6 +671,9 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
     // Update just the changing field
     if (strcmp(attribute, "rtc_duration") == 0) {
         configuration.rtc_duration = value;
+    }
+    if (strcmp(attribute, "inside_temperatures_scroll_speed") == 0) {
+        configuration.inside_temperatures_scroll_speed = value;
     }
     else if (strcmp(attribute, "current_weather_duration") == 0) {
         configuration.current_weather_duration = value;
@@ -698,11 +718,11 @@ static void dump_weather_data(weather_data_t *weather_data)
     printf("--------------\n");
     printf("Current: condition=%s temperature=%.1f humidity=%.1f\n",
         weather_data->condition, weather_data->temperature, weather_data->humidty);
-    for (int i = 0; i < weather_data->forecast_count; i++) {
+    for (int i = 0; i < weather_data->forecasts_count; i++) {
         printf("%s: condition=%s temperature=%.1f percipitation_probability=%.1f\n",
-            weather_data->forecast[i].time, weather_data->forecast[i].condition,
-            weather_data->forecast[i].temperature,
-            weather_data->forecast[i].precipitation_probability);
+            weather_data->forecasts[i].time, weather_data->forecasts[i].condition,
+            weather_data->forecasts[i].temperature,
+            weather_data->forecasts[i].precipitation_probability);
     }
     printf("--------------\n");
 }
@@ -726,7 +746,6 @@ static void publish_loop_body(mqtt_client_t *client)
                         printf("mqtt_publish on %s return: %d\n", TEMPERATURE_TOPIC, err);
                     }
                     cyw43_arch_lwip_end();
-
                     break;
 
                 default:

@@ -12,6 +12,13 @@ typedef struct {
 #define NO_FORECASTS 3
 
 typedef struct {
+    char name[16];
+    double temperature;
+} inside_temperature_t;
+
+#define NO_INSIDE_TEMPERATURES 10
+
+typedef struct {
     int fetched_fields;
     char condition[32];
     double temperature;
@@ -20,8 +27,10 @@ typedef struct {
     double wind_bearing;
     double pressure;
     double precipitation_probability;
-    int forecast_count;
-    forecast_t forecast[NO_FORECASTS];
+    int forecasts_count;
+    forecast_t forecasts[NO_FORECASTS];
+    int inside_temperatures_count;
+    inside_temperature_t inside_temperatures[NO_INSIDE_TEMPERATURES];
 } weather_data_t;
 
 #define FIELD_MPD_STATE (1<<0)
@@ -42,7 +51,7 @@ typedef struct {
 
 typedef struct {
     char start[16];
-    char summary[128];
+    char summary[256];
 } appointment_t;
 
 #define NO_APPOINTMENTS 3
@@ -88,6 +97,7 @@ typedef struct {
 
 typedef struct {
     int rtc_duration;
+    int inside_temperatures_scroll_speed;
     int current_weather_duration;
     int weather_forecast_duration;
     int media_player_scroll_speed;

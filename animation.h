@@ -52,6 +52,7 @@ typedef struct {
 typedef enum {
     PAGE_WAITING,
     PAGE_RTC,
+    PAGE_INSIDE_TEMPERATURES,
     PAGE_CURRENT_WEATHER,
     PAGE_WEATHER_FORECAST,
     PAGE_MEDIA_PLAYER,
@@ -144,6 +145,7 @@ class animation {
 
         bool render_waiting_page(void);
         bool render_rtc_page(void);
+        bool render_inside_temperatures_page(void);
         bool render_current_weather_page(void);
         bool render_weather_forecast_page(void);
         bool render_media_player_page(void);
