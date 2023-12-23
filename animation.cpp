@@ -28,18 +28,18 @@ animation::animation(framebuffer& f) : fb(f)
 
     porch_state.framestamp = 0;
 
-    scroller.off_countdown = 1000;
-
     configuration.rtc_duration = 1000;
-    configuration.inside_temperatures_scroll_speed = 4;
-    configuration.current_weather_duration = 500;
-    configuration.weather_forecast_duration = 1000;
+    configuration.inside_temperatures_scroll_speed = 3;
+    configuration.current_weather_duration = 200;
+    configuration.weather_forecast_duration = 500;
     configuration.media_player_scroll_speed = 1;
     configuration.calendar_scroll_speed = 3;
-    configuration.bluestar_duration = 500;
-    configuration.scroller_interval = 8000;
+    configuration.bluestar_duration = 300;
+    configuration.scroller_interval = 20000;
     configuration.scroller_speed = 2;
     configuration.snowflake_count = 0;
+
+    scroller.off_countdown = configuration.scroller_interval;
 
     frame = 0;
 
@@ -333,10 +333,10 @@ bool animation::render_waiting_page(void)
 
 bool animation::render_rtc_page(void)
 {
-    fb.print_string(ibm_font, 0, FB_HEIGHT - 8 - 1 - 6, rtc_state.time, orange);
+    fb.print_string(ibm_font, 0, (FB_HEIGHT - 1) - 8 - 6, rtc_state.time, orange);
 
     fb.print_string(tiny_font, (FB_WIDTH / 2) - (fb.string_length(tiny_font, rtc_state.date) / 2),
-        FB_HEIGHT - 8 - 10 - 6, rtc_state.date, white);
+        (FB_HEIGHT - 1) - 8 - 10 - 6, rtc_state.date, white);
 
     return false;
 }
@@ -364,7 +364,7 @@ bool animation::render_inside_temperatures_page(void)
         running_y -= 3;
     }
 
-    if (running_y > FB_HEIGHT) {
+    if (running_y >= FB_HEIGHT) {
         return true;
     }
     else {
@@ -486,7 +486,7 @@ bool animation::render_calendar_page(void)
         running_y -= 3;
     }
 
-    if (running_y > FB_HEIGHT) {
+    if (running_y >= FB_HEIGHT) {
         return true;
     }
     else {
@@ -510,14 +510,14 @@ bool animation::render_bluestar_page(void)
         departures_colour = red;
     }
 
-    fb.print_string(tiny_font, 0, FB_HEIGHT - 8, bluestar_state.data.journies[0].towards,
+    fb.print_string(tiny_font, 0, 24, bluestar_state.data.journies[0].towards,
         towards_colour);
-    fb.print_string(tiny_font, 0, FB_HEIGHT - 16, bluestar_state.data.journies[0].departures_summary,
+    fb.print_string(tiny_font, 0, 16, bluestar_state.data.journies[0].departures_summary,
         departures_colour);
 
-    fb.print_string(tiny_font, 0, FB_HEIGHT - 24, bluestar_state.data.journies[1].towards,
+    fb.print_string(tiny_font, 0, 8, bluestar_state.data.journies[1].towards,
         towards_colour);
-    fb.print_string(tiny_font, 0, FB_HEIGHT - 32, bluestar_state.data.journies[1].departures_summary,
+    fb.print_string(tiny_font, 0, 0, bluestar_state.data.journies[1].departures_summary,
         departures_colour);
 
     return false;

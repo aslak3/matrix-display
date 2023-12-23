@@ -108,8 +108,7 @@ void mqtt_task(void *dummy)
     }
 
     while (1) {
-        // publish_loop_body(client);
-        vTaskDelay(100 * portTICK_PERIOD_MS);
+        publish_loop_body(client);
     }
 }
 
@@ -120,7 +119,10 @@ static int do_mqtt_connect(mqtt_client_t *client)
     /* Setup an empty client info structure */
     memset(&ci, 0, sizeof(ci));
 
-    ci.client_id = "picow";
+    static char client_id[16];
+    snprintf(client_id, sizeof(client_id), "picow-%d", rand());
+
+    ci.client_id = client_id;
     ci.client_user = "mqttuser";
     ci.client_pass = "mqttpassword";
     ci.keep_alive = 60;
