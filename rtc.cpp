@@ -26,8 +26,7 @@ extern QueueHandle_t rtc_queue; // For listening
 extern QueueHandle_t animate_queue;
 extern QueueHandle_t mqtt_queue;
 
-// Must be a multiple of 15
-#define TEMPERATURE_BUFFER_SIZE 120
+#define TEMPERATURE_BUFFER_SIZE 15
 
 void rtc_task(void *dummy)
 {
@@ -63,9 +62,6 @@ void rtc_task(void *dummy)
 
             if (temperature_index == TEMPERATURE_BUFFER_SIZE) {
                 temperature_index = 0;
-            }
-            if ((temperature_index % 15) == 0)
-            {
                 double current_average_temperature = 0;
 
                 for (int i = 0; i < TEMPERATURE_BUFFER_SIZE; i++) {
