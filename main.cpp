@@ -24,6 +24,9 @@
 #define STROBE_PIN 14
 #define OEN_PIN 15
 
+#define FPGA_RESET_PIN 26
+#define BUZZER_PIN 27
+
 void animate_task(void *dummy);
 void matrix_task(void *dummy);
 void rtc_task(void *dummy);
@@ -41,6 +44,14 @@ int main(void)
     stdio_init_all();
 
     printf("Hello, matrix here\n");
+
+    gpio_init(BUZZER_PIN);
+    gpio_set_dir(BUZZER_PIN, true);
+    gpio_put(BUZZER_PIN, false);
+
+    gpio_init(FPGA_RESET_PIN);
+    gpio_set_dir(FPGA_RESET_PIN, true);
+    gpio_put(FPGA_RESET_PIN, false);
 
     animate_queue = xQueueCreate(3, sizeof(message_t));
     rtc_queue = xQueueCreate(3, sizeof(rtc_t));
@@ -159,6 +170,8 @@ void matrix_task(void *dummy)
     gpio_set_function(PICO_DEFAULT_SPI_TX_PIN, GPIO_FUNC_SPI);
     gpio_init(PICO_DEFAULT_SPI_CSN_PIN);
     gpio_set_dir(PICO_DEFAULT_SPI_CSN_PIN, true);
+
+    gpio_put(FPGA_RESET_PIN, true);
 
     const uint dma_tx = dma_claim_unused_channel(true);
 
