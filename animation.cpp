@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 #include "animation.h"
 
@@ -20,27 +21,32 @@ animation::animation(framebuffer& f) : fb(f)
 
     weather_state.framestamp = 0;
 
+    calendar_state.framestamp = 0;
+
     notification_state.framestamp = 0;
     notification_state.rgb = black;
 
     porch_state.framestamp = 0;
 
-    scroller.off_countdown = 1000;
-
     configuration.rtc_duration = 1000;
-    configuration.current_weather_duration = 500;
-    configuration.weather_forecast_duration = 1000;
+    configuration.inside_temperatures_scroll_speed = 3;
+    configuration.current_weather_duration = 200;
+    configuration.weather_forecast_duration = 500;
     configuration.media_player_scroll_speed = 1;
     configuration.calendar_scroll_speed = 3;
-    configuration.bluestar_duration = 500;
-    configuration.scroller_interval = 8000;
+    configuration.bluestar_duration = 300;
+    configuration.scroller_interval = 20000;
     configuration.scroller_speed = 2;
+    configuration.snowflake_count = 0;
+
+    scroller.off_countdown = configuration.scroller_interval;
 
     frame = 0;
 
     change_page(PAGE_WAITING);
-}
 
+    init_snowflakes();
+}
 
 void animation::prepare_screen(void)
 {
@@ -58,6 +64,12 @@ void animation::render_page(void)
 
         case PAGE_RTC:
             if (!frames_left_on_page || render_rtc_page())  {
+                change_page(PAGE_INSIDE_TEMPERATURES);
+            }
+            break;
+
+        case PAGE_INSIDE_TEMPERATURES:
+            if (render_inside_temperatures_page())  {
                 change_page(PAGE_CURRENT_WEATHER);
             }
             break;
@@ -100,6 +112,9 @@ void animation::render_page(void)
     if (page != PAGE_WAITING) {
         render_scroller();
     }
+
+    update_snowflakes();
+    render_snowflakes();
 
     if (frames_left_on_page) {
         frames_left_on_page--;
@@ -156,12 +171,15 @@ void animation::new_media_player_data(media_player_data_t *media_player_data)
 
 void animation::new_calendar_data(calendar_data_t *calendar_data)
 {
+    printf("Got new calendar data\n");
     calendar_state.data = *calendar_data;
     calendar_state.message_pixel_height = 0;
+    calendar_state.framestamp = frame;
 }
 
 void animation::new_bluestar_data(bluestar_data_t *bluestar_data)
 {
+    printf("Got new bluestar data\n");
     bluestar_state.data = *bluestar_data;
     bluestar_state.framestamp = frame;
 }
@@ -188,13 +206,48 @@ void animation::new_porch(porch_t *porch)
 void animation::new_rtc(rtc_t *rtc)
 {
     rtc_state.data = *rtc;
+    rtc_state.frames_per_second = frame - rtc_state.framestamp;
     rtc_state.framestamp = frame;
+
+    const char *month_names[] = {
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    };
+    const char *day_names[] = {
+        "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
+    };
+
+    uint8_t *buffer = rtc_state.data.datetime_buffer;
+
+    snprintf(rtc_state.time, sizeof(rtc_state.time), "%02x:%02x:%02x",
+        buffer[2] & 0x3f,
+        buffer[1] & 0x7f,
+        buffer[0] & 0x7f
+    );
+
+    const int day_number = (buffer[3] & 0x0f) + (((buffer[3] & 0xf0) >> 4) * 10) - 1;
+    const int month_number = (buffer[5] & 0x0f) + (((buffer[5] & 0xf0) >> 4) * 10) - 1;
+
+    if (month_number < 12 && day_number < 7) {
+        snprintf(rtc_state.date, sizeof(rtc_state.date), "%s %02x %s",
+            day_names[day_number],
+            buffer[4],
+            month_names[month_number]
+        );
+    }
+    else {
+        strncpy(rtc_state.date, "XXXX", sizeof(rtc_state.date));
+    }
+
+    printf("New Time: %s Date: %s\n", rtc_state.time, rtc_state.date);
 }
 
 void animation::update_configuration(configuration_t *config)
 {
     if (config->rtc_duration >= 0) {
         configuration.rtc_duration = config->rtc_duration;
+    }
+    if (config->inside_temperatures_scroll_speed >= 0) {
+        configuration.inside_temperatures_scroll_speed = config->inside_temperatures_scroll_speed;
     }
     if (config->current_weather_duration >= 0) {
         configuration.current_weather_duration = config->current_weather_duration;
@@ -217,6 +270,9 @@ void animation::update_configuration(configuration_t *config)
     if (config->scroller_speed > 0) {
         configuration.scroller_speed = config->scroller_speed;
     }
+    if (config->snowflake_count >= 0) {
+        configuration.snowflake_count = config->snowflake_count;
+    }
 }
 
 ////
@@ -234,6 +290,10 @@ void animation::change_page(page_t new_page)
 
         case PAGE_RTC:
             frames_left_on_page = configuration.rtc_duration;
+            break;
+
+        case PAGE_INSIDE_TEMPERATURES:
+            frames_left_on_page = 0;
             break;
 
         case PAGE_CURRENT_WEATHER:
@@ -273,41 +333,43 @@ bool animation::render_waiting_page(void)
 
 bool animation::render_rtc_page(void)
 {
-    const char *month_names[] = {
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    };
-    const char *day_names[] = {
-        "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
-    };
+    fb.print_string(ibm_font, 0, (FB_HEIGHT - 1) - 8 - 6, rtc_state.time, orange);
 
-    uint8_t *buffer = rtc_state.data.datetime_buffer;
-
-    char time[10];
-    snprintf(time, sizeof(time), "%02x:%02x:%02x",
-        buffer[2] & 0x3f,
-        buffer[1] & 0x7f,
-        buffer[0] & 0x7f
-    );
-    fb.print_string(ibm_font, 0, FB_HEIGHT - 8 - 1 - 6, time, orange);
-
-    char date[20];
-    const int day_number = (buffer[3] & 0x0f) + (((buffer[3] & 0xf0) >> 4) * 10) - 1;
-    const int month_number = (buffer[5] & 0x0f) + (((buffer[5] & 0xf0) >> 4) * 10) - 1;
-
-    if (month_number < 12 && day_number < 7) {
-        snprintf(date, sizeof(date), "%s %02x %s",
-            day_names[day_number],
-            buffer[4],
-            month_names[month_number]
-        );
-    }
-    else {
-        strncpy(date, "XXXX", sizeof(date));
-    }
-    fb.print_string(tiny_font, (FB_WIDTH / 2) - (fb.string_length(tiny_font, date) / 2),
-        FB_HEIGHT - 8 - 10 - 6, date, white);
+    fb.print_string(tiny_font, (FB_WIDTH / 2) - (fb.string_length(tiny_font, rtc_state.date) / 2),
+        (FB_HEIGHT - 1) - 8 - 10 - 6, rtc_state.date, white);
 
     return false;
+}
+
+bool animation::render_inside_temperatures_page(void)
+{
+    if (!(weather_state.framestamp && weather_state.data.inside_temperatures_count)) return true;
+
+    int running_y = 0 - tiny_font->height + ((frame - page_framestamp) / configuration.inside_temperatures_scroll_speed);
+
+    for (int c = 0; c < weather_state.data.inside_temperatures_count; c++) {
+        inside_temperature_t *inside_temp = &weather_state.data.inside_temperatures[c];
+
+        if (!strlen(inside_temp->name)) {
+            continue;
+        }
+
+        fb.print_string(tiny_font, 0, running_y, inside_temp->name, orange);
+        // running_y -= tiny_font->height + 1;
+
+        char buf[10];
+        snprintf(buf, sizeof(buf), "%.1fC", inside_temp->temperature);
+        fb.print_string(tiny_font, 42, running_y, buf, yellow);
+        running_y -= tiny_font->height + 1;
+        running_y -= 3;
+    }
+
+    if (running_y >= FB_HEIGHT) {
+        return true;
+    }
+    else {
+        return false;
+    }
 }
 
 bool animation::render_current_weather_page(void)
@@ -328,10 +390,6 @@ bool animation::render_current_weather_page(void)
     snprintf(buffer, sizeof(buffer), "%dC", (int)weather_state.data.temperature);
     fb.print_string(ibm_font, 40, 20, buffer, yellow);
 
-    snprintf(buffer, sizeof(buffer), "%0.2fC",
-        (float)(rtc_state.data.temperature_buffer[0]) + ((float)(rtc_state.data.temperature_buffer[1] >> 6)) / 4.0);
-    fb.print_string(tiny_font, 36, 10, buffer, yellow);
-
     return false;
 }
 
@@ -340,8 +398,8 @@ bool animation::render_weather_forecast_page(void)
     if (! weather_state.framestamp) return true;
 
     int offset_x = 0;
-    for (int forecast_count = 0; forecast_count < 3; forecast_count++) {
-        forecast_t& forecast = weather_state.data.forecast[forecast_count];
+    for (int c = 0; c < 3; c++) {
+        forecast_t& forecast = weather_state.data.forecasts[c];
 
         fb.print_string(tiny_font, offset_x + 11 - (fb.string_length(tiny_font, forecast.time) / 2),
             24, forecast.time, white);
@@ -411,10 +469,12 @@ bool animation::render_media_player_page(void)
 // true = go to next page
 bool animation::render_calendar_page(void)
 {
+    if (!(calendar_state.framestamp)) return true;
+
     int running_y = 0 - tiny_font->height + ((frame - page_framestamp) / configuration.calendar_scroll_speed);
 
-    for (int appointment_index = 0; appointment_index < NO_APPOINTMENTS; appointment_index++) {
-        appointment_t *app = &calendar_state.data.appointments[appointment_index];
+    for (int c = 0; c < NO_APPOINTMENTS; c++) {
+        appointment_t *app = &calendar_state.data.appointments[c];
 
         if (!strlen(app->start) || !strlen(app->summary)) {
             continue;
@@ -426,7 +486,7 @@ bool animation::render_calendar_page(void)
         running_y -= 3;
     }
 
-    if (running_y > FB_HEIGHT) {
+    if (running_y >= FB_HEIGHT) {
         return true;
     }
     else {
@@ -436,15 +496,29 @@ bool animation::render_calendar_page(void)
 
 bool animation::render_bluestar_page(void)
 {
+    if (!(bluestar_state.framestamp)) return true;
+
     if (!(strlen(bluestar_state.data.journies[0].towards)) && strlen(bluestar_state.data.journies[1].towards)) {
         return true;
     }
 
-    fb.print_string(tiny_font, 0, FB_HEIGHT - 8, bluestar_state.data.journies[0].towards, light_blue);
-    fb.print_string(tiny_font, 0, FB_HEIGHT - 16, bluestar_state.data.journies[0].departures_summary, cyan);
+    rgb_t towards_colour = light_blue;
+    rgb_t departures_colour = cyan;
+    // If bus info is stale (older then 5 minutes) make it red instead of blue
+    if (frame - rtc_state.framestamp > 300 * rtc_state.frames_per_second) {
+        towards_colour = dark_red;
+        departures_colour = red;
+    }
 
-    fb.print_string(tiny_font, 0, FB_HEIGHT - 24, bluestar_state.data.journies[1].towards, light_blue);
-    fb.print_string(tiny_font, 0, FB_HEIGHT - 32, bluestar_state.data.journies[1].departures_summary, cyan);
+    fb.print_string(tiny_font, 0, 24, bluestar_state.data.journies[0].towards,
+        towards_colour);
+    fb.print_string(tiny_font, 0, 16, bluestar_state.data.journies[0].departures_summary,
+        departures_colour);
+
+    fb.print_string(tiny_font, 0, 8, bluestar_state.data.journies[1].towards,
+        towards_colour);
+    fb.print_string(tiny_font, 0, 0, bluestar_state.data.journies[1].departures_summary,
+        departures_colour);
 
     return false;
 }
@@ -484,6 +558,50 @@ void animation::render_scroller(void)
         {
             scroller.off_countdown = configuration.scroller_interval;
         }
+    }
+}
+
+int16_t animation::random_snowflake_x(void)
+{
+    return rand() % (128 * 256) - (64 * 256);
+}
+
+void animation::init_snowflakes(void)
+{
+    snowflake_wind_vector = 0;
+
+    for (int c = 0; c < NO_SNOWFLAKES; c++) {
+        snowflakes[c].weight = rand() % 64 + 8;
+        snowflakes[c].x = random_snowflake_x();
+        snowflakes[c].y = rand() % (32 * 256);
+    }
+}
+
+#define MAX_WIND_SPEED 64
+void animation::update_snowflakes(void)
+{
+    snowflake_wind_vector += (rand() % 32) - 16;
+    if (snowflake_wind_vector > MAX_WIND_SPEED) {
+        snowflake_wind_vector = MAX_WIND_SPEED;
+    }
+    if (snowflake_wind_vector < -MAX_WIND_SPEED) {
+        snowflake_wind_vector = -MAX_WIND_SPEED;
+    }
+
+    for (int c = 0; c < configuration.snowflake_count && c < NO_SNOWFLAKES; c++) {
+        snowflakes[c].x += snowflake_wind_vector;
+        snowflakes[c].y -= snowflakes[c].weight;
+        if (snowflakes[c].y <= 0) {
+            snowflakes[c].x = random_snowflake_x();
+            snowflakes[c].y = 31 * 256;
+        }
+    }
+}
+
+void animation::render_snowflakes(void)
+{
+    for (int c = 0; c < configuration.snowflake_count && c < NO_SNOWFLAKES; c++) {
+        fb.point((snowflakes[c].x + (32 * 256)) / 256, snowflakes[c].y / 256, bright_white);
     }
 }
 

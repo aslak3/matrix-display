@@ -15,6 +15,7 @@
 
 #include "cJSON.h"
 
+extern QueueHandle_t mqtt_queue;
 extern QueueHandle_t animate_queue;
 extern QueueHandle_t rtc_queue;
 
@@ -28,7 +29,7 @@ static void mqtt_sub_request_cb(void *arg, err_t result);
 static void mqtt_pub_request_cb(void *arg, err_t result);
 static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len);
 
-static void handle_weather_data(char *attribute, char *data_as_chars);
+static void handle_weather_data(char *data_as_chars);
 static void handle_media_player_data(char *attribute, char *data_as_chars);
 static void handle_calendar_data(char *attribute, char *data_as_chars);
 static void handle_bluestar_data(char *data_as_chars);
@@ -37,9 +38,12 @@ static void handle_notificaiton_data(char *data_as_chars);
 static void handle_set_rtc_time_data(char *data_as_chars);
 static void handle_set_brightness_data(char *attribute, char *data_as_chars);
 static void handle_set_grayscale_data(char *data_as_chars);
+static void handle_set_snowflakes_data(char *data_as_chars);
 static void handle_configuration_data(char *attribute, char *data_as_chars);
 
 static void dump_weather_data(weather_data_t *weather_data);
+
+static void publish_loop_body(mqtt_client_t *client);
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags);
 
 static uint8_t bcd_digit_to_byte(char c);
@@ -60,6 +64,8 @@ void led_task(void *dummy)
         vTaskDelay(1000);
     }
 }
+
+#define TEMPERATURE_TOPIC "matrix_display/temperature"
 
 void mqtt_task(void *dummy)
 {
@@ -102,7 +108,7 @@ void mqtt_task(void *dummy)
     }
 
     while (1) {
-        vTaskDelay(1000);
+        publish_loop_body(client);
     }
 }
 
@@ -113,7 +119,10 @@ static int do_mqtt_connect(mqtt_client_t *client)
     /* Setup an empty client info structure */
     memset(&ci, 0, sizeof(ci));
 
-    ci.client_id = "picow";
+    static char client_id[16];
+    snprintf(client_id, sizeof(client_id), "picow-%d", rand());
+
+    ci.client_id = client_id;
     ci.client_user = "mqttuser";
     ci.client_pass = "mqttpassword";
     ci.keep_alive = 60;
@@ -134,16 +143,12 @@ static int do_mqtt_connect(mqtt_client_t *client)
 static void do_mqtt_subscribe(mqtt_client_t *client)
 {
     const char *subscriptions[] = {
-        "homeassistant/weather/openweathermap/#",
+        "home/weather",
         "homeassistant/media_player/squeezebox/state",
         "homeassistant/media_player/squeezebox/media_title",
         "homeassistant/media_player/squeezebox/media_artist",
         "homeassistant/media_player/squeezebox/media_album_name",
         "homeassistant/binary_sensor/porch_motion_sensor_iaszone/state",
-        // "homeassistant/climate/hallway/temperature",
-        // "homeassistant/sensor/living_room_temperature_sensor_temperature/state",
-        // "homeassistant/sensor/porch_temperature/state",
-        // "homeassistant/sensor/lumi_lumi_weather_temperature/state",
         "matrix_display/#",
         "bluestar_parser/#",
         NULL,
@@ -157,6 +162,9 @@ static void do_mqtt_subscribe(mqtt_client_t *client)
         if(err != ERR_OK) {
             printf("mqtt_subscribe on %s return: %d\n", *s, err);
         }
+        else {
+            printf("mqtt_subscribe on %s success\n", *s);
+        }
         vTaskDelay(10);
     }
 
@@ -169,6 +177,9 @@ static void do_mqtt_subscribe(mqtt_client_t *client)
             err = mqtt_subscribe(client, subscription, 1, mqtt_sub_request_cb, arg);
             if (err != ERR_OK) {
                 printf("mqtt_subscribe on %s return: %d\n", subscription, err);
+            }
+            else {
+                printf("mqtt_subscribe on %s success\n", subscription);
             }
             vTaskDelay(10);
         }
@@ -184,8 +195,6 @@ static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection
     else {
         printf("Disconnected: %d\n", status);
         vTaskDelay(1000);
-        printf("Reconnecting MQTT\n");
-        do_mqtt_connect(client);
     }
 }
 
@@ -201,9 +210,7 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
     strncpy(current_topic, topic, sizeof(current_topic) - 1);
 }
 
-// extern QueueHandle_t animate_queue;
-
-#define WEATHER_TOPIC "homeassistant/weather/openweathermap/"
+#define WEATHER_TOPIC "home/weather"
 #define MEDIA_PLAYER_TOPIC "homeassistant/media_player/squeezebox/"
 #define CALENDAR_TOPIC "homeassistant/sensor/ical_our_house_event_"
 #define BUS_JOURNIES "bluestar_parser/journies"
@@ -217,7 +224,7 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
 
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags)
 {
-    // printf("Start of mqtt_incoming_data_cb(flags: %d)\n", flags);
+    printf("Start of mqtt_incoming_data_cb(flags: %d)\n", flags);
     static char data_as_chars[16384];
     static char *p = data_as_chars;
 
@@ -229,9 +236,11 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         panic("mqtt_incoming_data_cb(): data is too long");
     }
 
+    printf("topic %s flags %d\n", current_topic, flags);
+
     if (flags & MQTT_DATA_FLAG_LAST) {
-        if (strncmp(current_topic, WEATHER_TOPIC, strlen(WEATHER_TOPIC)) == 0) {
-            handle_weather_data(current_topic + strlen(WEATHER_TOPIC), data_as_chars);
+        if (strcmp(current_topic, WEATHER_TOPIC) == 0) {
+            handle_weather_data(data_as_chars);
         }
         else if (strncmp(current_topic, MEDIA_PLAYER_TOPIC, strlen(MEDIA_PLAYER_TOPIC)) == 0) {
             handle_media_player_data(current_topic + strlen(MEDIA_PLAYER_TOPIC), data_as_chars);
@@ -269,102 +278,103 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
     // printf("Done incoming_data_cb()\n");
 }
 
-static message_t message;
+static message_anim_t message_anim;
 
-static void handle_weather_data(char *attribute, char *data_as_chars)
+static void handle_weather_data(char *data_as_chars)
 {
     printf("Weather update\n");
 
     static weather_data_t weather_data;
 
-    if (strcmp(attribute, "state") == 0) {
-        strncpy(weather_data.condition, data_as_chars, sizeof(weather_data.condition));
-        weather_data.fetched_fields |= FIELD_WD_CONDITION;
-    }
-    else {
-        cJSON *json = cJSON_Parse(data_as_chars);
+    cJSON *json = cJSON_Parse(data_as_chars);
 
-        if (json == NULL) {
-            const char *error_ptr = cJSON_GetErrorPtr();
-            if (error_ptr != NULL) {
-                fprintf(stderr, "Error before: %s\n", error_ptr);
-            }
-            else {
-                fprintf(stderr, "Unknown JSON parse error\n");
-            }
-            return;
+    if (json == NULL) {
+        const char *error_ptr = cJSON_GetErrorPtr();
+        if (error_ptr != NULL) {
+            fprintf(stderr, "Error before: %s\n", error_ptr);
         }
         else {
-            if (cJSON_IsArray(json)) {
-                if (strcmp(attribute, "forecast") == 0) {
-                    for (int i = 0; i < cJSON_GetArraySize(json) && i < NO_FORECASTS; i++) {
-                        cJSON *item = cJSON_GetArrayItem(json, i);
-                        cJSON *datetime = cJSON_GetObjectItem(item, "datetime");
-                        cJSON *condition = cJSON_GetObjectItem(item, "condition");
-                        cJSON *temperature = cJSON_GetObjectItem(item, "temperature");
-                        cJSON *precipitation_probability = cJSON_GetObjectItem(item, "precipitation_probability");
-                        if (!condition || !datetime || !temperature || !precipitation_probability) {
-                            panic("Missing field(s)");
-                        }
-
-                        strncpy(weather_data.forecast[i].time, cJSON_GetStringValue(datetime) + 11, 2 + 1);
-                        strncpy(weather_data.forecast[i].condition, cJSON_GetStringValue(condition),
-                            sizeof(weather_data.forecast[i].condition));
-                        weather_data.forecast[i].temperature = cJSON_GetNumberValue(temperature);
-                        weather_data.forecast[i].precipitation_probability = cJSON_GetNumberValue(precipitation_probability);
-
-                        weather_data.forecast_count = i + 1;
-                    }
-                    weather_data.fetched_fields |= FIELD_WD_FORECAST;
-                }
-            }
-            else if (cJSON_IsString(json)) {
-            }
-            else if (cJSON_IsNumber(json)) {
-                double value = cJSON_GetNumberValue(json);
-                if (strcmp(attribute, "temperature") == 0) {
-                    weather_data.temperature = value;
-                    weather_data.fetched_fields |= FIELD_WD_TEMPERATURE;
-                }
-                else if (strcmp(attribute, "humidity") == 0) {
-                    weather_data.humidty = value;
-                    weather_data.fetched_fields |= FIELD_WD_HUMIDITY;
-                }
-                else if (strcmp(attribute, "wind_speed") == 0) {
-                    weather_data.wind_speed = value;
-                    weather_data.fetched_fields |= FIELD_WD_WIND_SPEED;
-                }
-                else if (strcmp(attribute, "wind_bearing") == 0) {
-                    weather_data.wind_bearing = value;
-                    weather_data.fetched_fields |= FIELD_WD_WIND_BEARING;
-                }
-                else if (strcmp(attribute, "pressure") == 0) {
-                    weather_data.pressure = value;
-                    weather_data.fetched_fields |= FIELD_WD_PRESSURE;
-                }
-            }
-            else if (cJSON_IsObject(json)) {
-                printf("Object\n");
-            }
-            else {
-                printf("Some other type\n");
-            }
-
-            cJSON_Delete(json);
+            fprintf(stderr, "Unknown JSON parse error\n");
         }
+        return;
     }
-
-    if (weather_data.fetched_fields == FIELD_WD_ALL) {
-        message = {
-            message_type: MESSAGE_WEATHER,
-            weather_data: weather_data,
-        };
-        if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
-            printf("Could not send weather data; dropping\n");
+    else {
+        cJSON *inside_temperatures = cJSON_GetObjectItem(json, "inside_temperatures");
+        if (!inside_temperatures) {
+               panic("Missing inside_temperatures");
         }
 
-        memset(&weather_data, 0, sizeof(weather_data_t));
+        for (int i = 0; i < cJSON_GetArraySize(inside_temperatures) && i < NO_INSIDE_TEMPERATURES; i++) {
+            cJSON *item = cJSON_GetArrayItem(inside_temperatures, i);
+            cJSON *name = cJSON_GetObjectItem(item, "name");
+            cJSON *temperature = cJSON_GetObjectItem(item, "temperature");
+        
+            if (!name || !temperature) {
+                panic("Missing field(s) in inside_temperatures");
+            }
+
+            strncpy(weather_data.inside_temperatures[i].name, cJSON_GetStringValue(name),
+                sizeof(weather_data.inside_temperatures[i].name));
+            weather_data.inside_temperatures[i].temperature = cJSON_GetNumberValue(temperature);
+
+            weather_data.inside_temperatures_count = i + 1;
+        }
+
+        cJSON *forecasts = cJSON_GetObjectItem(json, "forecasts");
+        if (!forecasts) {
+               panic("Missing forecasts");
+        }
+        for (int i = 0; i < cJSON_GetArraySize(forecasts) && i < NO_FORECASTS; i++) {
+            cJSON *item = cJSON_GetArrayItem(forecasts, i);
+            cJSON *datetime = cJSON_GetObjectItem(item, "datetime");
+            cJSON *condition = cJSON_GetObjectItem(item, "condition");
+            cJSON *temperature = cJSON_GetObjectItem(item, "temperature");
+            cJSON *precipitation_probability = cJSON_GetObjectItem(item, "precipitation_probability");
+            if (!datetime || !condition || !temperature || !precipitation_probability) {
+                panic("Missing field(s) in forecasts");
+            }
+
+            strncpy(weather_data.forecasts[i].time, cJSON_GetStringValue(datetime) + 11, 2 + 1);
+            strncpy(weather_data.forecasts[i].condition, cJSON_GetStringValue(condition),
+                sizeof(weather_data.forecasts[i].condition));
+            weather_data.forecasts[i].temperature = cJSON_GetNumberValue(temperature);
+            weather_data.forecasts[i].precipitation_probability = cJSON_GetNumberValue(precipitation_probability);
+
+            weather_data.forecasts_count = i + 1;
+        }
+
+        cJSON *condition = cJSON_GetObjectItem(json, "condition");
+        cJSON *temperature = cJSON_GetObjectItem(json, "temperature");
+        cJSON *humidity = cJSON_GetObjectItem(json, "humidity");
+        cJSON *wind_speed = cJSON_GetObjectItem(json, "wind_speed");
+        cJSON *wind_bearing = cJSON_GetObjectItem(json, "wind_bearing");
+        cJSON *pressure = cJSON_GetObjectItem(json, "pressure");
+        if (!condition || !temperature || !temperature ||
+           !humidity || !wind_speed || !wind_bearing || !wind_bearing)
+        {
+            panic("Missing field(s)");
+        }
+
+        strncpy(weather_data.condition, cJSON_GetStringValue(condition),
+                sizeof(weather_data.condition));
+        weather_data.temperature = cJSON_GetNumberValue(temperature);
+        weather_data.humidty = cJSON_GetNumberValue(humidity);
+        weather_data.wind_speed = cJSON_GetNumberValue(wind_speed);
+        weather_data.wind_bearing = cJSON_GetNumberValue(wind_bearing);
+        weather_data.pressure = cJSON_GetNumberValue(pressure);
+
+        cJSON_Delete(json);
     }
+
+    message_anim = {
+        message_type: MESSAGE_ANIM_WEATHER,
+        weather_data: weather_data,
+    };
+    if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
+        printf("Could not send weather data; dropping\n");
+    }
+
+    memset(&weather_data, 0, sizeof(weather_data_t));
 }
 
 static void handle_media_player_data(char *attribute, char *data_as_chars)
@@ -425,11 +435,11 @@ static void handle_media_player_data(char *attribute, char *data_as_chars)
     }
 
     if (send_update)  {
-        message = {
-            message_type: MESSAGE_MEDIA_PLAYER,
+        message_anim = {
+            message_type: MESSAGE_ANIM_MEDIA_PLAYER,
             media_player_data: media_player_data,
         };
-        if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+        if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
             printf("Could not send media_player data; dropping\n");
         }
     }
@@ -485,12 +495,12 @@ static void handle_calendar_data(char *attribute, char *data_as_chars)
 
     cJSON_Delete(json);
 
-    message = {
-        message_type: MESSAGE_CALENDAR,
+    message_anim = {
+        message_type: MESSAGE_ANIM_CALENDAR,
         calendar_data: calendar_data,
     };
     // printf("Sending calendar data\n");
-    if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+    if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
         printf("Could not send calendar data; dropping\n");
     }
 
@@ -530,12 +540,12 @@ static void handle_bluestar_data(char *data_as_chars)
             strncpy(bluestar_data.journies[i].departures_summary, cJSON_GetStringValue(departures_summary), 64);
         }
 
-        message_t message = {
-            message_type: MESSAGE_BLUESTAR,
+        message_anim_t message_anim = {
+            message_type: MESSAGE_ANIM_BLUESTAR,
             bluestar_data: bluestar_data,
         };
         printf("Sending bluestar data\n");
-        if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+        if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
             printf("Could not send bluestar data; dropping\n");
         }
     }
@@ -554,11 +564,11 @@ static void handle_porch_sensor_data(char *data_as_chars)
         occupied: (strcmp(data_as_chars, "on") == 0) ? true : false,
     };
 
-    message = {
-        message_type: MESSAGE_PORCH,
+    message_anim = {
+        message_type: MESSAGE_ANIM_PORCH,
         porch: porch,
     };
-    if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+    if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
         printf("Could not send media_player data; dropping");
     }
 }
@@ -567,13 +577,13 @@ static void handle_notificaiton_data(char *data_as_chars)
 {
     printf("Notifation update: %s", data_as_chars);
 
-    message = {
-        message_type: MESSAGE_NOTIFICATION,
+    message_anim = {
+        message_type: MESSAGE_ANIM_NOTIFICATION,
     };
 
-    strncpy(message.notification.text, data_as_chars, sizeof(message.notification.text));
+    strncpy(message_anim.notification.text, data_as_chars, sizeof(message_anim.notification.text));
 
-    if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+    if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
         printf("Could not send weather data; dropping");
     }
 }
@@ -609,34 +619,34 @@ static void handle_set_brightness_data(char *attribute, char *data_as_chars)
     }
     brightness.intensity = atol(data_as_chars);
 
-    message = {
-        message_type: MESSAGE_BRIGHTNESS,
+    message_anim = {
+        message_type: MESSAGE_ANIM_BRIGHTNESS,
         brightness: brightness,
     };
 
-    if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+    if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
         printf("Could not send brightness data; dropping");
     }
 }
 
 static void handle_set_grayscale_data(char *data_as_chars)
 {
-    printf("Grayscale update: %s", data_as_chars);
+    printf("Grayscale update: %\ns", data_as_chars);
 
-    message = {
-        message_type: MESSAGE_GRAYSCALE,
+    message_anim = {
+        message_type: MESSAGE_ANIM_GRAYSCALE,
     };
 
     if (strcmp(data_as_chars, "ON") == 0) {
-        message.grayscale = true;
+        message_anim.grayscale = true;
     } else if (strcmp(data_as_chars, "OFF") == 0) {
-        message.grayscale = false;
+        message_anim.grayscale = false;
     } else {
-        message.grayscale = false;
+        message_anim.grayscale = false;
         printf("Malformed grayscale %s\n", data_as_chars);
     }
 
-    if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+    if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
         printf("Could not send grayscale data; dropping");
     }
 }
@@ -648,6 +658,7 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
     configuration_t configuration;
 
     configuration.rtc_duration = -1;
+    configuration.inside_temperatures_scroll_speed = -1;
     configuration.current_weather_duration = -1;
     configuration.weather_forecast_duration = -1;
     configuration.media_player_scroll_speed = -1;
@@ -655,12 +666,16 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
     configuration.bluestar_duration = -1;
     configuration.scroller_interval = -1;
     configuration.scroller_speed = -1;
+    configuration.snowflake_count = -1;
 
     int value = atol(data_as_chars);
 
     // Update just the changing field
     if (strcmp(attribute, "rtc_duration") == 0) {
         configuration.rtc_duration = value;
+    }
+    if (strcmp(attribute, "inside_temperatures_scroll_speed") == 0) {
+        configuration.inside_temperatures_scroll_speed = value;
     }
     else if (strcmp(attribute, "current_weather_duration") == 0) {
         configuration.current_weather_duration = value;
@@ -683,16 +698,19 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
     else if (strcmp(attribute, "scroller_speed") == 0) {
         configuration.scroller_speed = value;
     }
+    else if (strcmp(attribute, "snowflake_count") == 0) {
+        configuration.snowflake_count = value;
+    }
     else {
         printf("Unknown configuration attribute: %s", attribute);
     }
 
-    message = {
-        message_type: MESSAGE_CONFIGURATION,
+    message_anim = {
+        message_type: MESSAGE_ANIM_CONFIGURATION,
         configuration: configuration,
     };
 
-    if (xQueueSend(animate_queue, &message, 10) != pdTRUE) {
+    if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
         printf("Could not send configuration data; dropping");
     }
 }
@@ -702,13 +720,49 @@ static void dump_weather_data(weather_data_t *weather_data)
     printf("--------------\n");
     printf("Current: condition=%s temperature=%.1f humidity=%.1f\n",
         weather_data->condition, weather_data->temperature, weather_data->humidty);
-    for (int i = 0; i < weather_data->forecast_count; i++) {
+    for (int i = 0; i < weather_data->forecasts_count; i++) {
         printf("%s: condition=%s temperature=%.1f percipitation_probability=%.1f\n",
-            weather_data->forecast[i].time, weather_data->forecast[i].condition,
-            weather_data->forecast[i].temperature,
-            weather_data->forecast[i].precipitation_probability);
+            weather_data->forecasts[i].time, weather_data->forecasts[i].condition,
+            weather_data->forecasts[i].temperature,
+            weather_data->forecasts[i].precipitation_probability);
     }
     printf("--------------\n");
+}
+
+static void publish_loop_body(mqtt_client_t *client)
+{
+    static message_mqtt_t message_mqtt;
+
+    if (mqtt_client_is_connected(client)) {
+        if (xQueueReceive(mqtt_queue, &message_mqtt, portTICK_PERIOD_MS * 10) == pdTRUE) {
+            switch (message_mqtt.message_type) {
+                char buffer[10];
+                int err;
+                case MESSAGE_MQTT_TEMPERATURE:
+                    snprintf(buffer, sizeof(buffer), "%.2f", message_mqtt.temperature);
+                    printf("Got a temperature: %s\n", buffer);
+
+                    cyw43_arch_lwip_begin();
+                    err = mqtt_publish(client, TEMPERATURE_TOPIC, buffer, strlen(buffer), 0, 1, mqtt_pub_request_cb, NULL);
+                    if (err != ERR_OK) {
+                        printf("mqtt_publish on %s return: %d\n", TEMPERATURE_TOPIC, err);
+                    }
+                    cyw43_arch_lwip_end();
+                    break;
+
+                default:
+                    panic("Invalid message type (%d)", message_mqtt.message_type);
+                    break;
+            }
+        }
+    }
+    else {
+        if (mqtt_client_is_connected(client) == 0) {
+            printf("MQTT not connected; reconnecting\n");
+            do_mqtt_connect(client);
+        }
+        vTaskDelay(100 * portTICK_PERIOD_MS);
+    }
 }
 
 static void mqtt_pub_request_cb(void *arg, err_t result)

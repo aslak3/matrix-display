@@ -1,21 +1,21 @@
-module sync_pdp_ram
+module sync_pdp_ram #(parameter BITS_PER_PIXEL=0)
     (
-        input                   buffer_toggle,
-        input                   write_clk,
-        input [10:0]            write_addr,
-        input [15:0]            write_data,
-        input                   write_en,
-        input                   read_clk,
-        input [9:0]             read_addr,
-        output [15:0]           read_data_top,
-        output [15:0]           read_data_bottom,
-        input                   read_en
+        input                       buffer_toggle,
+        input                       write_clk,
+        input [10:0]                write_addr,
+        input [BITS_PER_PIXEL-1:0]  write_data,
+        input                       write_en,
+        input                       read_clk,
+        input [9:0]                 read_addr,
+        output [BITS_PER_PIXEL-1:0] read_data_top,
+        output [BITS_PER_PIXEL-1:0] read_data_bottom,
+        input                        read_en
     );
 
-    reg [15:0] mem_top [2048];
-    reg [15:0] mem_bottom [2048];
-    reg [15:0] tmp_data_top;
-    reg [15:0] tmp_data_bottom;
+    reg [BITS_PER_PIXEL-1:0] mem_top [64*16*2];
+    reg [BITS_PER_PIXEL-1:0] mem_bottom [64*16*2];
+    reg [BITS_PER_PIXEL-1:0] tmp_data_top;
+    reg [BITS_PER_PIXEL-1:0] tmp_data_bottom;
 
     always @ (posedge write_clk) begin
         if (write_en) begin
@@ -33,6 +33,6 @@ module sync_pdp_ram
        end
     end
 
-    assign read_data_top = read_en ? tmp_data_top : 16'bzzzzzzzzzzzzzzzz;
-    assign read_data_bottom = read_en ? tmp_data_bottom : 16'bzzzzzzzzzzzzzzzz;
+    assign read_data_top = read_en ? tmp_data_top : {BITS_PER_PIXEL{1'bz}};
+    assign read_data_bottom = read_en ? tmp_data_bottom : {BITS_PER_PIXEL{1'bz}};
 endmodule
