@@ -11,8 +11,8 @@
 
 #include "messages.h"
 
-#define PICO_I2C_SDA_PIN 16
-#define PICO_I2C_SCL_PIN 17
+#define PICO_I2C_SDA_PIN 20
+#define PICO_I2C_SCL_PIN 21
 #define RTC_I2C_ADDR 0x68
 
 #define RTC_TEMPERATURE_LEN 2
