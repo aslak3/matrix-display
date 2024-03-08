@@ -148,6 +148,22 @@ typedef struct {
     };
 } message_rtc_t;
 
+// Messages destined at buzzer task
+
+#define MESSAGE_BUZZER_NULL 0
+#define MESSAGE_BUZZER_PLAY 1
+
+#define BUZZER_PLAY_NULL 0
+#define BUZZER_PLAY_NOTIFICATION 1
+#define BUZZER_PLAY_PORCH 2
+
+typedef struct {
+    uint8_t message_type;
+    union {
+        uint8_t play_type;
+    };
+} message_buzzer_t;
+
 // Messages destined at MQTT task
 
 #define MESSAGE_MQTT_NULL 0

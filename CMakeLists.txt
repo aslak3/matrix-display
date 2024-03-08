@@ -22,6 +22,7 @@ add_executable(
     main.cpp
     mqtt.cpp
     rtc.cpp
+    buzzer.cpp
     framebuffer.cpp
     animation.cpp
     cJSON.c
@@ -41,7 +42,7 @@ target_include_directories(${PROJECT} PRIVATE
 
 # pull in common dependencies
 target_link_libraries(matrix-display fonts images
-    pico_stdlib hardware_i2c hardware_spi hardware_dma
+    pico_stdlib hardware_i2c hardware_spi hardware_dma hardware_pwm
     pico_cyw43_arch_lwip_sys_freertos
     pico_lwip_mqtt
     FreeRTOS-Kernel-Heap4

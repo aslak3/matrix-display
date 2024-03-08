@@ -25,11 +25,11 @@
 #define OEN_PIN 15
 
 #define FPGA_RESET_PIN 26
-#define BUZZER_PIN 27
 
 void animate_task(void *dummy);
 void matrix_task(void *dummy);
 void rtc_task(void *dummy);
+void buzzer_task(void *dummy);
 
 void vApplicationTickHook(void);
 
@@ -39,6 +39,7 @@ QueueHandle_t animate_queue;
 QueueHandle_t matrix_queue;
 QueueHandle_t mqtt_queue;
 QueueHandle_t rtc_queue;
+QueueHandle_t buzzer_queue;
 
 int main(void)
 {
@@ -46,26 +47,20 @@ int main(void)
 
     printf("Hello, matrix here\n");
 
-    gpio_init(BUZZER_PIN);
-    gpio_set_dir(BUZZER_PIN, true);
-    gpio_put(BUZZER_PIN, false);
-
-    gpio_init(FPGA_RESET_PIN);
-    gpio_set_dir(FPGA_RESET_PIN, true);
-    gpio_put(FPGA_RESET_PIN, false);
-
     srand(0);
 
     animate_queue = xQueueCreate(3, sizeof(message_anim_t));
     mqtt_queue = xQueueCreate(3, sizeof(message_mqtt_t));
     rtc_queue = xQueueCreate(3, sizeof(message_rtc_t));
+    buzzer_queue = xQueueCreate(3, sizeof(message_buzzer_t));
 
     matrix_queue = xQueueCreate(1, sizeof(fb_t));
 
     xTaskCreate(&animate_task, "Animate Task", 4096, NULL, 0, NULL);
     xTaskCreate(&mqtt_task, "MQTT Task", 4096, NULL, 0, NULL);
     xTaskCreate(&rtc_task, "RTC Task", 4096, NULL, 0, NULL);
-
+    xTaskCreate(&buzzer_task, "Buzzer Task", 4096, NULL, 0, NULL);
+    
     xTaskCreate(&matrix_task, "Matrix Task", 1024, NULL, 10, NULL);
 
     vTaskStartScheduler();
@@ -168,6 +163,10 @@ void matrix_task(void *dummy)
     printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
 
+    gpio_init(FPGA_RESET_PIN);
+    gpio_set_dir(FPGA_RESET_PIN, true);
+    gpio_put(FPGA_RESET_PIN, false);
+
     static fb_t output_fb;
 
     spi_init(spi_default, 10 * 1000 * 1000);
@@ -193,6 +192,8 @@ void matrix_task(void *dummy)
         FB_WIDTH * FB_HEIGHT * sizeof(uint32_t),    // element count
         false);                                     // don't start it now
 
+    sleep_ms(1000);
+
     while (1) {
         fb.atomic_fore_copy_out(&output_fb);
 
@@ -202,6 +203,12 @@ void matrix_task(void *dummy)
         dma_channel_set_read_addr(dma_tx, &output_fb.uint32, true);
         dma_channel_wait_for_finish_blocking(dma_tx);
 
+        fb.atomic_fore_copy_out(&output_fb);
+
         gpio_put(PICO_DEFAULT_SPI_CSN_PIN, true);
+
+        // Set the read address to the top of frame and trigger
+        dma_channel_set_read_addr(dma_tx, &output_fb.uint32, true);
+        dma_channel_wait_for_finish_blocking(dma_tx);
     }
 }

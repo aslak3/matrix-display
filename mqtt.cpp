@@ -18,6 +18,7 @@
 extern QueueHandle_t mqtt_queue;
 extern QueueHandle_t animate_queue;
 extern QueueHandle_t rtc_queue;
+extern QueueHandle_t buzzer_queue;
 
 void led_task(void *dummy);
 
@@ -36,6 +37,7 @@ static void handle_bluestar_data(char *data_as_chars);
 static void handle_porch_sensor_data(char *data_as_chars);
 static void handle_notificaiton_data(char *data_as_chars);
 static void handle_set_rtc_time_data(char *data_as_chars);
+static void handle_buzzer_play_data(char *data_as_chars);
 static void handle_set_brightness_data(char *attribute, char *data_as_chars);
 static void handle_set_grayscale_data(char *data_as_chars);
 static void handle_set_snowflakes_data(char *data_as_chars);
@@ -217,6 +219,7 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
 #define PORCH_SENSOR_TOPIC "homeassistant/binary_sensor/porch_motion_sensor_iaszone/state"
 #define NOTIFICATION_TOPIC "matrix_display/notification"
 #define SET_RTC_TIME_TOPIC "matrix_display/set_rtc_time"
+#define BUZZER_PLAY_TOPIC "matrix_display/buzzer_play"
 // Includes brightness and brightness_red etc
 #define SET_BRIGHTNESS_TOPIC "matrix_display/brightness/"
 #define SET_GRAYSCALE_TOPIC "matrix_display/grayscale"
@@ -259,6 +262,9 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         }
         else if (strcmp(current_topic, SET_RTC_TIME_TOPIC) == 0) {
             handle_set_rtc_time_data(data_as_chars);
+        }
+        else if (strcmp(current_topic, BUZZER_PLAY_TOPIC) == 0) {
+            handle_buzzer_play_data(data_as_chars);
         }
         else if (strncmp(current_topic, SET_BRIGHTNESS_TOPIC, strlen(SET_BRIGHTNESS_TOPIC)) == 0) {
             handle_set_brightness_data(current_topic + strlen(SET_BRIGHTNESS_TOPIC), data_as_chars);
@@ -569,7 +575,17 @@ static void handle_porch_sensor_data(char *data_as_chars)
         porch: porch,
     };
     if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
-        printf("Could not send media_player data; dropping");
+        printf("Could not send media_player data; dropping\n");
+    }
+
+    if (porch.occupied) {
+        message_buzzer_t message_buzzer = {
+            message_type: MESSAGE_BUZZER_PLAY,
+            play_type: BUZZER_PLAY_PORCH,
+        };
+        if (xQueueSend(buzzer_queue, &message_buzzer, 10) != pdTRUE) {
+            printf("Could not send message_buzzer data; dropping\n");
+        }
     }
 }
 
@@ -586,6 +602,14 @@ static void handle_notificaiton_data(char *data_as_chars)
     if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
         printf("Could not send weather data; dropping");
     }
+
+    message_buzzer_t message_buzzer = {
+        message_type: MESSAGE_BUZZER_PLAY,
+        play_type: BUZZER_PLAY_NOTIFICATION,
+    };
+    if (xQueueSend(buzzer_queue, &message_buzzer, 10) != pdTRUE) {
+        printf("Could not send message_buzzer data; dropping\n");
+    }
 }
 
 static void handle_set_rtc_time_data(char *data_as_chars)
@@ -600,6 +624,22 @@ static void handle_set_rtc_time_data(char *data_as_chars)
         printf("Could not send rtc data; dropping");
     }
 }
+
+static void handle_buzzer_play_data(char *data_as_chars)
+{
+    printf("handle_buzzer_data()\n");
+
+    message_buzzer_t message_buzzer = {
+        .message_type = MESSAGE_BUZZER_PLAY,
+    };
+
+    bcd_string_to_bytes(data_as_chars, &message_buzzer.play_type, sizeof(uint8_t));
+
+    if (xQueueSend(buzzer_queue, &message_buzzer, 10) != pdTRUE) {
+        printf("Could not send rtc data; dropping");
+    }
+}
+
 
 static void handle_set_brightness_data(char *attribute, char *data_as_chars)
 {
