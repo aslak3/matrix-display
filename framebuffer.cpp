@@ -11,9 +11,7 @@
 
 framebuffer::framebuffer()
 {
-    brightness_red = 128;
-    brightness_green = 128;
-    brightness_blue = 128;
+    brightness = 128;
     grayscale = false;
 }
 
@@ -216,19 +214,9 @@ void framebuffer::show_image(image_t *image, int x, int y, uint8_t gamma, bool t
     }
 }
 
-void framebuffer::set_brightness_red(uint8_t b)
+void framebuffer::set_brightness(uint8_t b)
 {
-    brightness_red = b;
-}
-
-void framebuffer::set_brightness_green(uint8_t b)
-{
-    brightness_green = b;
-}
-
-void framebuffer::set_brightness_blue(uint8_t b)
-{
-    brightness_blue = b;
+    brightness = b;
 }
 
 void framebuffer::set_grayscale(bool g)
@@ -249,7 +237,7 @@ void framebuffer::atomic_back_to_fore_copy(void)
                 uint8_t intensity = (uint8_t)((uint32_t) (rgb.red + rgb.green + rgb.blue) / 3);
                 rgb.red = rgb.green = rgb.blue = intensity;
             }
-            if ((rgb.flags & RGB_FLAGS_BRIGHT) && brightness_red && brightness_green && brightness_blue) {
+            if ((rgb.flags & RGB_FLAGS_BRIGHT) && brightness) {
                 transfer_fb.rgb[(FB_HEIGHT - 1) - r][c] = {
                     red: rgb.red,
                     green: rgb.green,
@@ -258,9 +246,9 @@ void framebuffer::atomic_back_to_fore_copy(void)
             }
             else {
                 transfer_fb.rgb[(FB_HEIGHT - 1) - r][c] = {
-                    red: (uint8_t)((uint32_t)(rgb.red * brightness_red) / 255),
-                    green: (uint8_t)((uint32_t)(rgb.green * brightness_green) / 255),
-                    blue: (uint8_t)((uint32_t)(rgb.blue * brightness_blue) / 255),
+                    red: (uint8_t)((uint32_t)(rgb.red * brightness) / 255),
+                    green: (uint8_t)((uint32_t)(rgb.green * brightness) / 255),
+                    blue: (uint8_t)((uint32_t)(rgb.blue * brightness) / 255),
                 };
             }
         }

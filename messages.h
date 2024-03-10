@@ -85,16 +85,6 @@ typedef struct {
     uint8_t datetime_buffer[RTC_DATETIME_LEN];
 } rtc_t;
 
-#define BRIGHTNESS_UNKNWON 0
-#define BRIGHTNESS_RED 1
-#define BRIGHTNESS_GREEN 2
-#define BRIGHTNESS_BLUE 3
-
-typedef struct {
-    uint8_t type;
-    uint8_t intensity;
-} brightness_t;
-
 typedef struct {
     int rtc_duration;
     int inside_temperatures_scroll_speed;
@@ -130,7 +120,7 @@ typedef struct {
         notification_t notification;
         porch_t porch;
         rtc_t rtc;
-        brightness_t brightness;
+        uint8_t brightness;
         bool grayscale;
         configuration_t configuration;
     };

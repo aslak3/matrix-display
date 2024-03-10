@@ -60,7 +60,7 @@ int main(void)
     xTaskCreate(&mqtt_task, "MQTT Task", 4096, NULL, 0, NULL);
     xTaskCreate(&rtc_task, "RTC Task", 4096, NULL, 0, NULL);
     xTaskCreate(&buzzer_task, "Buzzer Task", 4096, NULL, 0, NULL);
-    
+
     xTaskCreate(&matrix_task, "Matrix Task", 1024, NULL, 10, NULL);
 
     vTaskStartScheduler();
@@ -119,15 +119,7 @@ void animate_task(void *dummy)
                     break;
 
                 case MESSAGE_ANIM_BRIGHTNESS:
-                    if (message.brightness.type == BRIGHTNESS_RED) {
-                        fb.set_brightness_red(message.brightness.intensity);
-                    } else if (message.brightness.type == BRIGHTNESS_GREEN) {
-                        fb.set_brightness_green(message.brightness.intensity);
-                    } else if (message.brightness.type == BRIGHTNESS_BLUE) {
-                        fb.set_brightness_blue(message.brightness.intensity);
-                    } else {
-                        printf("Invalid message.brightness.type\n");
-                    }
+                    fb.set_brightness(message.brightness);
                     break;
 
                 case MESSAGE_ANIM_GRAYSCALE:

@@ -34,17 +34,13 @@ class framebuffer {
         int print_wrapped_string(font_t *font, int y, const char *s, rgb_t rgb);
         void show_image(image_t *image, int x, int y);
         void show_image(image_t *image, int x, int y, uint8_t gamma, bool transparent);
-        void set_brightness_red(uint8_t b);
-        void set_brightness_green(uint8_t b);
-        void set_brightness_blue(uint8_t b);
+        void set_brightness(uint8_t b);
         void set_grayscale(bool g);
         void atomic_back_to_fore_copy(void);
         void atomic_fore_copy_out(fb_t *out);
 
     private:
-        uint8_t brightness_red;
-        uint8_t brightness_green;
-        uint8_t brightness_blue;
+        uint8_t brightness;
         bool grayscale;
         void set_pixel(int x, int y, rgb_t rgb);
         void set_pixel(int x, int y, rgb_t rgb, uint8_t gamma);
