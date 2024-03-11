@@ -44,6 +44,7 @@ static void handle_light_brightness_command_data(char *data_as_chars);
 static void handle_set_grayscale_data(char *data_as_chars);
 static void handle_set_snowflakes_data(char *data_as_chars);
 static void handle_configuration_data(char *attribute, char *data_as_chars);
+static void handle_autodiscover_control_data(char *data_as_chars);
 
 static void dump_weather_data(weather_data_t *weather_data);
 
@@ -201,8 +202,9 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
 #define BUZZER_PLAY_TOPIC "matrix_display/buzzer_play"
 #define LIGHT_COMMAND_TOPIC "matrix_display/panel/switch"
 #define LIGHT_BRIGHTNESS_COMMAND_TOPIC "matrix_display/panel/brightness/set"
-#define SET_GRAYSCALE_TOPIC "matrix_display/grayscale"
+#define SET_GRAYSCALE_TOPIC "matrix_display/greyscale/switch"
 #define CONFIGURATION_TOPIC "matrix_display/configuration/"
+#define AUTODISCOVER_CONTROL_TOPIC "matrix_display/autodiscover"
 
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags)
 {
@@ -256,6 +258,12 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         }
         else if (strncmp(current_topic, CONFIGURATION_TOPIC, strlen(CONFIGURATION_TOPIC)) == 0) {
             handle_configuration_data(current_topic + strlen(CONFIGURATION_TOPIC), data_as_chars);
+        }
+        else if (strcmp(current_topic, AUTODISCOVER_CONTROL_TOPIC) == 0) {
+            handle_autodiscover_control_data(data_as_chars);
+        }
+        else if (strcmp(current_topic, TEMPERATURE_TOPIC) == 0) {
+            // Nothing to do; we generated this
         }
         else {
             printf("Unknown topic %s\n", current_topic);
@@ -722,6 +730,17 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
     }
 }
 
+bool autodisover_enable = false;
+bool send_autodiscover = false;
+static void handle_autodiscover_control_data(char *data_as_chars)
+{
+    printf("AutoDiscover control\n");
+
+    autodisover_enable = strcmp(data_as_chars, "ON") == 0 ? true : false;
+
+    send_autodiscover = true;
+}
+
 static void dump_weather_data(weather_data_t *weather_data)
 {
     printf("--------------\n");
@@ -741,7 +760,7 @@ static void publish_loop_body(mqtt_client_t *client)
     static message_mqtt_t message_mqtt;
 
     if (mqtt_client_is_connected(client)) {
-        if (xQueueReceive(mqtt_queue, &message_mqtt, portTICK_PERIOD_MS * 10) == pdTRUE) {
+        if (xQueueReceive(mqtt_queue, &message_mqtt, 0) == pdTRUE) {
             switch (message_mqtt.message_type) {
                 char buffer[10];
                 int err;
@@ -762,6 +781,96 @@ static void publish_loop_body(mqtt_client_t *client)
                     break;
             }
         }
+
+        if (send_autodiscover) {
+            cyw43_arch_lwip_begin();
+
+            int err = 0;
+            char *json_chars = NULL;
+            if (autodisover_enable) {
+                cJSON *device = cJSON_CreateObject();
+                cJSON_AddItemToObject(device, "name", cJSON_CreateString("Matrix Display"));
+                cJSON_AddItemToObject(device, "identifiers", cJSON_CreateString("matrix_display"));
+                cJSON_AddItemToObject(device, "manufacturer", cJSON_CreateString("lawrence@aslak.net"));
+                cJSON_AddItemToObject(device, "model", cJSON_CreateString("Matrix Display 64x32"));
+
+                cJSON *light = cJSON_CreateObject();
+                cJSON_AddItemToObject(light, "name", cJSON_CreateString("Panel"));
+                cJSON_AddItemToObject(light, "command_topic", cJSON_CreateString(LIGHT_COMMAND_TOPIC));
+                cJSON_AddItemToObject(light, "payload_off", cJSON_CreateString("OFF"));
+                cJSON_AddItemToObject(light, "brightness_command_topic", cJSON_CreateString(LIGHT_BRIGHTNESS_COMMAND_TOPIC));
+                cJSON_AddItemToObject(light, "on_command_type", cJSON_CreateString("brightness"));
+                cJSON_AddItemToObject(light, "unique_id", cJSON_CreateString("matrix_display_brightness"));
+                cJSON_AddItemReferenceToObject(light, "device", device);
+                json_chars = cJSON_PrintUnformatted(light);
+                cJSON_free(light);
+
+                err += mqtt_publish(client, "homeassistant/light/matrix_display/config", json_chars, strlen(json_chars),
+                    0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
+                free(json_chars);
+
+                cJSON *sw = cJSON_CreateObject();
+                cJSON_AddItemToObject(sw, "name", cJSON_CreateString("Grayscale"));
+                cJSON_AddItemToObject(sw, "command_topic", cJSON_CreateString(SET_GRAYSCALE_TOPIC));
+                cJSON_AddItemToObject(light, "unique_id", cJSON_CreateString("matrix_display_greyscale"));
+                cJSON_AddItemReferenceToObject(sw, "device", device);
+                json_chars = cJSON_PrintUnformatted(sw);
+                cJSON_free(sw);
+
+                err += mqtt_publish(client, "homeassistant/switch/matrix_display/config", json_chars, strlen(json_chars),
+                    0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
+                free(json_chars);
+
+                cJSON *temp = cJSON_CreateObject();
+                cJSON_AddItemToObject(temp, "name", cJSON_CreateString("Temperature"));
+                cJSON_AddItemToObject(temp, "state_topic", cJSON_CreateString(TEMPERATURE_TOPIC));
+                cJSON_AddItemToObject(temp, "unique_id", cJSON_CreateString("matrix_display_temperature"));
+                cJSON_AddItemToObject(temp, "unit_of_measurement", cJSON_CreateString("°C"));
+                cJSON_AddItemReferenceToObject(temp, "device", device);
+                json_chars = cJSON_PrintUnformatted(temp);
+                cJSON_free(sw);
+
+                err += mqtt_publish(client, "homeassistant/sensor/matrix_display/config", json_chars, strlen(json_chars),
+                    0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
+                free(json_chars);
+
+                cJSON *snowflakes = cJSON_CreateObject();
+                cJSON_AddItemToObject(snowflakes, "name", cJSON_CreateString("Snowflake Count"));
+                cJSON_AddItemToObject(snowflakes, "command_topic", cJSON_CreateString("matrix_display/configuration/snowflake_count"));
+                cJSON_AddItemToObject(snowflakes, "unique_id", cJSON_CreateString("matrix_display_snowflake_count"));
+                cJSON_AddNumberToObject(snowflakes, "min", 0.0);
+                cJSON_AddNumberToObject(snowflakes, "max", 255.0);
+                cJSON_AddItemReferenceToObject(snowflakes, "device", device);
+                json_chars = cJSON_PrintUnformatted(snowflakes);
+                cJSON_free(snowflakes);
+
+                err += mqtt_publish(client, "homeassistant/number/matrix_display/config", json_chars, strlen(json_chars),
+                    0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
+                free(json_chars);
+
+                cJSON_free(device);
+            }
+            else {
+                err += mqtt_publish(client, "homeassistant/light/matrix_display/config", "", 0,
+                    0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
+                err += mqtt_publish(client, "homeassistant/switch/matrix_display/config", "", 0,
+                    0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
+                err += mqtt_publish(client, "homeassistant/sensor/matrix_display/config", "", 0,
+                    0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
+                err += mqtt_publish(client, "homeassistant/number/matrix_display/config", "", 0,
+                    0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
+            }
+
+            if (err > 0) {
+                printf("mqtt_publish returned %d errors\n", err);
+            }
+
+            cyw43_arch_lwip_end();
+
+            send_autodiscover = false;
+        }
+
+        vTaskDelay(10 / portTICK_PERIOD_MS);
     }
     else {
         if (mqtt_client_is_connected(client) == 0) {
