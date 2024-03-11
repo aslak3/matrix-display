@@ -3,7 +3,8 @@
 
 #include <pico/stdlib.h>
 #include <hardware/gpio.h>
-#include <hardware/pio.h>
+#include <hardware/spi.h>
+#include <hardware/dma.h>
 #include <pico/cyw43_arch.h>
 
 #include <FreeRTOS.h>
@@ -23,40 +24,22 @@
 #define STROBE_PIN 14
 #define OEN_PIN 15
 
+#define FPGA_RESET_PIN 26
+
 void animate_task(void *dummy);
 void matrix_task(void *dummy);
 void rtc_task(void *dummy);
+void buzzer_task(void *dummy);
 
 void vApplicationTickHook(void);
 
 extern void mqtt_task(void *dummy);
 
-/* WIRING
- *
- * R1   GP2
- * B1   GP4
- * R2   GP5
- * B2   GP7
- * A    GP8
- * C    GP10
- * CLK  GP13
- * OE   GP15
- *
- * G1   GP3
- * G2   GP6
- * E    GND
- * B    GP9
- * D    GP11
- * LAT  GP14
- *
- * 0b00000000 00011111 11111111 00000000
- * 0x001fff00
-*/
-
 QueueHandle_t animate_queue;
 QueueHandle_t matrix_queue;
 QueueHandle_t mqtt_queue;
 QueueHandle_t rtc_queue;
+QueueHandle_t buzzer_queue;
 
 int main(void)
 {
@@ -69,12 +52,14 @@ int main(void)
     animate_queue = xQueueCreate(3, sizeof(message_anim_t));
     mqtt_queue = xQueueCreate(3, sizeof(message_mqtt_t));
     rtc_queue = xQueueCreate(3, sizeof(message_rtc_t));
+    buzzer_queue = xQueueCreate(3, sizeof(message_buzzer_t));
 
     matrix_queue = xQueueCreate(1, sizeof(fb_t));
 
     xTaskCreate(&animate_task, "Animate Task", 4096, NULL, 0, NULL);
     xTaskCreate(&mqtt_task, "MQTT Task", 4096, NULL, 0, NULL);
     xTaskCreate(&rtc_task, "RTC Task", 4096, NULL, 0, NULL);
+    xTaskCreate(&buzzer_task, "Buzzer Task", 4096, NULL, 0, NULL);
 
     xTaskCreate(&matrix_task, "Matrix Task", 1024, NULL, 10, NULL);
 
@@ -134,15 +119,7 @@ void animate_task(void *dummy)
                     break;
 
                 case MESSAGE_ANIM_BRIGHTNESS:
-                    if (message.brightness.type == BRIGHTNESS_RED) {
-                        fb.set_brightness_red(message.brightness.intensity);
-                    } else if (message.brightness.type == BRIGHTNESS_GREEN) {
-                        fb.set_brightness_green(message.brightness.intensity);
-                    } else if (message.brightness.type == BRIGHTNESS_BLUE) {
-                        fb.set_brightness_blue(message.brightness.intensity);
-                    } else {
-                        printf("Invalid message.brightness.type\n");
-                    }
+                    fb.set_brightness(message.brightness);
                     break;
 
                 case MESSAGE_ANIM_GRAYSCALE:
@@ -178,38 +155,52 @@ void matrix_task(void *dummy)
     printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
 
-    PIO pio = pio0;
-    uint sm_data = 0;
-    uint sm_row = 1;
-
-    uint data_prog_offs = pio_add_program(pio, &hub75_data_rgb888_program);
-    uint row_prog_offs = pio_add_program(pio, &hub75_row_program);
-    hub75_data_rgb888_program_init(pio, sm_data, data_prog_offs, DATA_BASE_PIN, CLK_PIN);
-    hub75_row_program_init(pio, sm_row, row_prog_offs, ROWSEL_BASE_PIN, ROWSEL_N_PINS, STROBE_PIN);
+    gpio_init(FPGA_RESET_PIN);
+    gpio_set_dir(FPGA_RESET_PIN, true);
+    gpio_put(FPGA_RESET_PIN, false);
 
     static fb_t output_fb;
+
+    spi_init(spi_default, 10 * 1000 * 1000);
+    gpio_set_function(PICO_DEFAULT_SPI_RX_PIN, GPIO_FUNC_SPI);
+    gpio_set_function(PICO_DEFAULT_SPI_SCK_PIN, GPIO_FUNC_SPI);
+    gpio_set_function(PICO_DEFAULT_SPI_TX_PIN, GPIO_FUNC_SPI);
+    gpio_init(PICO_DEFAULT_SPI_CSN_PIN);
+    gpio_set_dir(PICO_DEFAULT_SPI_CSN_PIN, true);
+
+    gpio_put(FPGA_RESET_PIN, true);
+
+    const uint dma_tx = dma_claim_unused_channel(true);
+
+    printf("Configure TX DMA\n");
+    dma_channel_config dma_config_c = dma_channel_get_default_config(dma_tx);
+    // TODO: investigate DMA_SIZE_32 transfers
+    channel_config_set_transfer_data_size(&dma_config_c, DMA_SIZE_8);
+    channel_config_set_dreq(&dma_config_c, spi_get_dreq(spi_default, true));
+
+    dma_channel_configure(dma_tx, &dma_config_c,
+        &spi_get_hw(spi_default)->dr,               // write address
+        NULL,                                       // read address (set later)
+        FB_WIDTH * FB_HEIGHT * sizeof(uint32_t),    // element count
+        false);                                     // don't start it now
+
+    sleep_ms(1000);
 
     while (1) {
         fb.atomic_fore_copy_out(&output_fb);
 
-        for (int rowsel = 0; rowsel < 16; ++rowsel) {
-            for (int bit = 0; bit < 8; ++bit) {
-                hub75_data_rgb888_set_shift(pio, sm_data, data_prog_offs, bit);
-                for (int x = 0; x < FB_WIDTH; x++) {
-                    pio_sm_put_blocking(pio, sm_data, output_fb.uint32[rowsel][x]);
-                    pio_sm_put_blocking(pio, sm_data, output_fb.uint32[rowsel + 16][x]);
-                }
-                // Dummy pixel per lane
-                pio_sm_put_blocking(pio, sm_data, 0);
-                pio_sm_put_blocking(pio, sm_data, 0);
-                // SM is finished when it stalls on empty TX FIFO
-                hub75_wait_tx_stall(pio, sm_data);
-                // Also check that previous OEn pulse is finished, else things can get out of sequence
-                hub75_wait_tx_stall(pio, sm_row);
+        gpio_put(PICO_DEFAULT_SPI_CSN_PIN, false);
 
-                // Latch row data, pulse output enable for new row.
-                pio_sm_put_blocking(pio, sm_row, rowsel | (100u * (1u << bit) << 5));
-            }
-        }
+        // Set the read address to the top of frame and trigger
+        dma_channel_set_read_addr(dma_tx, &output_fb.uint32, true);
+        dma_channel_wait_for_finish_blocking(dma_tx);
+
+        fb.atomic_fore_copy_out(&output_fb);
+
+        gpio_put(PICO_DEFAULT_SPI_CSN_PIN, true);
+
+        // Set the read address to the top of frame and trigger
+        dma_channel_set_read_addr(dma_tx, &output_fb.uint32, true);
+        dma_channel_wait_for_finish_blocking(dma_tx);
     }
 }

@@ -85,16 +85,6 @@ typedef struct {
     uint8_t datetime_buffer[RTC_DATETIME_LEN];
 } rtc_t;
 
-#define BRIGHTNESS_UNKNWON 0
-#define BRIGHTNESS_RED 1
-#define BRIGHTNESS_GREEN 2
-#define BRIGHTNESS_BLUE 3
-
-typedef struct {
-    uint8_t type;
-    uint8_t intensity;
-} brightness_t;
-
 typedef struct {
     int rtc_duration;
     int inside_temperatures_scroll_speed;
@@ -130,7 +120,7 @@ typedef struct {
         notification_t notification;
         porch_t porch;
         rtc_t rtc;
-        brightness_t brightness;
+        uint8_t brightness;
         bool grayscale;
         configuration_t configuration;
     };
@@ -147,6 +137,22 @@ typedef struct {
         rtc_t rtc;
     };
 } message_rtc_t;
+
+// Messages destined at buzzer task
+
+#define MESSAGE_BUZZER_NULL 0
+#define MESSAGE_BUZZER_PLAY 1
+
+#define BUZZER_PLAY_NULL 0
+#define BUZZER_PLAY_NOTIFICATION 1
+#define BUZZER_PLAY_PORCH 2
+
+typedef struct {
+    uint8_t message_type;
+    union {
+        uint8_t play_type;
+    };
+} message_buzzer_t;
 
 // Messages destined at MQTT task
 
