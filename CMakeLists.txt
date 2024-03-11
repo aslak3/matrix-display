@@ -12,8 +12,12 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_BUILD_TYPE Debug)
 set(PICO_BOARD pico_w)
+
+# Compile time config
 set(SSID     ${WIFI_SSID})
 set(PASSWORD ${WIFI_PASSWORD})
+# Set this to 0 for non FPGA operation
+set(SPI_TO_FPGA 1)
 
 pico_sdk_init()
 
@@ -51,6 +55,7 @@ target_link_libraries(matrix-display fonts images
 target_compile_definitions(${PROJECT} PRIVATE
     WIFI_SSID=\"${SSID}\"
     WIFI_PASSWORD=\"${PASSWORD}\"
+    SPI_TO_FPGA=${SPI_TO_FPGA}
 )
 
 pico_enable_stdio_usb(${PROJECT} 1)

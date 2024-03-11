@@ -16,6 +16,9 @@
 
 #include "hub75.pio.h"
 
+#if SPI_TO_FPGA
+#define FPGA_RESET_PIN 26
+#else
 #define DATA_BASE_PIN 2
 #define DATA_N_PINS 6
 #define ROWSEL_BASE_PIN 8
@@ -23,8 +26,7 @@
 #define CLK_PIN 13
 #define STROBE_PIN 14
 #define OEN_PIN 15
-
-#define FPGA_RESET_PIN 26
+#endif
 
 void animate_task(void *dummy);
 void matrix_task(void *dummy);
@@ -155,6 +157,7 @@ void matrix_task(void *dummy)
     printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
 
+#if SPI_TO_FPGA
     gpio_init(FPGA_RESET_PIN);
     gpio_set_dir(FPGA_RESET_PIN, true);
     gpio_put(FPGA_RESET_PIN, false);
@@ -203,4 +206,40 @@ void matrix_task(void *dummy)
         dma_channel_set_read_addr(dma_tx, &output_fb.uint32, true);
         dma_channel_wait_for_finish_blocking(dma_tx);
     }
+#else
+    PIO pio = pio0;
+    uint sm_data = 0;
+    uint sm_row = 1;
+
+    uint data_prog_offs = pio_add_program(pio, &hub75_data_rgb888_program);
+    uint row_prog_offs = pio_add_program(pio, &hub75_row_program);
+    hub75_data_rgb888_program_init(pio, sm_data, data_prog_offs, DATA_BASE_PIN, CLK_PIN);
+    hub75_row_program_init(pio, sm_row, row_prog_offs, ROWSEL_BASE_PIN, ROWSEL_N_PINS, STROBE_PIN);
+
+    static fb_t output_fb;
+
+    while (1) {
+        fb.atomic_fore_copy_out(&output_fb);
+
+        for (int rowsel = 0; rowsel < 16; ++rowsel) {
+            for (int bit = 0; bit < 8; ++bit) {
+                hub75_data_rgb888_set_shift(pio, sm_data, data_prog_offs, bit);
+                for (int x = 0; x < FB_WIDTH; x++) {
+                    pio_sm_put_blocking(pio, sm_data, output_fb.uint32[rowsel][x]);
+                    pio_sm_put_blocking(pio, sm_data, output_fb.uint32[rowsel + 16][x]);
+                }
+                // Dummy pixel per lane
+                pio_sm_put_blocking(pio, sm_data, 0);
+                pio_sm_put_blocking(pio, sm_data, 0);
+                // SM is finished when it stalls on empty TX FIFO
+                hub75_wait_tx_stall(pio, sm_data);
+                // Also check that previous OEn pulse is finished, else things can get out of sequence
+                hub75_wait_tx_stall(pio, sm_row);
+
+                // Latch row data, pulse output enable for new row.
+                pio_sm_put_blocking(pio, sm_row, rowsel | (100u * (1u << bit) << 5));
+            }
+        }
+    }
+#endif
 }
