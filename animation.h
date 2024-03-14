@@ -41,13 +41,12 @@ typedef struct {
 } porch_state_t;
 
 typedef struct {
-    rtc_t data;
+    ds3231_t data;
     int framestamp;
     int frames_per_second;
     char time[10];
     char date[20];
-    float temperature;
-} rtc_state_t;
+} ds3231_state_t;
 
 typedef enum {
     PAGE_WAITING,
@@ -90,7 +89,7 @@ class animation {
         void new_notification(notification_t *notification);
         void clear_notification(void);
         void new_porch(porch_t *porch);
-        void new_rtc(rtc_t *rtc);
+        void new_ds3231(ds3231_t *ds3231);
         void update_configuration(configuration_t *config);
 
     private:
@@ -109,7 +108,7 @@ class animation {
         bluestar_state_t bluestar_state;
         notification_state_t notification_state;
         porch_state_t porch_state;
-        rtc_state_t rtc_state;
+        ds3231_state_t ds3231_state;
 
         snowflake_t snowflakes[NO_SNOWFLAKES];
         int16_t snowflake_wind_vector;
@@ -144,7 +143,7 @@ class animation {
         void change_page(page_t new_page);
 
         bool render_waiting_page(void);
-        bool render_rtc_page(void);
+        bool render_clock_page(void);
         bool render_inside_temperatures_page(void);
         bool render_current_weather_page(void);
         bool render_weather_forecast_page(void);

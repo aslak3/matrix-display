@@ -17,7 +17,7 @@
 
 extern QueueHandle_t mqtt_queue;
 extern QueueHandle_t animate_queue;
-extern QueueHandle_t rtc_queue;
+extern QueueHandle_t i2c_queue;
 extern QueueHandle_t buzzer_queue;
 
 void led_task(void *dummy);
@@ -37,7 +37,7 @@ static void handle_calendar_data(char *data_as_chars);
 static void handle_bluestar_json_data(char *data_as_chars);
 static void handle_porch_sensor_data(char *data_as_chars);
 static void handle_notificaiton_data(char *data_as_chars);
-static void handle_set_rtc_time_data(char *data_as_chars);
+static void handle_set_time_data(char *data_as_chars);
 static void handle_buzzer_play_data(char *data_as_chars);
 static void handle_light_command_data(char *data_as_chars);
 static void handle_light_brightness_command_data(char *data_as_chars);
@@ -71,6 +71,10 @@ void led_task(void *dummy)
 }
 
 #define TEMPERATURE_TOPIC "matrix_display/temperature"
+#if BME680_PRESENT
+#define PRESSURE_TOPIC "matrix_display/pressure"
+#define HUMIDITY_TOPIC "matrix_display/humidity"
+#endif
 
 void mqtt_task(void *dummy)
 {
@@ -198,7 +202,7 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
 #define BUS_JOURNIES "bluestar_parser/journies"
 #define PORCH_SENSOR_TOPIC "matrix_display/porch"
 #define NOTIFICATION_TOPIC "matrix_display/notification"
-#define SET_RTC_TIME_TOPIC "matrix_display/set_rtc_time"
+#define SET_RTC_TIME_TOPIC "matrix_display/set_time"
 #define BUZZER_PLAY_TOPIC "matrix_display/buzzer_play"
 #define LIGHT_COMMAND_TOPIC "matrix_display/panel/switch"
 #define LIGHT_BRIGHTNESS_COMMAND_TOPIC "matrix_display/panel/brightness/set"
@@ -242,7 +246,7 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
             handle_notificaiton_data(data_as_chars);
         }
         else if (strcmp(current_topic, SET_RTC_TIME_TOPIC) == 0) {
-            handle_set_rtc_time_data(data_as_chars);
+            handle_set_time_data(data_as_chars);
         }
         else if (strcmp(current_topic, BUZZER_PLAY_TOPIC) == 0) {
             handle_buzzer_play_data(data_as_chars);
@@ -265,6 +269,14 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         else if (strcmp(current_topic, TEMPERATURE_TOPIC) == 0) {
             // Nothing to do; we generated this
         }
+#if BME680_PRESENT
+        else if (strcmp(current_topic, PRESSURE_TOPIC) == 0) {
+            // Nothing to do; we generated this
+        }
+        else if (strcmp(current_topic, HUMIDITY_TOPIC) == 0) {
+            // Nothing to do; we generated this
+        }
+#endif
         else {
             printf("Unknown topic %s\n", current_topic);
         }
@@ -576,16 +588,16 @@ static void handle_notificaiton_data(char *data_as_chars)
     }
 }
 
-static void handle_set_rtc_time_data(char *data_as_chars)
+static void handle_set_time_data(char *data_as_chars)
 {
-    printf("handle_set_rtc_time_data()\n");
+    printf("handle_set_time_data()\n");
 
-    rtc_t rtc;
+    ds3231_t ds3231;
 
-    bcd_string_to_bytes(data_as_chars, rtc.datetime_buffer, RTC_DATETIME_LEN);
+    bcd_string_to_bytes(data_as_chars, ds3231.datetime_buffer, DS3231_DATETIME_LEN);
 
-    if (xQueueSend(rtc_queue, &rtc, 10) != pdTRUE) {
-        printf("Could not send rtc data; dropping");
+    if (xQueueSend(i2c_queue, &ds3231, 10) != pdTRUE) {
+        printf("Could not send ds3231 data; dropping");
     }
 }
 
@@ -600,7 +612,7 @@ static void handle_buzzer_play_data(char *data_as_chars)
     bcd_string_to_bytes(data_as_chars, &message_buzzer.play_type, sizeof(uint8_t));
 
     if (xQueueSend(buzzer_queue, &message_buzzer, 10) != pdTRUE) {
-        printf("Could not send rtc data; dropping");
+        printf("Could not send buzzer data; dropping");
     }
 }
 
@@ -666,7 +678,7 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
 
     configuration_t configuration;
 
-    configuration.rtc_duration = -1;
+    configuration.clock_duration = -1;
     configuration.inside_temperatures_scroll_speed = -1;
     configuration.current_weather_duration = -1;
     configuration.weather_forecast_duration = -1;
@@ -686,8 +698,8 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
     }
 
     // Update just the changing field
-    if (strcmp(attribute, "rtc_duration") == 0) {
-        configuration.rtc_duration = value;
+    if (strcmp(attribute, "clock_duration") == 0) {
+        configuration.clock_duration = value;
     }
     if (strcmp(attribute, "inside_temperatures_scroll_speed") == 0) {
         configuration.inside_temperatures_scroll_speed = value;
@@ -762,17 +774,43 @@ static void publish_loop_body(mqtt_client_t *client)
     if (mqtt_client_is_connected(client)) {
         if (xQueueReceive(mqtt_queue, &message_mqtt, 0) == pdTRUE) {
             switch (message_mqtt.message_type) {
-                char buffer[10];
+                char temperature_buffer[10];
+#if BME680_PRESENT
+                char pressure_buffer[10];
+                char humidity_buffer[10];
+#endif
                 int err;
-                case MESSAGE_MQTT_TEMPERATURE:
-                    snprintf(buffer, sizeof(buffer), "%.2f", message_mqtt.temperature);
-                    printf("Got a temperature: %s\n", buffer);
+                case MESSAGE_MQTT_CLIMATE:
+                    snprintf(temperature_buffer, sizeof(temperature_buffer), "%.2f", message_mqtt.climate.temperature);
+                    printf("Got temperature: %s\n", temperature_buffer);
+
+#if BME680_PRESENT
+                    snprintf(pressure_buffer, sizeof(pressure_buffer), "%.2f", message_mqtt.climate.pressure);
+                    printf("Got pressure: %s\n", pressure_buffer);
+                    snprintf(humidity_buffer, sizeof(humidity_buffer), "%.2f", message_mqtt.climate.humidity);
+                    printf("Got humidity: %s\n", humidity_buffer);
+#endif
 
                     cyw43_arch_lwip_begin();
-                    err = mqtt_publish(client, TEMPERATURE_TOPIC, buffer, strlen(buffer), 0, 1, mqtt_pub_request_cb, NULL);
+                    err = mqtt_publish(client, TEMPERATURE_TOPIC, temperature_buffer, strlen(temperature_buffer), 0, 1,
+                        mqtt_pub_request_cb, NULL);
                     if (err != ERR_OK) {
                         printf("mqtt_publish on %s return: %d\n", TEMPERATURE_TOPIC, err);
                     }
+
+#if BME680_PRESENT
+                    err = mqtt_publish(client, PRESSURE_TOPIC, pressure_buffer, strlen(pressure_buffer), 0, 1,
+                        mqtt_pub_request_cb, NULL);
+                    if (err != ERR_OK) {
+                        printf("mqtt_publish on %s return: %d\n", PRESSURE_TOPIC, err);
+                    }
+                    err = mqtt_publish(client, HUMIDITY_TOPIC, humidity_buffer, strlen(humidity_buffer), 0, 1,
+                        mqtt_pub_request_cb, NULL);
+                    if (err != ERR_OK) {
+                        printf("mqtt_publish on %s return: %d\n", HUMIDITY_TOPIC, err);
+                    }
+#endif
+
                     cyw43_arch_lwip_end();
                     break;
 
@@ -783,11 +821,11 @@ static void publish_loop_body(mqtt_client_t *client)
         }
 
         if (send_autodiscover) {
-            cyw43_arch_lwip_begin();
-
             int err = 0;
             char *json_chars = NULL;
             if (autodisover_enable) {
+                cyw43_arch_lwip_begin();
+
                 cJSON *device = cJSON_CreateObject();
                 cJSON_AddItemToObject(device, "name", cJSON_CreateString("Matrix Display"));
                 cJSON_AddItemToObject(device, "identifiers", cJSON_CreateString("matrix_display"));
@@ -804,10 +842,14 @@ static void publish_loop_body(mqtt_client_t *client)
                 cJSON_AddItemReferenceToObject(light, "device", device);
                 json_chars = cJSON_PrintUnformatted(light);
                 cJSON_free(light);
-
                 err += mqtt_publish(client, "homeassistant/light/matrix_display/config", json_chars, strlen(json_chars),
                     0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
                 free(json_chars);
+                printf("ERR %dd\n", err);
+
+                cyw43_arch_lwip_end();
+                vTaskDelay(10 / portTICK_PERIOD_MS);
+                cyw43_arch_lwip_begin();
 
                 cJSON *sw = cJSON_CreateObject();
                 cJSON_AddItemToObject(sw, "name", cJSON_CreateString("Grayscale"));
@@ -816,10 +858,13 @@ static void publish_loop_body(mqtt_client_t *client)
                 cJSON_AddItemReferenceToObject(sw, "device", device);
                 json_chars = cJSON_PrintUnformatted(sw);
                 cJSON_free(sw);
-
                 err += mqtt_publish(client, "homeassistant/switch/matrix_display/config", json_chars, strlen(json_chars),
                     0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
                 free(json_chars);
+
+                cyw43_arch_lwip_end();
+                vTaskDelay(10 / portTICK_PERIOD_MS);
+                cyw43_arch_lwip_begin();
 
                 cJSON *temp = cJSON_CreateObject();
                 cJSON_AddItemToObject(temp, "name", cJSON_CreateString("Temperature"));
@@ -828,11 +873,46 @@ static void publish_loop_body(mqtt_client_t *client)
                 cJSON_AddItemToObject(temp, "unit_of_measurement", cJSON_CreateString("°C"));
                 cJSON_AddItemReferenceToObject(temp, "device", device);
                 json_chars = cJSON_PrintUnformatted(temp);
-                cJSON_free(sw);
-
-                err += mqtt_publish(client, "homeassistant/sensor/matrix_display/config", json_chars, strlen(json_chars),
+                cJSON_free(temp);
+                err += mqtt_publish(client, "homeassistant/sensor/matrix_display_temperature/config", json_chars, strlen(json_chars),
                     0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
                 free(json_chars);
+
+                cyw43_arch_lwip_end();
+                vTaskDelay(10 / portTICK_PERIOD_MS);
+                cyw43_arch_lwip_begin();
+
+                cJSON *pressure = cJSON_CreateObject();
+                cJSON_AddItemToObject(pressure, "name", cJSON_CreateString("Air Pressure"));
+                cJSON_AddItemToObject(pressure, "state_topic", cJSON_CreateString(PRESSURE_TOPIC));
+                cJSON_AddItemToObject(pressure, "unique_id", cJSON_CreateString("matrix_display_pressure"));
+                cJSON_AddItemToObject(pressure, "unit_of_measurement", cJSON_CreateString("hPa"));
+                cJSON_AddItemReferenceToObject(pressure, "device", device);
+                json_chars = cJSON_PrintUnformatted(pressure);
+                cJSON_free(pressure);
+                err += mqtt_publish(client, "homeassistant/sensor/matrix_display_pressure/config", json_chars, strlen(json_chars),
+                    0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
+                free(json_chars);
+
+                cyw43_arch_lwip_end();
+                vTaskDelay(10 / portTICK_PERIOD_MS);
+                cyw43_arch_lwip_begin();
+
+                cJSON *humidity = cJSON_CreateObject();
+                cJSON_AddItemToObject(humidity, "name", cJSON_CreateString("Humidity"));
+                cJSON_AddItemToObject(humidity, "state_topic", cJSON_CreateString(HUMIDITY_TOPIC));
+                cJSON_AddItemToObject(humidity, "unique_id", cJSON_CreateString("matrix_display_humidity"));
+                cJSON_AddItemToObject(humidity, "unit_of_measurement", cJSON_CreateString("%"));
+                cJSON_AddItemReferenceToObject(humidity, "device", device);
+                json_chars = cJSON_PrintUnformatted(humidity);
+                cJSON_free(humidity);
+                err = mqtt_publish(client, "homeassistant/sensor/matrix_display_humidity/config", json_chars, strlen(json_chars),
+                    0, 1, mqtt_pub_request_cb, NULL);
+                free(json_chars);
+
+                cyw43_arch_lwip_end();
+                vTaskDelay(10 / portTICK_PERIOD_MS);
+                cyw43_arch_lwip_begin();
 
                 cJSON *snowflakes = cJSON_CreateObject();
                 cJSON_AddItemToObject(snowflakes, "name", cJSON_CreateString("Snowflake Count"));
@@ -843,14 +923,17 @@ static void publish_loop_body(mqtt_client_t *client)
                 cJSON_AddItemReferenceToObject(snowflakes, "device", device);
                 json_chars = cJSON_PrintUnformatted(snowflakes);
                 cJSON_free(snowflakes);
-
-                err += mqtt_publish(client, "homeassistant/number/matrix_display/config", json_chars, strlen(json_chars),
-                    0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
+                err = mqtt_publish(client, "homeassistant/number/matrix_display/config", json_chars, strlen(json_chars),
+                    0, 1, mqtt_pub_request_cb, NULL);
                 free(json_chars);
+                cyw43_arch_lwip_end();
+                vTaskDelay(10 / portTICK_PERIOD_MS);                
 
                 cJSON_free(device);
             }
             else {
+                cyw43_arch_lwip_begin();
+
                 err += mqtt_publish(client, "homeassistant/light/matrix_display/config", "", 0,
                     0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
                 err += mqtt_publish(client, "homeassistant/switch/matrix_display/config", "", 0,
@@ -859,13 +942,14 @@ static void publish_loop_body(mqtt_client_t *client)
                     0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
                 err += mqtt_publish(client, "homeassistant/number/matrix_display/config", "", 0,
                     0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
+
+                cyw43_arch_lwip_end();
             }
 
             if (err > 0) {
                 printf("mqtt_publish returned %d errors\n", err);
             }
 
-            cyw43_arch_lwip_end();
 
             send_autodiscover = false;
         }
@@ -877,7 +961,7 @@ static void publish_loop_body(mqtt_client_t *client)
             printf("MQTT not connected; reconnecting\n");
             do_mqtt_connect(client);
         }
-        vTaskDelay(100 * portTICK_PERIOD_MS);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
 

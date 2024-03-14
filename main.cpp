@@ -30,7 +30,7 @@
 
 void animate_task(void *dummy);
 void matrix_task(void *dummy);
-void rtc_task(void *dummy);
+void i2c_task(void *dummy);
 void buzzer_task(void *dummy);
 
 void vApplicationTickHook(void);
@@ -40,7 +40,7 @@ extern void mqtt_task(void *dummy);
 QueueHandle_t animate_queue;
 QueueHandle_t matrix_queue;
 QueueHandle_t mqtt_queue;
-QueueHandle_t rtc_queue;
+QueueHandle_t i2c_queue;
 QueueHandle_t buzzer_queue;
 
 int main(void)
@@ -53,14 +53,14 @@ int main(void)
 
     animate_queue = xQueueCreate(3, sizeof(message_anim_t));
     mqtt_queue = xQueueCreate(3, sizeof(message_mqtt_t));
-    rtc_queue = xQueueCreate(3, sizeof(message_rtc_t));
+    i2c_queue = xQueueCreate(3, sizeof(message_i2c_t));
     buzzer_queue = xQueueCreate(3, sizeof(message_buzzer_t));
 
     matrix_queue = xQueueCreate(1, sizeof(fb_t));
 
     xTaskCreate(&animate_task, "Animate Task", 4096, NULL, 0, NULL);
     xTaskCreate(&mqtt_task, "MQTT Task", 4096, NULL, 0, NULL);
-    xTaskCreate(&rtc_task, "RTC Task", 4096, NULL, 0, NULL);
+    xTaskCreate(&i2c_task, "I2C Task", 4096, NULL, 0, NULL);
     xTaskCreate(&buzzer_task, "Buzzer Task", 4096, NULL, 0, NULL);
 
     xTaskCreate(&matrix_task, "Matrix Task", 1024, NULL, 10, NULL);
@@ -116,8 +116,8 @@ void animate_task(void *dummy)
                     anim.new_porch(&message.porch);
                     break;
 
-                case MESSAGE_ANIM_RTC:
-                    anim.new_rtc(&message.rtc);
+                case MESSAGE_ANIM_DS3231:
+                    anim.new_ds3231(&message.ds3231);
                     break;
 
                 case MESSAGE_ANIM_BRIGHTNESS:

@@ -1,0 +1,12 @@
+{
+    "configurations": [
+        {
+            "includePath": [
+                "${env:PICO_SDK_PATH}/**",
+                "${workspaceFolder}/**"  // edit this too, or the includes in your project directory instead become unrecognised
+            ],
+            "defines": [ "FREE_RTOS_KERNEL_SMP=1", "SPI_TO_FPGA=1", "BME680_PRESENT=1" ]
+        }
+    ],
+    "version": 4
+}

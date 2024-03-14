@@ -28,7 +28,7 @@ animation::animation(framebuffer& f) : fb(f)
 
     porch_state.framestamp = 0;
 
-    configuration.rtc_duration = 1000;
+    configuration.clock_duration = 1000;
     configuration.inside_temperatures_scroll_speed = 3;
     configuration.current_weather_duration = 200;
     configuration.weather_forecast_duration = 500;
@@ -57,13 +57,13 @@ void animation::render_page(void)
 {
     switch (page) {
         case PAGE_WAITING:
-            if (render_waiting_page() || rtc_state.framestamp) {
+            if (render_waiting_page() || ds3231_state.framestamp) {
                 change_page(PAGE_RTC);
             }
             break;
 
         case PAGE_RTC:
-            if (!frames_left_on_page || render_rtc_page())  {
+            if (!frames_left_on_page || render_clock_page())  {
                 change_page(PAGE_INSIDE_TEMPERATURES);
             }
             break;
@@ -203,11 +203,11 @@ void animation::new_porch(porch_t *porch)
     porch_state.framestamp = frame;
 }
 
-void animation::new_rtc(rtc_t *rtc)
+void animation::new_ds3231(ds3231_t *ds3231)
 {
-    rtc_state.data = *rtc;
-    rtc_state.frames_per_second = frame - rtc_state.framestamp;
-    rtc_state.framestamp = frame;
+    ds3231_state.data = *ds3231;
+    ds3231_state.frames_per_second = frame - ds3231_state.framestamp;
+    ds3231_state.framestamp = frame;
 
     const char *month_names[] = {
         "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -216,9 +216,9 @@ void animation::new_rtc(rtc_t *rtc)
         "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
     };
 
-    uint8_t *buffer = rtc_state.data.datetime_buffer;
+    uint8_t *buffer = ds3231_state.data.datetime_buffer;
 
-    snprintf(rtc_state.time, sizeof(rtc_state.time), "%02x:%02x:%02x",
+    snprintf(ds3231_state.time, sizeof(ds3231_state.time), "%02x:%02x:%02x",
         buffer[2] & 0x3f,
         buffer[1] & 0x7f,
         buffer[0] & 0x7f
@@ -228,23 +228,23 @@ void animation::new_rtc(rtc_t *rtc)
     const int month_number = (buffer[5] & 0x0f) + (((buffer[5] & 0xf0) >> 4) * 10) - 1;
 
     if (month_number < 12 && day_number < 7) {
-        snprintf(rtc_state.date, sizeof(rtc_state.date), "%s %02x %s",
+        snprintf(ds3231_state.date, sizeof(ds3231_state.date), "%s %02x %s",
             day_names[day_number],
             buffer[4],
             month_names[month_number]
         );
     }
     else {
-        strncpy(rtc_state.date, "XXXX", sizeof(rtc_state.date));
+        strncpy(ds3231_state.date, "XXXX", sizeof(ds3231_state.date));
     }
 
-    printf("New Time: %s Date: %s\n", rtc_state.time, rtc_state.date);
+    printf("New Time: %s Date: %s\n", ds3231_state.time, ds3231_state.date);
 }
 
 void animation::update_configuration(configuration_t *config)
 {
-    if (config->rtc_duration >= 0) {
-        configuration.rtc_duration = config->rtc_duration;
+    if (config->clock_duration >= 0) {
+        configuration.clock_duration = config->clock_duration;
     }
     if (config->inside_temperatures_scroll_speed >= 0) {
         configuration.inside_temperatures_scroll_speed = config->inside_temperatures_scroll_speed;
@@ -289,7 +289,7 @@ void animation::change_page(page_t new_page)
             break;
 
         case PAGE_RTC:
-            frames_left_on_page = configuration.rtc_duration;
+            frames_left_on_page = configuration.clock_duration;
             break;
 
         case PAGE_INSIDE_TEMPERATURES:
@@ -331,12 +331,12 @@ bool animation::render_waiting_page(void)
     return false;
 }
 
-bool animation::render_rtc_page(void)
+bool animation::render_clock_page(void)
 {
-    fb.print_string(ibm_font, 0, (FB_HEIGHT - 1) - 8 - 6, rtc_state.time, orange);
+    fb.print_string(ibm_font, 0, (FB_HEIGHT - 1) - 8 - 6, ds3231_state.time, orange);
 
-    fb.print_string(tiny_font, (FB_WIDTH / 2) - (fb.string_length(tiny_font, rtc_state.date) / 2),
-        (FB_HEIGHT - 1) - 8 - 10 - 6, rtc_state.date, white);
+    fb.print_string(tiny_font, (FB_WIDTH / 2) - (fb.string_length(tiny_font, ds3231_state.date) / 2),
+        (FB_HEIGHT - 1) - 8 - 10 - 6, ds3231_state.date, white);
 
     return false;
 }
@@ -505,7 +505,7 @@ bool animation::render_bluestar_page(void)
     rgb_t towards_colour = light_blue;
     rgb_t departures_colour = cyan;
     // If bus info is stale (older then 5 minutes) make it red instead of blue
-    if (frame - rtc_state.framestamp > 300 * rtc_state.frames_per_second) {
+    if (frame - ds3231_state.framestamp > 300 * ds3231_state.frames_per_second) {
         towards_colour = dark_red;
         departures_colour = red;
     }
