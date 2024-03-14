@@ -104,8 +104,8 @@ void animate_task(void *dummy)
                     anim.new_calendar_data(&message.calendar_data);
                     break;
 
-                case MESSAGE_ANIM_BLUESTAR:
-                    anim.new_bluestar_data(&message.bluestar_data);
+                case MESSAGE_ANIM_TRANSPORT:
+                    anim.new_transport_data(&message.transport_data);
                     break;
 
                 case MESSAGE_ANIM_NOTIFICATION:

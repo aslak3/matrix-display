@@ -65,11 +65,11 @@ typedef struct {
     char departures_summary[64];
 } journey_t;
 
-#define NO_BUS_JOURNIES 2
+#define NO_TRANSPORT_JOURNIES 2
 
 typedef struct {
-    journey_t journies[NO_BUS_JOURNIES];
-} bluestar_data_t;
+    journey_t journies[NO_TRANSPORT_JOURNIES];
+} transport_data_t;
 
 typedef struct {
     char text[256];
@@ -100,7 +100,7 @@ typedef struct {
     int weather_forecast_duration;
     int media_player_scroll_speed;
     int calendar_scroll_speed;
-    int bluestar_duration;
+    int transport_duration;
     int scroller_interval;
     int scroller_speed;
     int snowflake_count;
@@ -110,7 +110,7 @@ typedef struct {
 #define MESSAGE_ANIM_WEATHER 1
 #define MESSAGE_ANIM_MEDIA_PLAYER 2
 #define MESSAGE_ANIM_CALENDAR 3
-#define MESSAGE_ANIM_BLUESTAR 4
+#define MESSAGE_ANIM_TRANSPORT 4
 #define MESSAGE_ANIM_NOTIFICATION 10
 #define MESSAGE_ANIM_PORCH 11
 #define MESSAGE_ANIM_DS3231 12
@@ -124,7 +124,7 @@ typedef struct {
         weather_data_t weather_data;
         media_player_data_t media_player_data;
         calendar_data_t calendar_data;
-        bluestar_data_t bluestar_data;
+        transport_data_t transport_data;
         notification_t notification;
         porch_t porch;
         ds3231_t ds3231;

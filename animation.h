@@ -24,9 +24,9 @@ typedef struct {
 } calendar_state_t;
 
 typedef struct {
-    bluestar_data_t data;
+    transport_data_t data;
     int framestamp;
-} bluestar_state_t;
+} transport_state_t;
 
 typedef struct {
     notification_t data;
@@ -56,7 +56,7 @@ typedef enum {
     PAGE_WEATHER_FORECAST,
     PAGE_MEDIA_PLAYER,
     PAGE_CALENDAR,
-    PAGE_BLUESTAR,
+    PAGE_TRANSPORT,
 } page_t;
 
 typedef struct {
@@ -85,7 +85,7 @@ class animation {
         void new_weather_data(weather_data_t *weather_data);
         void new_media_player_data(media_player_data_t *media_player_data);
         void new_calendar_data(calendar_data_t *calendar_data);
-        void new_bluestar_data(bluestar_data_t *bluestar_data);
+        void new_transport_data(transport_data_t *transport_data);
         void new_notification(notification_t *notification);
         void clear_notification(void);
         void new_porch(porch_t *porch);
@@ -105,7 +105,7 @@ class animation {
         weather_state_t weather_state;
         media_player_state_t media_player_state;
         calendar_state_t calendar_state;
-        bluestar_state_t bluestar_state;
+        transport_state_t transport_state;
         notification_state_t notification_state;
         porch_state_t porch_state;
         ds3231_state_t ds3231_state;
@@ -149,7 +149,7 @@ class animation {
         bool render_weather_forecast_page(void);
         bool render_media_player_page(void);
         bool render_calendar_page(void);
-        bool render_bluestar_page(void);
+        bool render_transport_page(void);
 
         void update_scroller_message(void);
         void render_scroller(void);

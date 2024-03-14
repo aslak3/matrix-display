@@ -34,7 +34,7 @@ static cJSON *json_parser(char *data_as_chars);
 static void handle_weather_json_data(char *data_as_chars);
 static void handle_media_player_json_data(char *data_as_chars);
 static void handle_calendar_data(char *data_as_chars);
-static void handle_bluestar_json_data(char *data_as_chars);
+static void handle_transport_json_data(char *data_as_chars);
 static void handle_porch_sensor_data(char *data_as_chars);
 static void handle_notificaiton_data(char *data_as_chars);
 static void handle_set_time_data(char *data_as_chars);
@@ -155,7 +155,7 @@ static void do_mqtt_subscribe(mqtt_client_t *client)
 {
     const char *subscriptions[] = {
         "matrix_display/#",
-        "bluestar_parser/#",
+        "transport_parser/#",
         NULL,
     };
 
@@ -201,7 +201,7 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
 #define WEATHER_TOPIC "matrix_display/weather"
 #define MEDIA_PLAYER_TOPIC "matrix_display/media_player"
 #define CALENDAR_TOPIC "matrix_display/calendar"
-#define BUS_JOURNIES "bluestar_parser/journies"
+#define TRANSPORT_TOPIC "matrix_display/transport"
 #define PORCH_SENSOR_TOPIC "matrix_display/porch"
 #define NOTIFICATION_TOPIC "matrix_display/notification"
 #define SET_RTC_TIME_TOPIC "matrix_display/set_time"
@@ -238,8 +238,8 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         else if (strcmp(current_topic, CALENDAR_TOPIC) == 0) {
             handle_calendar_data(data_as_chars);
         }
-        else if (strcmp(current_topic, BUS_JOURNIES) == 0) {
-            handle_bluestar_json_data(data_as_chars);
+        else if (strcmp(current_topic, TRANSPORT_TOPIC) == 0) {
+            handle_transport_json_data(data_as_chars);
         }
         else if( strcmp(current_topic, PORCH_SENSOR_TOPIC) == 0) {
             handle_porch_sensor_data(data_as_chars);
@@ -497,11 +497,11 @@ static void handle_calendar_data(char *data_as_chars)
     // printf("handle_calendar_data attribute %s data %s\n", attribute, data_as_chars);
 }
 
-static void handle_bluestar_json_data(char *data_as_chars)
+static void handle_transport_json_data(char *data_as_chars)
 {
-    printf("Bluestar update %s\n", data_as_chars);
+    printf("Transport update %s\n", data_as_chars);
 
-    static bluestar_data_t bluestar_data;
+    static transport_data_t transport_data;
 
     cJSON *json = json_parser(data_as_chars);
 
@@ -510,31 +510,31 @@ static void handle_bluestar_json_data(char *data_as_chars)
     }
 
     if (cJSON_IsArray(json)) {
-        for (int i = 0; i < cJSON_GetArraySize(json) && i < NO_BUS_JOURNIES; i++) {
+        for (int i = 0; i < cJSON_GetArraySize(json) && i < NO_TRANSPORT_JOURNIES; i++) {
             cJSON *item = cJSON_GetArrayItem(json, i);
             cJSON *towards = cJSON_GetObjectItem(item, "Towards");
             cJSON *departures_summary = cJSON_GetObjectItem(item, "DeparturesSummary");
 
             if (!towards || !departures_summary) {
-                printf("Bluestar missing field(s)");
+                printf("Transport missing field(s)");
                 return;
             }
 
-            strncpy(bluestar_data.journies[i].towards, cJSON_GetStringValue(towards), 16);
-            strncpy(bluestar_data.journies[i].departures_summary, cJSON_GetStringValue(departures_summary), 64);
+            strncpy(transport_data.journies[i].towards, cJSON_GetStringValue(towards), 16);
+            strncpy(transport_data.journies[i].departures_summary, cJSON_GetStringValue(departures_summary), 64);
         }
 
         message_anim_t message_anim = {
-            message_type: MESSAGE_ANIM_BLUESTAR,
-            bluestar_data: bluestar_data,
+            message_type: MESSAGE_ANIM_TRANSPORT,
+            transport_data: transport_data,
         };
-        printf("Sending bluestar data\n");
+        printf("Sending transport data\n");
         if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
-            printf("Could not send bluestar data; dropping\n");
+            printf("Could not send transport data; dropping\n");
         }
     }
     else {
-        printf("Not an arrray in bluestar data\n");
+        printf("Not an arrray in transport data\n");
     }
 
     cJSON_Delete(json);
@@ -686,7 +686,7 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
     configuration.weather_forecast_duration = -1;
     configuration.media_player_scroll_speed = -1;
     configuration.calendar_scroll_speed = -1;
-    configuration.bluestar_duration = -1;
+    configuration.transport_duration = -1;
     configuration.scroller_interval = -1;
     configuration.scroller_speed = -1;
     configuration.snowflake_count = -1;
@@ -718,8 +718,8 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
     else if (strcmp(attribute, "calendar_scroll_speed") == 0) {
         configuration.calendar_scroll_speed = value;
     }
-    else if (strcmp(attribute, "bluestar_duration") == 0) {
-        configuration.bluestar_duration = value;
+    else if (strcmp(attribute, "transport_duration") == 0) {
+        configuration.transport_duration = value;
     }
     else if (strcmp(attribute, "scroller_interval") == 0) {
         configuration.scroller_interval = value;

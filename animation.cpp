@@ -34,7 +34,7 @@ animation::animation(framebuffer& f) : fb(f)
     configuration.weather_forecast_duration = 500;
     configuration.media_player_scroll_speed = 1;
     configuration.calendar_scroll_speed = 3;
-    configuration.bluestar_duration = 300;
+    configuration.transport_duration = 300;
     configuration.scroller_interval = 20000;
     configuration.scroller_speed = 2;
     configuration.snowflake_count = 0;
@@ -94,12 +94,12 @@ void animation::render_page(void)
 
         case PAGE_CALENDAR:
             if (render_calendar_page()) {
-                change_page(PAGE_BLUESTAR);
+                change_page(PAGE_TRANSPORT);
             }
             break;
 
-        case PAGE_BLUESTAR:
-            if (!frames_left_on_page || render_bluestar_page()) {
+        case PAGE_TRANSPORT:
+            if (!frames_left_on_page || render_transport_page()) {
                 change_page(PAGE_RTC);
             }
             break;
@@ -177,11 +177,11 @@ void animation::new_calendar_data(calendar_data_t *calendar_data)
     calendar_state.framestamp = frame;
 }
 
-void animation::new_bluestar_data(bluestar_data_t *bluestar_data)
+void animation::new_transport_data(transport_data_t *transport_data)
 {
-    printf("Got new bluestar data\n");
-    bluestar_state.data = *bluestar_data;
-    bluestar_state.framestamp = frame;
+    printf("Got new transport data\n");
+    transport_state.data = *transport_data;
+    transport_state.framestamp = frame;
 }
 
 void animation::new_notification(notification_t *notification)
@@ -261,8 +261,8 @@ void animation::update_configuration(configuration_t *config)
     if (config->calendar_scroll_speed > 0) {
         configuration.calendar_scroll_speed = config->calendar_scroll_speed;
     }
-    if (config->bluestar_duration >= 0) {
-        configuration.bluestar_duration = config->bluestar_duration;
+    if (config->transport_duration >= 0) {
+        configuration.transport_duration = config->transport_duration;
     }
     if (config->scroller_interval >= 0) {
         configuration.scroller_interval = config->scroller_interval;
@@ -314,8 +314,8 @@ void animation::change_page(page_t new_page)
             calendar_state.framestamp = frame;
             break;
 
-        case PAGE_BLUESTAR:
-            frames_left_on_page = configuration.bluestar_duration;
+        case PAGE_TRANSPORT:
+            frames_left_on_page = configuration.transport_duration;
             break;
 
         default:
@@ -494,11 +494,11 @@ bool animation::render_calendar_page(void)
     }
 }
 
-bool animation::render_bluestar_page(void)
+bool animation::render_transport_page(void)
 {
-    if (!(bluestar_state.framestamp)) return true;
+    if (!(transport_state.framestamp)) return true;
 
-    if (!(strlen(bluestar_state.data.journies[0].towards)) && strlen(bluestar_state.data.journies[1].towards)) {
+    if (!(strlen(transport_state.data.journies[0].towards)) && strlen(transport_state.data.journies[1].towards)) {
         return true;
     }
 
@@ -510,14 +510,14 @@ bool animation::render_bluestar_page(void)
         departures_colour = red;
     }
 
-    fb.print_string(tiny_font, 0, 24, bluestar_state.data.journies[0].towards,
+    fb.print_string(tiny_font, 0, 24, transport_state.data.journies[0].towards,
         towards_colour);
-    fb.print_string(tiny_font, 0, 16, bluestar_state.data.journies[0].departures_summary,
+    fb.print_string(tiny_font, 0, 16, transport_state.data.journies[0].departures_summary,
         departures_colour);
 
-    fb.print_string(tiny_font, 0, 8, bluestar_state.data.journies[1].towards,
+    fb.print_string(tiny_font, 0, 8, transport_state.data.journies[1].towards,
         towards_colour);
-    fb.print_string(tiny_font, 0, 0, bluestar_state.data.journies[1].departures_summary,
+    fb.print_string(tiny_font, 0, 0, transport_state.data.journies[1].departures_summary,
         departures_colour);
 
     return false;
