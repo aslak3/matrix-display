@@ -48,6 +48,8 @@ static void handle_autodiscover_control_data(char *data_as_chars);
 
 static void dump_weather_data(weather_data_t *weather_data);
 
+cJSON *create_base_object(const char *name, const char *unique_id);
+int publish_object_as_device_entity(cJSON *obj, cJSON *device, mqtt_client_t *client, const char *topic);
 static void publish_loop_body(mqtt_client_t *client);
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags);
 
@@ -767,6 +769,34 @@ static void dump_weather_data(weather_data_t *weather_data)
     printf("--------------\n");
 }
 
+cJSON *create_base_object(const char *name, const char *unique_id)
+{
+    cJSON *obj = cJSON_CreateObject();
+    cJSON_AddItemToObject(obj, "name", cJSON_CreateString(name));
+    cJSON_AddItemToObject(obj, "unique_id", cJSON_CreateString(unique_id));
+
+    return obj;
+}
+
+// Add the device, print the object into a string, free the object, and then publish it at the given topic, before
+// freeing the serialised string. Return the error code from the publishing.
+int publish_object_as_device_entity(cJSON *obj, cJSON *device, mqtt_client_t *client, const char *topic)
+{
+    cJSON_AddItemReferenceToObject(obj, "device", device);
+    char *json_chars = cJSON_PrintUnformatted(obj);
+    cJSON_free(obj);
+
+    cyw43_arch_lwip_begin();
+
+    int err = mqtt_publish(client, topic, json_chars, strlen(json_chars), 0, 1, mqtt_pub_request_cb, NULL);
+    free(json_chars);
+
+    cyw43_arch_lwip_end();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+
+    return err;
+}
+
 static void publish_loop_body(mqtt_client_t *client)
 {
     static message_mqtt_t message_mqtt;
@@ -824,110 +854,55 @@ static void publish_loop_body(mqtt_client_t *client)
             int err = 0;
             char *json_chars = NULL;
             if (autodisover_enable) {
-                cyw43_arch_lwip_begin();
-
                 cJSON *device = cJSON_CreateObject();
                 cJSON_AddItemToObject(device, "name", cJSON_CreateString("Matrix Display"));
                 cJSON_AddItemToObject(device, "identifiers", cJSON_CreateString("matrix_display"));
                 cJSON_AddItemToObject(device, "manufacturer", cJSON_CreateString("lawrence@aslak.net"));
                 cJSON_AddItemToObject(device, "model", cJSON_CreateString("Matrix Display 64x32"));
 
-                cJSON *light = cJSON_CreateObject();
-                cJSON_AddItemToObject(light, "name", cJSON_CreateString("Panel"));
+                cJSON *light = create_base_object("Panel", "matrix_display_brightness");
                 cJSON_AddItemToObject(light, "command_topic", cJSON_CreateString(LIGHT_COMMAND_TOPIC));
                 cJSON_AddItemToObject(light, "payload_off", cJSON_CreateString("OFF"));
                 cJSON_AddItemToObject(light, "brightness_command_topic", cJSON_CreateString(LIGHT_BRIGHTNESS_COMMAND_TOPIC));
                 cJSON_AddItemToObject(light, "on_command_type", cJSON_CreateString("brightness"));
-                cJSON_AddItemToObject(light, "unique_id", cJSON_CreateString("matrix_display_brightness"));
-                cJSON_AddItemReferenceToObject(light, "device", device);
-                json_chars = cJSON_PrintUnformatted(light);
-                cJSON_free(light);
-                err += mqtt_publish(client, "homeassistant/light/matrix_display/config", json_chars, strlen(json_chars),
-                    0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
-                free(json_chars);
-                printf("ERR %dd\n", err);
+                err += publish_object_as_device_entity(light, device, client, "homeassistant/light/matrix_display/config")
+                    != ERR_OK ? 1 : 0;
+                printf("ERR %d\n", err);
 
-                cyw43_arch_lwip_end();
-                vTaskDelay(10 / portTICK_PERIOD_MS);
-                cyw43_arch_lwip_begin();
+                cJSON *grayscale = create_base_object("Grayscale", "matrix_display_grayscale");
+                cJSON_AddItemToObject(grayscale, "command_topic", cJSON_CreateString(SET_GRAYSCALE_TOPIC));
+                err += publish_object_as_device_entity(grayscale, device, client, "homeassistant/switch/matrix_display/config")
+                    != ERR_OK ? 1 : 0;
+                printf("ERR %d\n", err);
 
-                cJSON *sw = cJSON_CreateObject();
-                cJSON_AddItemToObject(sw, "name", cJSON_CreateString("Grayscale"));
-                cJSON_AddItemToObject(sw, "command_topic", cJSON_CreateString(SET_GRAYSCALE_TOPIC));
-                cJSON_AddItemToObject(light, "unique_id", cJSON_CreateString("matrix_display_greyscale"));
-                cJSON_AddItemReferenceToObject(sw, "device", device);
-                json_chars = cJSON_PrintUnformatted(sw);
-                cJSON_free(sw);
-                err += mqtt_publish(client, "homeassistant/switch/matrix_display/config", json_chars, strlen(json_chars),
-                    0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
-                free(json_chars);
-
-                cyw43_arch_lwip_end();
-                vTaskDelay(10 / portTICK_PERIOD_MS);
-                cyw43_arch_lwip_begin();
-
-                cJSON *temp = cJSON_CreateObject();
-                cJSON_AddItemToObject(temp, "name", cJSON_CreateString("Temperature"));
+                cJSON *temp = create_base_object("Temperature", "matrix_display_temperature");
                 cJSON_AddItemToObject(temp, "state_topic", cJSON_CreateString(TEMPERATURE_TOPIC));
-                cJSON_AddItemToObject(temp, "unique_id", cJSON_CreateString("matrix_display_temperature"));
                 cJSON_AddItemToObject(temp, "unit_of_measurement", cJSON_CreateString("°C"));
-                cJSON_AddItemReferenceToObject(temp, "device", device);
-                json_chars = cJSON_PrintUnformatted(temp);
-                cJSON_free(temp);
-                err += mqtt_publish(client, "homeassistant/sensor/matrix_display_temperature/config", json_chars, strlen(json_chars),
-                    0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
-                free(json_chars);
+                err = publish_object_as_device_entity(temp, device, client, "homeassistant/sensor/matrix_display_temperature/config")
+                    != ERR_OK ? 1 : 0;
+                printf("ERR %d\n", err);
 
-                cyw43_arch_lwip_end();
-                vTaskDelay(10 / portTICK_PERIOD_MS);
-                cyw43_arch_lwip_begin();
-
-                cJSON *pressure = cJSON_CreateObject();
-                cJSON_AddItemToObject(pressure, "name", cJSON_CreateString("Air Pressure"));
+                cJSON *pressure = create_base_object("Pressure", "matrix_display_pressure");
                 cJSON_AddItemToObject(pressure, "state_topic", cJSON_CreateString(PRESSURE_TOPIC));
-                cJSON_AddItemToObject(pressure, "unique_id", cJSON_CreateString("matrix_display_pressure"));
                 cJSON_AddItemToObject(pressure, "unit_of_measurement", cJSON_CreateString("hPa"));
-                cJSON_AddItemReferenceToObject(pressure, "device", device);
-                json_chars = cJSON_PrintUnformatted(pressure);
-                cJSON_free(pressure);
-                err += mqtt_publish(client, "homeassistant/sensor/matrix_display_pressure/config", json_chars, strlen(json_chars),
-                    0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
-                free(json_chars);
+                err += publish_object_as_device_entity(pressure, device, client, "homeassistant/sensor/matrix_display_pressure/config")
+                     != ERR_OK ? 1 : 0;
+                printf("ERR %d\n", err);
 
-                cyw43_arch_lwip_end();
-                vTaskDelay(10 / portTICK_PERIOD_MS);
-                cyw43_arch_lwip_begin();
-
-                cJSON *humidity = cJSON_CreateObject();
-                cJSON_AddItemToObject(humidity, "name", cJSON_CreateString("Humidity"));
+                cJSON *humidity = create_base_object("Humidity", "matrix_display_humidity");
                 cJSON_AddItemToObject(humidity, "state_topic", cJSON_CreateString(HUMIDITY_TOPIC));
-                cJSON_AddItemToObject(humidity, "unique_id", cJSON_CreateString("matrix_display_humidity"));
                 cJSON_AddItemToObject(humidity, "unit_of_measurement", cJSON_CreateString("%"));
-                cJSON_AddItemReferenceToObject(humidity, "device", device);
-                json_chars = cJSON_PrintUnformatted(humidity);
-                cJSON_free(humidity);
-                err = mqtt_publish(client, "homeassistant/sensor/matrix_display_humidity/config", json_chars, strlen(json_chars),
-                    0, 1, mqtt_pub_request_cb, NULL);
-                free(json_chars);
+                err += publish_object_as_device_entity(humidity, device, client, "homeassistant/sensor/matrix_display_humidity/config")
+                     != ERR_OK ? 1 : 0;
+                printf("ERR %d\n", err);
 
-                cyw43_arch_lwip_end();
-                vTaskDelay(10 / portTICK_PERIOD_MS);
-                cyw43_arch_lwip_begin();
-
-                cJSON *snowflakes = cJSON_CreateObject();
-                cJSON_AddItemToObject(snowflakes, "name", cJSON_CreateString("Snowflake Count"));
+                cJSON *snowflakes = create_base_object("Snowflake Count", "matrix_display_snowflake_count");
                 cJSON_AddItemToObject(snowflakes, "command_topic", cJSON_CreateString("matrix_display/configuration/snowflake_count"));
-                cJSON_AddItemToObject(snowflakes, "unique_id", cJSON_CreateString("matrix_display_snowflake_count"));
                 cJSON_AddNumberToObject(snowflakes, "min", 0.0);
                 cJSON_AddNumberToObject(snowflakes, "max", 255.0);
-                cJSON_AddItemReferenceToObject(snowflakes, "device", device);
-                json_chars = cJSON_PrintUnformatted(snowflakes);
-                cJSON_free(snowflakes);
-                err = mqtt_publish(client, "homeassistant/number/matrix_display/config", json_chars, strlen(json_chars),
-                    0, 1, mqtt_pub_request_cb, NULL);
-                free(json_chars);
-                cyw43_arch_lwip_end();
-                vTaskDelay(10 / portTICK_PERIOD_MS);                
+                err += publish_object_as_device_entity(snowflakes, device, client, "homeassistant/number/matrix_display/config")
+                     != ERR_OK ? 1 : 0;
+                printf("ERR %d\n", err);
 
                 cJSON_free(device);
             }
@@ -949,7 +924,6 @@ static void publish_loop_body(mqtt_client_t *client)
             if (err > 0) {
                 printf("mqtt_publish returned %d errors\n", err);
             }
-
 
             send_autodiscover = false;
         }
