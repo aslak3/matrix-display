@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -11,21 +12,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/antchfx/htmlquery"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
-
-func removeSpace(s string) string {
-	rr := make([]rune, 0, len(s))
-	for _, r := range s {
-		if !unicode.IsSpace(r) {
-			rr = append(rr, r)
-		}
-	}
-	return string(rr)
-}
 
 type query struct {
 	url     string
@@ -40,7 +30,7 @@ type journey struct {
 var f mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
 	fmt.Printf("TOPIC: %s\n", msg.Topic())
 	fmt.Printf("MSG: %s\n", msg.Payload())
-	if msg.Topic() == "matrix_display/brightness" {
+	if msg.Topic() == "matrix_display/panel/brightness/set" {
 		brightness, _ = strconv.Atoi(string(msg.Payload()))
 	}
 }
@@ -63,22 +53,37 @@ func downloadURL(url string) (string, error) {
 func main() {
 	mqtt.DEBUG = log.New(os.Stdout, "", 0)
 	mqtt.ERROR = log.New(os.Stdout, "", 0)
-	opts := mqtt.NewClientOptions().AddBroker("tcp://10.52.0.2:1883").SetClientID("bluestar-parser")
+
+	brokerPtr := flag.String("broker", "", "broker url, such as tcp://IP:1883")
+	flag.Parse()
+
+	if *brokerPtr == "" {
+		panic("No broker given")
+	}
+
+	mqttUsername := os.Getenv("MQTT_USERNAME")
+	mqttPassword := os.Getenv("MQTT_PASSWORD")
+
+	if mqttUsername == "" || mqttPassword == "" {
+		panic("MQTT_USERNAME and MQTT_PASSWORD must be set in env")
+	}
+
+	opts := mqtt.NewClientOptions().AddBroker(*brokerPtr).SetClientID("bluestar-parser")
 	opts.SetKeepAlive(2 * time.Second)
 	opts.SetDefaultPublishHandler(f)
 	opts.SetPingTimeout(1 * time.Second)
-	opts.SetUsername("mqttuser")
-	opts.SetPassword("mqttpassword")
+	opts.SetUsername(mqttUsername)
+	opts.SetPassword(mqttPassword)
 
 	c := mqtt.NewClient(opts)
 	if token := c.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())
 	}
-	if token := c.Subscribe("matrix_display/brightness", 1, nil); token.Wait() && token.Error() != nil {
+	if token := c.Subscribe("matrix_display/panel/brightness/set", 1, nil); token.Wait() && token.Error() != nil {
 		panic(token.Error())
 	}
 
-	var extractionRe = regexp.MustCompile(`Destination - (.*?)\. Arrival time - (.*?)\.`)
+	var extractionRe = regexp.MustCompile(`Destination - (.*?)\. Departure time - (.*?)\.`)
 
 	for {
 		var queries = []query{
@@ -97,7 +102,7 @@ func main() {
 		for _, q := range queries {
 			towards := "To: " + q.towards
 
-			fmt.Printf("Brightness %\n", brightness)
+			fmt.Printf("Brightness %d\n", brightness)
 			if brightness > 0 {
 				text, err := downloadURL(q.url)
 				if err != nil {
