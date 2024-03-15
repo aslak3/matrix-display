@@ -20,8 +20,8 @@
 
 #if BME680_PRESENT
 extern int configure_bme680(void);
-extern void receive_data(void);
-extern void request_run(void);
+extern int receive_data(void);
+extern int request_run(void);
 
 extern float get_temperature(void);
 extern float get_pressure(void);
@@ -37,8 +37,6 @@ static void set_ds3231_time(uint8_t *buffer);
 extern QueueHandle_t i2c_queue; // For listening
 extern QueueHandle_t animate_queue;
 extern QueueHandle_t mqtt_queue;
-
-bool got_data = false;
 
 void i2c_task(void *dummy)
 {
@@ -61,7 +59,12 @@ void i2c_task(void *dummy)
     ds3231_t old_ds3231 = {};
 
 #if BME680_PRESENT
-    configure_bme680();
+    bool got_data = false;
+    bool requested_run = false;
+
+    if (!(configure_bme680())) {
+        printf("BME680: Configure failed\n");
+    }
 #endif
 
     static int climate_count = 0;
@@ -78,20 +81,34 @@ void i2c_task(void *dummy)
 
             if (climate_count == CLIMATE_SEND_INTERVAL) {
 #if BME680_PRESENT
-                receive_data();
-                request_run();
+                if (requested_run) {
+                    if (!(receive_data())) {
+                        printf("BME680: Failed to recieve data\n");
+                    }
+                    got_data = true;
+                }
+                if (!(request_run())) {
+                    printf("BME680: Failed to request run\n");
+                }
+                requested_run = true;
 
-                message_mqtt.climate.temperature = get_temperature();
-                message_mqtt.climate.pressure = get_pressure();
-                message_mqtt.climate.humidity = get_humidity();
-#else
-                message_mqtt.climate.temperature = get_temperature();
-#endif
                 if (got_data) {
+                    message_mqtt.climate.temperature = get_temperature();
+                    message_mqtt.climate.pressure = get_pressure();
+                    message_mqtt.climate.humidity = get_humidity();
+
                     if (xQueueSend(mqtt_queue, &message_mqtt, 10) != pdTRUE) {
                         printf("Could not send climate data; dropping");
                     }
                 }
+#else
+                message_mqtt.climate.temperature = get_temperature();
+
+                if (xQueueSend(mqtt_queue, &message_mqtt, 10) != pdTRUE) {
+                    printf("Could not send climate data; dropping");
+                }
+
+#endif
 
                 climate_count = 0;
             }

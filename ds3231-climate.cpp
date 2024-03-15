@@ -23,7 +23,5 @@ float get_temperature(void)
     i2c_write_blocking(i2c_default, DS3231_I2C_ADDR, &val, 1, true);
     i2c_read_blocking(i2c_default, DS3231_I2C_ADDR, buffer, DS3231_TEMPERATURE_LEN, false);
 
-    got_data = true;
-
     return (float)(buffer[0]) + ((float)(buffer[1] >> 6) / 4.0);
 }

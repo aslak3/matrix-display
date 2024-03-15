@@ -1,3 +1,44 @@
+// Portions of this file, specifically the get_temperature, get_pressure and get_humidity
+// subroutines  are based on the BM68x SensorAPI:
+
+/**
+* Copyright (c) 2023 Bosch Sensortec GmbH. All rights reserved.
+*
+* BSD-3-Clause
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are met:
+*
+* 1. Redistributions of source code must retain the above copyright
+*    notice, this list of conditions and the following disclaimer.
+*
+* 2. Redistributions in binary form must reproduce the above copyright
+*    notice, this list of conditions and the following disclaimer in the
+*    documentation and/or other materials provided with the distribution.
+*
+* 3. Neither the name of the copyright holder nor the names of its
+*    contributors may be used to endorse or promote products derived from
+*    this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+* FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+* COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+* INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+* (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+* HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+* STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+* IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+* POSSIBILITY OF SUCH DAMAGE.
+*
+* @file       bme68x.c
+* @date       2023-02-07
+* @version    v4.4.8
+*
+*/
+
 #include <stdio.h>
 
 #include <pico/stdlib.h>
@@ -43,15 +84,11 @@
 #define CALIB_PAR_H6 (31)
 #define CALIB_PAR_H7 (32)
 
-static bool requested_run = false;
 static float t_fine = 0.0;
 static uint8_t current_state[256];
 static uint8_t calib[25 + 16];
 
-const uint8_t base_reg_addr = 0;
-
-extern bool got_data;
-
+// Returns 0 on success
 int configure_bme680(void)
 {
     int bytes_written = 0;
@@ -64,45 +101,48 @@ int configure_bme680(void)
         BME680_CTRL_MEAS, 0b01010100,
     };
 
-    bytes_written = i2c_write_blocking(i2c_default, BME680_I2C_ADDR, config_buffer, sizeof(config_buffer), false);
-    printf("Config bytes written count: %d\n", bytes_written);
-
-    return 0;
-}
-
-void receive_data(void)
-{
-    if (!requested_run) {
-        return;
+    if (i2c_write_blocking(i2c_default, BME680_I2C_ADDR, config_buffer, sizeof(config_buffer),
+        false) != sizeof(config_buffer))
+    {
+        return 0;
     }
 
-    int bytes_written = i2c_write_blocking(i2c_default, BME680_I2C_ADDR, &base_reg_addr, 1, true);
-    int bytes_read = i2c_read_blocking(i2c_default, BME680_I2C_ADDR, current_state, sizeof(current_state), false);
+    return 1;
+}
+
+// Returns 1 on success
+int receive_data(void)
+{
+    const uint8_t base_reg_addr = 0;
+
+    if (i2c_write_blocking(i2c_default, BME680_I2C_ADDR, &base_reg_addr, 1, true) != 1) {
+        return 1;
+    }
+    if (i2c_read_blocking(i2c_default, BME680_I2C_ADDR, current_state, sizeof(current_state),
+        false) != sizeof(current_state))
+    {
+        return 0;
+    }
 
     memcpy(&calib[0], &current_state[0x89], 25);
     memcpy(&calib[25], &current_state[0xe1], 16);
 
-    printf("%d written, %d read for receive data\n", bytes_written, bytes_read);
-
-    got_data = true;
+    return 1;
 }
 
-void request_run(void)
+// Returns 1 on success
+int request_run(void)
 {
     uint8_t run_buffer[] = { BME680_CTRL_MEAS, 0b01010101 };
-    int bytes_written = i2c_write_blocking(i2c_default, BME680_I2C_ADDR, run_buffer, sizeof(run_buffer), false);
+    if (i2c_write_blocking(i2c_default, BME680_I2C_ADDR, run_buffer, sizeof(run_buffer), false) != sizeof(run_buffer)) {
+        return 0;
+    }
 
-    printf("Request bytes written count: %d\n", bytes_written);
-
-    requested_run = true;
+    return 1;
 }
 
 float get_temperature(void)
 {
-    if (!got_data) {
-        return 0.0;
-    }
-
     uint32_t temp_adc = (current_state[0x22] << 12) | (current_state[0x23] << 4) | (current_state[0x24] >> 4);
 
     uint16_t par_t1 = (calib[CALIB_PAR_T1_MSB] << 8) | calib[CALIB_PAR_T1_LSB];
@@ -121,10 +161,6 @@ float get_temperature(void)
 
 float get_pressure(void)
 {
-    if (!got_data) {
-        return 0.0;
-    }
-
     uint8_t par_p10 = calib[CALIB_PAR_P10];
     int16_t par_p9 = (calib[CALIB_PAR_P9_MSB] << 8) | calib[CALIB_PAR_P9_LSB];
     int16_t par_p8 = (calib[CALIB_PAR_P8_MSB] << 8) | calib[CALIB_PAR_P8_LSB];
@@ -146,7 +182,7 @@ float get_pressure(void)
     var1 = ((1.0f + (var1 / 32768.0f)) * ((float)par_p1));
     float calc_pres = (1048576.0f - ((float)pres_adc));
 
-    /* Avoid exception caused by division by zero */
+    /* Avoid panic caused by division by zero */
     if ((int)var1 != 0) {
         calc_pres = (((calc_pres - (var2 / 4096.0f)) * 6250.0f) / var1);
         var1 = (((float)par_p9) * calc_pres * calc_pres) / 2147483648.0f;
@@ -163,10 +199,6 @@ float get_pressure(void)
 
 float get_humidity(void)
 {
-    if (!got_data) {
-        return 0.0;
-    }
-
     int8_t par_h7 = calib[CALIB_PAR_H7];
     uint8_t par_h6 = calib[CALIB_PAR_H6];
     int8_t par_h5 = calib[CALIB_PAR_H5];
