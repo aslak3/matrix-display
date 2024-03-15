@@ -773,6 +773,7 @@ cJSON *create_base_object(const char *name, const char *unique_id)
 {
     cJSON *obj = cJSON_CreateObject();
     cJSON_AddItemToObject(obj, "name", cJSON_CreateString(name));
+    cJSON_AddItemToObject(obj, "retain", cJSON_CreateBool(true));
     cJSON_AddItemToObject(obj, "unique_id", cJSON_CreateString(unique_id));
 
     return obj;
