@@ -1,0 +1,172 @@
+alias: Publish info on MQTT for Matrix Display
+description: ""
+trigger:
+  - platform: time_pattern
+    minutes: /5
+    id: weather
+  - platform: state
+    entity_id:
+      - media_player.squeezebox
+    id: media_player_content_id
+    attribute: media_content_id
+  - platform: device
+    type: changed_states
+    device_id: UUID
+    entity_id: UUID
+    domain: media_player
+    id: media_player_pause
+  - platform: device
+    type: changed_states
+    device_id: UUID
+    entity_id: UUID
+    domain: media_player
+    id: media_player_play
+  - platform: state
+    entity_id:
+      - sensor.ical_our_house_event_0
+    id: cal_0
+  - platform: state
+    entity_id:
+      - sensor.ical_our_house_event_1
+    id: cal_1
+  - platform: state
+    entity_id:
+      - sensor.ical_our_house_event_2
+    id: cal_2
+  - platform: state
+    entity_id:
+      - binary_sensor.porch_motion_sensor_iaszone
+    id: porch
+condition: []
+action:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id:
+              - weather
+        sequence:
+          - service: mqtt.publish
+            data:
+              qos: 0
+              retain: true
+              topic: matrix_display/weather
+              payload_template: >
+                {% set temperature_sensors = {
+                  'Hallway': state_attr('climate.hallway', 'current_temperature') | float,
+                  'Kitchen': states('sensor.kitchen_climate_sensor_temperature') | float,
+                  'Device': states('sensor.matrix_display_temperature') | float,
+                  'Porch': states('sensor.porch_temperature_sensor_temperature') | float,
+                } %}
+
+
+                {% set inside_temperatures = namespace(list=[]) %}
+
+                {% for k,v in temperature_sensors.items() %}
+
+                {% set new_inside_temperature = {
+                  'name': k,
+                  'temperature': v,
+                } %}
+
+                {% set inside_temperatures.list = inside_temperatures.list +
+                [new_inside_temperature] %}
+
+                {% endfor %}
+
+                {% set forecasts = namespace(list=[]) %}
+
+                {% for i in range(3) %}
+
+                {% set old_forecast = state_attr("weather.openweathermap",
+                "forecast")[i] %}
+
+                {% set new_forecast = {
+                  'datetime': old_forecast.datetime,
+                  'condition': old_forecast.condition,
+                  'temperature': old_forecast.temperature,
+                  'precipitation_probability': old_forecast.precipitation_probability,
+                  'humidity': old_forecast.humidity,
+                  'wind_speed': old_forecast.wind_speed,
+                  'wind_bearing': old_forecast.wind_bearing,
+                  'pressure': old_forecast.pressure,
+                } %}
+
+                {% set forecasts.list = forecasts.list + [new_forecast] %}
+
+                {% endfor %}
+
+                {% set result = {
+                  'condition': states("weather.openweathermap"),
+                  'temperature': state_attr("weather.openweathermap", "temperature"),
+                  'humidity': state_attr("weather.openweathermap", "humidity"),
+                  'wind_speed': state_attr("weather.openweathermap", "wind_speed"),
+                  'wind_bearing': state_attr("weather.openweathermap", "wind_bearing"),
+                  'pressure': state_attr("weather.openweathermap", "pressure"),
+                  'forecasts': forecasts.list,
+                  'inside_temperatures': inside_temperatures.list,
+                } %}
+
+                {{ result | to_json }}
+      - conditions:
+          - condition: trigger
+            id:
+              - media_player_pause
+              - media_player_play
+              - media_player_content_id
+        sequence:
+          - service: mqtt.publish
+            data:
+              qos: 0
+              retain: false
+              topic: matrix_display/media_player
+              payload_template: |
+                {% set result = {
+                  'state': states("media_player.squeezebox"),
+                  'artist': state_attr("media_player.squeezebox", "media_artist"),
+                  'album': state_attr("media_player.squeezebox", "media_album_name"),
+                  'title': state_attr("media_player.squeezebox", "media_title"),
+                } %}
+
+                {{ result | to_json }}
+      - conditions:
+          - condition: trigger
+            id:
+              - cal_0
+              - cal_1
+              - cal_2
+        sequence:
+          - service: mqtt.publish
+            data:
+              topic: matrix_display/calendar
+              payload_template: |
+                {% set result = namespace(list=[]) %}
+
+                {% set cals = [
+                  "sensor.ical_our_house_event_0",
+                  "sensor.ical_our_house_event_1",
+                  "sensor.ical_our_house_event_2",
+                ] %}
+                {% for cal in cals %}
+                  {% set new_cal = {
+                    'summary': state_attr(cal, "summary"),
+                    'start': state_attr(cal, "start") | string,
+                  } %}
+                  {% set result.list = result.list + [new_cal] %}
+                {% endfor %}
+
+                {{ result.list | to_json }}
+              retain: true
+              qos: 0
+      - conditions:
+          - condition: trigger
+            id:
+              - porch
+        sequence:
+          - service: mqtt.publish
+            data:
+              qos: 0
+              retain: false
+              topic: matrix_display/porch
+              payload_template: |
+                {{ states("binary_sensor.porch_motion_sensor_iaszone") }}
+mode: single

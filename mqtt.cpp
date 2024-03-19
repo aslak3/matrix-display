@@ -134,16 +134,16 @@ static int do_mqtt_connect(mqtt_client_t *client)
     snprintf(client_id, sizeof(client_id), "picow-%d", rand());
 
     ci.client_id = client_id;
-    ci.client_user = "mqttuser";
-    ci.client_pass = "mqttpassword";
+    ci.client_user = MQTT_BROKER_USERNAME;
+    ci.client_pass = MQTT_BROKER_PASSWORD;
     ci.keep_alive = 60;
 
     ip_addr_t broker_addr;
-    ip4addr_aton("10.52.0.2", &broker_addr);
+    ip4addr_aton(MQTT_BROKER_IP, &broker_addr);
 
     cyw43_arch_lwip_begin();
 
-    int err = mqtt_client_connect(client, &broker_addr, MQTT_PORT,
+    int err = mqtt_client_connect(client, &broker_addr, MQTT_BROKER_PORT,
         mqtt_connection_cb, 0, &ci);
 
     cyw43_arch_lwip_end();

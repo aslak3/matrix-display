@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 set(PICO_SDK_PATH $ENV{PICO_SDK_PATH})
 set(FREERTOS_KERNEL_PATH $ENV{FREERTOS_KERNEL_PATH})
+set(WIFI_PASSWORD $ENV{WIFI_PASSWORD})
 
 include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 include(${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
@@ -20,6 +21,30 @@ set(PICO_BOARD pico_w)
 
 option(SPI_TO_FPGA "Use the iCE40 FPGA for the display" 1)
 option(BME680_PRESENT "Use a BME680 for temperature, humidity and air preasure" 0)
+set(WIFI_SSID "" CACHE STRING "Wi-Fi SSD network name")
+set(WIFI_PASSWORD "" CACHE STRING "Wi-Fi password")
+set(MQTT_BROKER_IP "" CACHE STRING "MQTT broker IP address")
+set(MQTT_BROKER_PORT "1883" CACHE STRING "MQTT broker port number")
+set(MQTT_BROKER_USERNAME "" CACHE STRING "MQTT broker username")
+set(MQTT_BROKER_PASSWORD "" CACHE STRING "MQTT broker password")
+
+
+if(WIFI_SSID STREQUAL "")
+    message(FATAL_ERROR "WIFI_SSID must be set")
+endif()
+if(WIFI_PASSWORD STREQUAL "")
+    message(FATAL_ERROR "WIFI_PASSWORD must be set")
+endif()
+
+if(MQTT_BROKER_IP STREQUAL "")
+    message(FATAL_ERROR "MQTT_BROKER_IP must be set[${WIFI_PASSWORD}]")
+endif()
+if(MQTT_BROKER_USERNAME STREQUAL "")
+    message(FATAL_ERROR "MQTT_BROKER_USERNAME must be set[${WIFI_PASSWORD}]")
+endif()
+if(MQTT_BROKER_PASSWORD STREQUAL "")
+    message(FATAL_ERROR "MQTT_BROKER_PASSWORD must be set[${WIFI_PASSWORD}]")
+endif()
 
 pico_sdk_init()
 
@@ -66,6 +91,10 @@ target_compile_definitions(${PROJECT} PRIVATE
     WIFI_PASSWORD=\"${WIFI_PASSWORD}\"
     SPI_TO_FPGA=${SPI_TO_FPGA}
     BME680_PRESENT=${BME680_PRESENT}
+    MQTT_BROKER_IP=\"${MQTT_BROKER_IP}\"
+    MQTT_BROKER_PORT=${MQTT_BROKER_PORT}
+    MQTT_BROKER_USERNAME=\"${MQTT_BROKER_USERNAME}\"
+    MQTT_BROKER_PASSWORD=\"${MQTT_BROKER_PASSWORD}\"
 )
 
 pico_enable_stdio_usb(${PROJECT} 1)
