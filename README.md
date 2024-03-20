@@ -7,7 +7,7 @@ This is the central component for a project to show various information from a [
 
 (More screenshots are in the [assets](assets/) directory.)
 
-The hardware is based around the Raspberry Pi Pico W mounted on a [custom board](...). Whilst it should be simple enough to port this code to run other Pi Pico W boards, this document assumes you are using a build of my board design.
+The hardware is based around the Raspberry Pi Pico W mounted on a [custom board](https://github.com/aslak3/MDFPGA). Whilst it should be simple enough to port this code to run other Pi Pico W boards, this document assumes you are using a build of my board design.
 
 The following information can currently be shown:
 
@@ -254,4 +254,5 @@ Clearly the scope for such a display is fairly limitless. The following is a ran
 
 # Related Projects
 
+* [MDFPGA](https://github.com/aslak3/MDFPGA) The PCB design for the base board.
 * [HUB75 Controller](https://github.com/aslak3/hub75-controller) A HUB75 LED matrix controller implemented in Verilog.
