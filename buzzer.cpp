@@ -28,8 +28,6 @@ void buzzer_task(void *dummy)
     pwm_set_wrap(slice_num, 1000); // 1Khz
     pwm_set_chan_level(slice_num, PWM_CHAN_B, 500); // 50% duty
 
-
-
     while (1) {
         message_buzzer_t buzzer = {};
 

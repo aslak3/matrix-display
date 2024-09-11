@@ -214,12 +214,19 @@ It might be useful to control the screen brightness using the time of day or roo
 
 # Building
 
-The build system is cmake. There are a number of configuration options which must be set. A typical build command sequence looks like this:
+The build system is cmake. There are a number of configuration options which must be set by creating a file in the source tree called `private.cmake`. This should resemble the following:
 
-```sh
-cmake -B build -DWIFI_SSID="wifi-ssid" -DWIFI_PASSWORD="wifi-password" -DSPI_TO_FPGA=1 -DBME680_PRESENT=1 ...
-make -C build
 ```
+set(WIFI_SSID               wifi-ssid)
+set(WIFI_PASSWORD           wifi-password)
+set(SPI_TO_FPGA             1)
+set(MQTT_BROKER_IP          10.0.0.1)
+set(MQTT_BROKER_USERNAME    user)
+set(MQTT_BROKER_PASSWORD    password)
+set(BME680_PRESENT          1)
+```
+
+The resultant build/matrix-display.uf2 then needs to be transfered to the Pico W board.
 
 If `SPI_TO_FPGA` is set to 0, the HUB75 panel will need to be plugged into header that is directly connected Pi Pico W pins. Otherwise it should be attached to the FPGA's HUB75 header, once again assuming you are using the board which I have designed.
 
@@ -233,15 +240,24 @@ The following options are mandatory:
 
 `MQTT_BROKER_IP` should be to the IP (v4) host running MQTT, with `MQTT_BROKER_USERNAME` and `MQTT_BROKER_PASSWORD` being set to the needed credentials for the broker.
 
+Trrigger a build via the shell:
+
+```sh
+mkdir build
+cd build
+cmake ..
+make
+```
+
 The resultant `build/matrix-build.uf2` should then be copied to the Pi Pico W.
 
 # Tracing
 
-Debug output is produced as the system runs. It can be captured on the Pico W's USB port or the UART on GPIO0 and GPIO1. Note that even if there are issues connecting the Wi-Fi, you should still see the clock on the LED matrix.
+Debug output is produced as the system runs. It can be captured on the Pico W's USB port or the UART on GPIO0 and GPIO1. Note that even if there are issues connecting the Wi-Fi, you should still see the clock on the LED matrix. A TODO item is to make the display useful for emitting errors, eg MQTT disconnects.
 
 # Ideas for future work
 
-Clearly the scope for such a display is fairly limitless. The following is a randomly ordered list of ideas. Some of these changes are possible without touching the firmware code.
+Clearly the scope for such a display as this is fairly limitless. The following is a randomly ordered list of ideas. Some of these changes are possible without touching the firmware code.
 
 * Display share price (stock) information. This would be fairly easy to do, and it is only really a question of how to obtain the raw data. There are many paid for services providing share price information, and there are probably free ones as well.
 * Display the latest sports scores.
@@ -250,7 +266,6 @@ Clearly the scope for such a display is fairly limitless. The following is a ran
 * Consider scrolling through more future hours on the weather forecast screen, eg. the next six 3 hours-apart forecast instead of just the next three. It might be distracting to look at though.
 * Consider more configurability of the screen, for instance text colours.
 * The ability to display arbitrary images or possibly small animation sequences might be cute. There's a number of ways to do this. One obstacle is it would probably require SSL support and a HTTP client.
-* A minor detail: it would be nice to avoid passwords entering the shell history when building. This can be avoided by moving sensitive details into envvars.
 
 # Related Projects
 
