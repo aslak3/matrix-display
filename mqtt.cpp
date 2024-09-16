@@ -34,6 +34,7 @@ static cJSON *json_parser(char *data_as_chars);
 static void handle_weather_json_data(char *data_as_chars);
 static void handle_media_player_json_data(char *data_as_chars);
 static void handle_calendar_data(char *data_as_chars);
+static void handle_scroller_json_data(char *data_as_chars);
 static void handle_transport_json_data(char *data_as_chars);
 static void handle_porch_sensor_data(char *data_as_chars);
 static void handle_notificaiton_data(char *data_as_chars);
@@ -195,12 +196,15 @@ char current_topic[128];
 
 static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len)
 {
-    strncpy(current_topic, topic, sizeof(current_topic) - 1);
+    strncpy(current_topic, topic, sizeof(current_topic));
+
+    printf("Topic is now: %s len: %d\n", current_topic, tot_len);
 }
 
 #define WEATHER_TOPIC "matrix_display/weather"
 #define MEDIA_PLAYER_TOPIC "matrix_display/media_player"
 #define CALENDAR_TOPIC "matrix_display/calendar"
+#define SCROLLER_TOPIC "matrix_display/scroller"
 #define TRANSPORT_TOPIC "matrix_display/transport"
 #define PORCH_SENSOR_TOPIC "matrix_display/porch"
 #define NOTIFICATION_TOPIC "matrix_display/notification"
@@ -214,13 +218,16 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
 
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags)
 {
-    printf("Start of mqtt_incoming_data_cb(flags: %d)\n", flags);
+    printf("Start of mqtt_incoming_data_cb(len: %d, flags: %d)\n", len, flags);
     static char data_as_chars[16384];
     static char *p = data_as_chars;
 
     memcpy(p, data, len);
+    printf("Copy done\n");
     p += len;
+    printf("P advanced\n");
     *p = '\0';
+    printf("Null added\n");
 
     if (p - data_as_chars > 16384 - 1500) {
         panic("mqtt_incoming_data_cb(): data is too long");
@@ -237,6 +244,9 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         }
         else if (strcmp(current_topic, CALENDAR_TOPIC) == 0) {
             handle_calendar_data(data_as_chars);
+        }
+        else if (strcmp(current_topic, SCROLLER_TOPIC) == 0) {
+            handle_scroller_json_data(data_as_chars);
         }
         else if (strcmp(current_topic, TRANSPORT_TOPIC) == 0) {
             handle_transport_json_data(data_as_chars);
@@ -269,14 +279,14 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
             handle_autodiscover_control_data(data_as_chars);
         }
         else if (strcmp(current_topic, TEMPERATURE_TOPIC) == 0) {
-            // Nothing to do; we generated this
+            printf("Ignoring temperature\n");
         }
 #if BME680_PRESENT
         else if (strcmp(current_topic, PRESSURE_TOPIC) == 0) {
-            // Nothing to do; we generated this
+            printf("Ignoring pressure\n");
         }
         else if (strcmp(current_topic, HUMIDITY_TOPIC) == 0) {
-            // Nothing to do; we generated this
+            printf("Ignoring humidity\n");
         }
 #endif
         else {
@@ -285,7 +295,7 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         memset(data_as_chars, 0, sizeof(data_as_chars));
         p = data_as_chars;
     }
-    // printf("Done incoming_data_cb()\n");
+    printf("Done incoming_data_cb()\n");
 }
 
 static cJSON *json_parser(char *data_as_chars)
@@ -319,7 +329,9 @@ static void handle_weather_json_data(char *data_as_chars)
     else {
         cJSON *inside_temperatures = cJSON_GetObjectItem(json, "inside_temperatures");
         if (!inside_temperatures) {
-               panic("Missing inside_temperatures");
+            printf("Missing inside_temperatures\n");
+            cJSON_Delete(json);
+            return;
         }
 
         for (int i = 0; i < cJSON_GetArraySize(inside_temperatures) && i < NO_INSIDE_TEMPERATURES; i++) {
@@ -328,7 +340,9 @@ static void handle_weather_json_data(char *data_as_chars)
             cJSON *temperature = cJSON_GetObjectItem(item, "temperature");
 
             if (!name || !temperature) {
-                panic("Missing field(s) in inside_temperatures");
+                printf("Missing field(s) in inside_temperatures\n");
+                cJSON_Delete(json);
+                return;
             }
 
             strncpy(weather_data.inside_temperatures[i].name, cJSON_GetStringValue(name),
@@ -340,7 +354,9 @@ static void handle_weather_json_data(char *data_as_chars)
 
         cJSON *forecasts = cJSON_GetObjectItem(json, "forecasts");
         if (!forecasts) {
-               panic("Missing forecasts");
+            printf("Missing forecasts");
+            cJSON_Delete(json);
+            return;
         }
         for (int i = 0; i < cJSON_GetArraySize(forecasts) && i < NO_FORECASTS; i++) {
             cJSON *item = cJSON_GetArrayItem(forecasts, i);
@@ -349,7 +365,9 @@ static void handle_weather_json_data(char *data_as_chars)
             cJSON *temperature = cJSON_GetObjectItem(item, "temperature");
             cJSON *precipitation_probability = cJSON_GetObjectItem(item, "precipitation_probability");
             if (!datetime || !condition || !temperature || !precipitation_probability) {
-                panic("Missing field(s) in forecasts");
+                printf("Missing field(s) in forecasts\n");
+                cJSON_Delete(json);
+                return;
             }
 
             strncpy(weather_data.forecasts[i].time, cJSON_GetStringValue(datetime) + 11, 2 + 1);
@@ -370,7 +388,9 @@ static void handle_weather_json_data(char *data_as_chars)
         if (!condition || !temperature || !temperature ||
            !humidity || !wind_speed || !wind_bearing || !wind_bearing)
         {
-            panic("Missing field(s)");
+            printf("Weather has missing field(s)\n");
+            cJSON_Delete(json);
+            return;
         }
 
         strncpy(weather_data.condition, cJSON_GetStringValue(condition),
@@ -489,12 +509,45 @@ static void handle_calendar_data(char *data_as_chars)
         message_type: MESSAGE_ANIM_CALENDAR,
         calendar_data: calendar_data,
     };
-    // printf("Sending calendar data\n");
+
     if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
         printf("Could not send calendar data; dropping\n");
     }
+}
 
-    // printf("handle_calendar_data attribute %s data %s\n", attribute, data_as_chars);
+static void handle_scroller_json_data(char *data_as_chars)
+{
+    printf("Scroller update %s\n", data_as_chars);
+
+    static scroller_data_t scroller_data;
+
+    cJSON *json = json_parser(data_as_chars);
+
+    if (json == NULL) {
+        return;
+    }
+
+    if (cJSON_IsArray(json)) {
+        for (int i = 0; i < cJSON_GetArraySize(json) && i < NO_SCROLLERS; i++) {
+            cJSON *item = cJSON_GetArrayItem(json, i);
+            strncpy(scroller_data.text[i], cJSON_GetStringValue(item), 256);
+        }
+        scroller_data.array_size = cJSON_GetArraySize(json);
+    }
+    else {
+        printf("Not an arrray in scroller data\n");
+    }
+
+    cJSON_Delete(json);
+
+    message_anim_t message_anim = {
+        message_type: MESSAGE_ANIM_SCROLLER,
+        scroller_data: scroller_data,
+    };
+
+    if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
+        printf("Could not send scroller data; dropping\n");
+    }
 }
 
 static void handle_transport_json_data(char *data_as_chars)
@@ -599,7 +652,7 @@ static void handle_set_time_data(char *data_as_chars)
     bcd_string_to_bytes(data_as_chars, ds3231.datetime_buffer, DS3231_DATETIME_LEN);
 
     if (xQueueSend(i2c_queue, &ds3231, 10) != pdTRUE) {
-        printf("Could not send ds3231 data; dropping");
+        printf("Could not send ds3231 data; dropping\n");
     }
 }
 
@@ -680,6 +733,7 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
 
     configuration_t configuration;
 
+    configuration.clock_colon_flash = -1;
     configuration.clock_duration = -1;
     configuration.inside_temperatures_scroll_speed = -1;
     configuration.current_weather_duration = -1;
@@ -700,10 +754,13 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
     }
 
     // Update just the changing field
-    if (strcmp(attribute, "clock_duration") == 0) {
+    if (strcmp(attribute, "clock_colon_flash") == 0) {
+        configuration.clock_colon_flash = value;
+    }
+    else if (strcmp(attribute, "clock_duration") == 0) {
         configuration.clock_duration = value;
     }
-    if (strcmp(attribute, "inside_temperatures_scroll_speed") == 0) {
+    else if (strcmp(attribute, "inside_temperatures_scroll_speed") == 0) {
         configuration.inside_temperatures_scroll_speed = value;
     }
     else if (strcmp(attribute, "current_weather_duration") == 0) {
@@ -740,7 +797,7 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
     };
 
     if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
-        printf("Could not send configuration data; dropping");
+        printf("Could not send configuration data; dropping\n");
     }
 }
 

@@ -21,6 +21,7 @@ typedef struct {
 } font_t;
 
 font_t *get_font(const char *name, int height);
+void special_replacement(char *haystack, const char *needle, char replacement);
 
 #ifdef __cplusplus
 }

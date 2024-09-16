@@ -63,9 +63,19 @@ void framebuffer::shadow_box(int x, int y, int width, int height, uint8_t gamma)
 int framebuffer::print_char(font_t *font, int x, int y, char c, rgb_t rgb, bool length_only)
 {
     // Basic sanity please
-    if (!(c >= 0x20 && c <= 0x7f)) {
+    if (!(c >= 0x20 && c <= 0x7f || c == CHAR_UP_ARROW || c == CHAR_DOWN_ARROW)) {
         // printf("Bad character in framebuffer::printchar(): %02x\n", (int) c);
         return 0;
+    }
+
+    // The up and down arrows are only suported by the proportinal 1bpp font "tiny".
+    // Override colour for those two chars.
+    rgb_t final_rgb = rgb;
+    if (c == CHAR_UP_ARROW) {
+        final_rgb = { red: 0, green: 0xff, blue: 0 };
+    }
+    else if (c == CHAR_DOWN_ARROW) {
+        final_rgb = { red: 0xff, green: 0, blue: 0 };
     }
 
     int index = (int)(c - ' ');
@@ -102,9 +112,9 @@ int framebuffer::print_char(font_t *font, int x, int y, char c, rgb_t rgb, bool 
                 // Ignore nearly off pixels
                 if (font->data[count] > 0x10) {
                     set_pixel(x + c, font->height + (y - r), (rgb_t) {
-                        .red =   (uint8_t)((uint32_t)(font->data[count] * rgb.red) / 256),
-                        .green = (uint8_t)((uint32_t)(font->data[count] * rgb.green) / 256),
-                        .blue =  (uint8_t)((uint32_t)(font->data[count] * rgb.blue) / 256),
+                        .red =   (uint8_t)((uint32_t)(font->data[count] * final_rgb.red) / 256),
+                        .green = (uint8_t)((uint32_t)(font->data[count] * final_rgb.green) / 256),
+                        .blue =  (uint8_t)((uint32_t)(font->data[count] * final_rgb.blue) / 256),
                     });
                 }
                 count++;
@@ -116,7 +126,7 @@ int framebuffer::print_char(font_t *font, int x, int y, char c, rgb_t rgb, bool 
                 if (x + c < FB_WIDTH && x + c >= 0) {
                     if (byte & 0x80) {
                         // Unlike 8bpp fonts, the off pixels are left alone
-                        set_pixel(x + c, font->height + (y - r), rgb);
+                        set_pixel(x + c, font->height + (y - r), final_rgb);
                     }
                 }
                 byte <<= 1;

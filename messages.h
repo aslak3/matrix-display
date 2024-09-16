@@ -60,6 +60,13 @@ typedef struct {
     appointment_t appointments[NO_APPOINTMENTS];
 } calendar_data_t;
 
+#define NO_SCROLLERS 4
+
+typedef struct {
+    int array_size;
+    char text[NO_SCROLLERS][256];
+} scroller_data_t;
+
 typedef struct {
     char towards[16];
     char departures_summary[64];
@@ -72,12 +79,12 @@ typedef struct {
 } transport_data_t;
 
 typedef struct {
-    char text[256];
-} notification_t;
-
-typedef struct {
     bool occupied;
 } porch_t;
+
+typedef struct {
+    char text[256];
+} notification_t;
 
 #define DS3231_DATETIME_LEN 7
 
@@ -94,6 +101,7 @@ typedef struct {
 } climate_t;
 
 typedef struct {
+    int clock_colon_flash;
     int clock_duration;
     int inside_temperatures_scroll_speed;
     int current_weather_duration;
@@ -110,12 +118,13 @@ typedef struct {
 #define MESSAGE_ANIM_WEATHER 1
 #define MESSAGE_ANIM_MEDIA_PLAYER 2
 #define MESSAGE_ANIM_CALENDAR 3
-#define MESSAGE_ANIM_TRANSPORT 4
-#define MESSAGE_ANIM_NOTIFICATION 10
-#define MESSAGE_ANIM_PORCH 11
-#define MESSAGE_ANIM_DS3231 12
-#define MESSAGE_ANIM_BRIGHTNESS 13
-#define MESSAGE_ANIM_GRAYSCALE 14
+#define MESSAGE_ANIM_SCROLLER 4
+#define MESSAGE_ANIM_NOTIFICATION 5
+#define MESSAGE_ANIM_TRANSPORT 6
+#define MESSAGE_ANIM_PORCH 7
+#define MESSAGE_ANIM_DS3231 8
+#define MESSAGE_ANIM_BRIGHTNESS 9
+#define MESSAGE_ANIM_GRAYSCALE 10
 #define MESSAGE_ANIM_CONFIGURATION 100
 
 typedef struct {
@@ -124,9 +133,10 @@ typedef struct {
         weather_data_t weather_data;
         media_player_data_t media_player_data;
         calendar_data_t calendar_data;
+        scroller_data_t scroller_data;
         transport_data_t transport_data;
-        notification_t notification;
         porch_t porch;
+        notification_t notification;
         ds3231_t ds3231;
         uint8_t brightness;
         bool grayscale;
@@ -163,8 +173,6 @@ typedef struct {
 } message_buzzer_t;
 
 // Messages destined at MQTT task
-
-
 
 #define MESSAGE_MQTT_NULL 0
 #define MESSAGE_MQTT_CLIMATE 1

@@ -104,6 +104,10 @@ void animate_task(void *dummy)
                     anim.new_calendar_data(&message.calendar_data);
                     break;
 
+                case MESSAGE_ANIM_SCROLLER:
+                    anim.new_scroller_data(&message.scroller_data);
+                    break;
+
                 case MESSAGE_ANIM_TRANSPORT:
                     anim.new_transport_data(&message.transport_data);
                     break;

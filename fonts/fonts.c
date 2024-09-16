@@ -31,3 +31,22 @@ font_t *get_font(const char *name, int height)
     }
     return NULL;
 }
+
+// Special case string search and replace: replace a sequence of chars (the needle) with a
+// single byte, the replacement, shifting the string past the needle lleft the size of the
+// needle. Do this across the whole haystack until all the replacements are done.
+void special_replacement(char *haystack, const char *needle, char replacement)
+{
+    char *start = haystack;
+    
+    while (start = strstr(start, needle)) {
+        *start = replacement;
+        char *copyback = start + 1;
+        while (*(copyback + strlen(needle) - 1)) {
+            *copyback = *(copyback + strlen(needle) - 1);
+            copyback++;
+        }
+        *copyback = '\0';
+        start++;
+    }
+}

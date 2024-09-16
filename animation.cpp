@@ -19,15 +19,7 @@ animation::animation(framebuffer& f) : fb(f)
     tiny_font = get_font("tiny", 6);
     if (!tiny_font) panic("Could not find tiny/8");
 
-    weather_state.framestamp = 0;
-
-    calendar_state.framestamp = 0;
-
-    notification_state.framestamp = 0;
-    notification_state.rgb = black;
-
-    porch_state.framestamp = 0;
-
+    configuration.clock_colon_flash = 0;
     configuration.clock_duration = 1000;
     configuration.inside_temperatures_scroll_speed = 3;
     configuration.current_weather_duration = 200;
@@ -35,11 +27,25 @@ animation::animation(framebuffer& f) : fb(f)
     configuration.media_player_scroll_speed = 1;
     configuration.calendar_scroll_speed = 3;
     configuration.transport_duration = 300;
-    configuration.scroller_interval = 20000;
+    configuration.scroller_interval = 10000;
     configuration.scroller_speed = 2;
     configuration.snowflake_count = 0;
 
-    scroller.off_countdown = configuration.scroller_interval;
+    ds3231_state.colon_counter = 0;
+    ds3231_state.hide_colons = 0;
+    ds3231_state.framestamp = 0;
+
+    weather_state.framestamp = 0;
+
+    calendar_state.framestamp = 0;
+
+    scroller_state.current_index = 0;
+    scroller_state.off_countdown = configuration.scroller_interval;
+
+    notification_state.framestamp = 0;
+    notification_state.rgb = black;
+
+    porch_state.framestamp = 0;
 
     frame = 0;
 
@@ -177,6 +183,18 @@ void animation::new_calendar_data(calendar_data_t *calendar_data)
     calendar_state.framestamp = frame;
 }
 
+
+
+void animation::new_scroller_data(scroller_data_t *scroller_data)
+{
+    printf("Got new scroller data\n");
+    scroller_state.data = *scroller_data;
+    for (int i = 0; i < scroller_state.data.array_size; i++) {
+        special_replacement(scroller_state.data.text[i], "-UP-", CHAR_UP_ARROW);
+        special_replacement(scroller_state.data.text[i], "-DOWN-", CHAR_DOWN_ARROW);
+    }
+}
+
 void animation::new_transport_data(transport_data_t *transport_data)
 {
     printf("Got new transport data\n");
@@ -218,7 +236,12 @@ void animation::new_ds3231(ds3231_t *ds3231)
 
     uint8_t *buffer = ds3231_state.data.datetime_buffer;
 
-    snprintf(ds3231_state.time, sizeof(ds3231_state.time), "%02x:%02x:%02x",
+    snprintf(ds3231_state.time_colons, sizeof(ds3231_state.time_colons), "%02x:%02x:%02x",
+        buffer[2] & 0x3f,
+        buffer[1] & 0x7f,
+        buffer[0] & 0x7f
+    );
+    snprintf(ds3231_state.time_no_colons, sizeof(ds3231_state.time_no_colons), "%02x %02x %02x",
         buffer[2] & 0x3f,
         buffer[1] & 0x7f,
         buffer[0] & 0x7f
@@ -238,11 +261,14 @@ void animation::new_ds3231(ds3231_t *ds3231)
         strncpy(ds3231_state.date, "XXXX", sizeof(ds3231_state.date));
     }
 
-    printf("New Time: %s Date: %s\n", ds3231_state.time, ds3231_state.date);
+    printf("New Time: %s Date: %s\n", ds3231_state.time_colons, ds3231_state.date);
 }
 
 void animation::update_configuration(configuration_t *config)
 {
+    if (config->clock_colon_flash >= 0) {
+        configuration.clock_colon_flash = config->clock_colon_flash;
+    }
     if (config->clock_duration >= 0) {
         configuration.clock_duration = config->clock_duration;
     }
@@ -279,7 +305,7 @@ void animation::update_configuration(configuration_t *config)
 
 void animation::change_page(page_t new_page)
 {
-    printf("changing to new page %d\n");
+    printf("changing to new page %d\n", new_page);
     page_framestamp = frame;
 
     page = new_page;
@@ -333,10 +359,24 @@ bool animation::render_waiting_page(void)
 
 bool animation::render_clock_page(void)
 {
-    fb.print_string(ibm_font, 0, (FB_HEIGHT - 1) - 8 - 6, ds3231_state.time, orange);
+    fb.print_string(ibm_font, 0, (FB_HEIGHT - 1) - 8 - 6,
+        ds3231_state.hide_colons ? ds3231_state.time_no_colons : ds3231_state.time_colons,
+        orange);
 
     fb.print_string(tiny_font, (FB_WIDTH / 2) - (fb.string_length(tiny_font, ds3231_state.date) / 2),
         (FB_HEIGHT - 1) - 8 - 10 - 6, ds3231_state.date, white);
+
+    if (configuration.clock_colon_flash) {
+        ds3231_state.colon_counter++;
+        if (ds3231_state.colon_counter > configuration.clock_colon_flash) {
+            ds3231_state.hide_colons = !ds3231_state.hide_colons;
+            ds3231_state.colon_counter = 0;
+        }
+    }
+    else {
+        // Not flashing? Force colons to shown.
+        ds3231_state.hide_colons = 0;
+    }
 
     return false;
 }
@@ -355,7 +395,6 @@ bool animation::render_inside_temperatures_page(void)
         }
 
         fb.print_string(tiny_font, 0, running_y, inside_temp->name, orange);
-        // running_y -= tiny_font->height + 1;
 
         char buf[10];
         snprintf(buf, sizeof(buf), "%.1fC", inside_temp->temperature);
@@ -388,7 +427,10 @@ bool animation::render_current_weather_page(void)
     memset(buffer, 0, sizeof(buffer));
 
     snprintf(buffer, sizeof(buffer), "%dC", (int)weather_state.data.temperature);
-    fb.print_string(ibm_font, 40, 20, buffer, yellow);
+    fb.print_string(ibm_font, 50 - (fb.string_length(ibm_font, buffer) / 2), 20, buffer, yellow);
+
+    snprintf(buffer, sizeof(buffer), "%d%%", (int)weather_state.data.precipitation_probability);
+    fb.print_string(ibm_font, 50 - (fb.string_length(ibm_font, buffer) / 2), 4, buffer, light_blue);
 
     return false;
 }
@@ -407,7 +449,7 @@ bool animation::render_weather_forecast_page(void)
         char buffer[10];
         memset(buffer, 0, sizeof(buffer));
 
-        if ((frame % 600) < 300) {
+        if ((frame % 400) < 200) {
             snprintf(buffer, sizeof(buffer), "%dC", (int)forecast.temperature);
             fb.print_string(tiny_font, offset_x + 11 - (fb.string_length(tiny_font, buffer) / 2), 16, buffer, yellow);
         }
@@ -525,38 +567,45 @@ bool animation::render_transport_page(void)
 
 void animation::update_scroller_message(void)
 {
-    weather_data_t *wd = &weather_state.data;
-    snprintf(scroller.message, sizeof(scroller.message),
-        "CURRENTLY... TEMP: %d C; HUMIDTY: %d %%; PRESSURE: %d hPa; WIND: %d km/h FROM %d \x7f",
-        (int) wd->temperature, (int) wd->humidty, (int) wd->pressure, (int) wd->wind_speed,
-        (int) wd->wind_bearing);
+    strncpy(scroller_state.message, scroller_state.data.text[scroller_state.current_index], 256);
+    scroller_state.message_pixel_length = fb.string_length(tiny_font,
+        scroller_state.message
+    );
 
-    scroller.message_pixel_length = fb.string_length(tiny_font,
-        scroller.message);
-    scroller.message_offset = 0;
-    scroller.framestamp = frame;
+    printf("update_scroller_message: message is: %s\n", scroller_state.message);
+
+    scroller_state.message_offset = 0;
+    scroller_state.framestamp = frame;
+
+    scroller_state.current_index++;
+    if (scroller_state.current_index > scroller_state.data.array_size) {
+        scroller_state.current_index = 0;
+    }
 }
 
 void animation::render_scroller(void)
 {
-    if (scroller.off_countdown) {
-        scroller.off_countdown--;
-        if (! scroller.off_countdown) {
+    if (scroller_state.data.array_size == 0) {
+        return;
+    }
+
+    if (scroller_state.off_countdown) {
+        scroller_state.off_countdown--;
+        if (! scroller_state.off_countdown) {
             update_scroller_message();
-            scroller.framestamp = frame;
         }
     }
     else {
         fb.shadow_box(0, 0, FB_WIDTH, 8, 0x10);
 
-        scroller.message_offset = (frame - scroller.framestamp) / configuration.scroller_speed;
-        fb.print_string(tiny_font, FB_WIDTH - scroller.message_offset, 0,
-            scroller.message, light_blue);
+        scroller_state.message_offset = (frame - scroller_state.framestamp) / configuration.scroller_speed;
+        fb.print_string(tiny_font, FB_WIDTH - scroller_state.message_offset, 0,
+            scroller_state.message, light_blue);
 
-        if (scroller.message_offset >
-            scroller.message_pixel_length + FB_WIDTH + (FB_WIDTH / 2))
+        if (scroller_state.message_offset >
+            scroller_state.message_pixel_length + FB_WIDTH + (FB_WIDTH / 2))
         {
-            scroller.off_countdown = configuration.scroller_interval;
+            scroller_state.off_countdown = configuration.scroller_interval;
         }
     }
 }

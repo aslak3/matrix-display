@@ -24,6 +24,16 @@ typedef struct {
 } calendar_state_t;
 
 typedef struct {
+    scroller_data_t data;
+    int current_index;
+    char message[256];
+    int message_pixel_length;
+    int message_offset;
+    int framestamp;
+    int off_countdown;
+} scroller_state_t;
+
+typedef struct {
     transport_data_t data;
     int framestamp;
 } transport_state_t;
@@ -44,7 +54,10 @@ typedef struct {
     ds3231_t data;
     int framestamp;
     int frames_per_second;
-    char time[10];
+    int hide_colons;
+    int colon_counter;
+    char time_colons[10];
+    char time_no_colons[10];
     char date[20];
 } ds3231_state_t;
 
@@ -58,14 +71,6 @@ typedef enum {
     PAGE_CALENDAR,
     PAGE_TRANSPORT,
 } page_t;
-
-typedef struct {
-    char message[256];
-    int message_pixel_length;
-    int message_offset;
-    int framestamp;
-    int off_countdown;
-} scroller_t;
 
 #define NO_SNOWFLAKES 255
 
@@ -85,6 +90,7 @@ class animation {
         void new_weather_data(weather_data_t *weather_data);
         void new_media_player_data(media_player_data_t *media_player_data);
         void new_calendar_data(calendar_data_t *calendar_data);
+        void new_scroller_data(scroller_data_t *scroller_data);
         void new_transport_data(transport_data_t *transport_data);
         void new_notification(notification_t *notification);
         void clear_notification(void);
@@ -105,6 +111,7 @@ class animation {
         weather_state_t weather_state;
         media_player_state_t media_player_state;
         calendar_state_t calendar_state;
+        scroller_state_t scroller_state;
         transport_state_t transport_state;
         notification_state_t notification_state;
         porch_state_t porch_state;
@@ -137,8 +144,6 @@ class animation {
         font_t *small_font;
         font_t *ibm_font;
         font_t *tiny_font;
-
-        scroller_t scroller;
 
         void change_page(page_t new_page);
 

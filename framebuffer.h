@@ -20,6 +20,9 @@ typedef union {
     uint32_t uint32[FB_HEIGHT][FB_WIDTH];
 } fb_t;
 
+#define CHAR_UP_ARROW 0x80
+#define CHAR_DOWN_ARROW 0x81
+
 class framebuffer {
     public:
         framebuffer(void);
