@@ -16,7 +16,7 @@
 
 #define DS3231_I2C_ADDR 0x68
 
-#define CLIMATE_SEND_INTERVAL 10    // Send climate data every 10 seconds
+#define CLIMATE_SEND_INTERVAL 60    // Send climate data every 60 seconds
 
 #if BME680_PRESENT
 extern int configure_bme680(void);
