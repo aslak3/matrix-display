@@ -76,7 +76,7 @@ void i2c_task(void *dummy)
         // See if we are at the top of the next second
         if (memcmp(&message_anim.ds3231, &old_ds3231, sizeof(ds3231_t)) != 0) {
             if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
-                printf("Could not send clock data; dropping");
+                printf("Could not send clock data; dropping\n");
             }
 
             if (climate_count == CLIMATE_SEND_INTERVAL) {
@@ -98,14 +98,14 @@ void i2c_task(void *dummy)
                     message_mqtt.climate.humidity = get_humidity();
 
                     if (xQueueSend(mqtt_queue, &message_mqtt, 10) != pdTRUE) {
-                        printf("Could not send climate data; dropping");
+                        printf("Could not send climate data; dropping\n");
                     }
                 }
 #else
                 message_mqtt.climate.temperature = get_temperature();
 
                 if (xQueueSend(mqtt_queue, &message_mqtt, 10) != pdTRUE) {
-                    printf("Could not send climate data; dropping");
+                    printf("Could not send climate data; dropping\n");
                 }
 
 #endif
