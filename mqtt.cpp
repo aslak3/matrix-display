@@ -152,11 +152,38 @@ static int do_mqtt_connect(mqtt_client_t *client)
     return err;
 }
 
+#define WEATHER_TOPIC "matrix_display/weather"
+#define MEDIA_PLAYER_TOPIC "matrix_display/media_player"
+#define CALENDAR_TOPIC "matrix_display/calendar"
+#define SCROLLER_TOPIC "matrix_display/scroller"
+#define TRANSPORT_TOPIC "matrix_display/transport"
+#define PORCH_SENSOR_TOPIC "matrix_display/porch"
+#define NOTIFICATION_TOPIC "matrix_display/notification"
+#define SET_RTC_TIME_TOPIC "matrix_display/set_time"
+#define BUZZER_PLAY_TOPIC "matrix_display/buzzer_play"
+#define LIGHT_COMMAND_TOPIC "matrix_display/panel/switch"
+#define LIGHT_BRIGHTNESS_COMMAND_TOPIC "matrix_display/panel/brightness/set"
+#define SET_GRAYSCALE_TOPIC "matrix_display/greyscale/switch"
+#define CONFIGURATION_TOPIC "matrix_display/configuration/"
+#define AUTODISCOVER_CONTROL_TOPIC "matrix_display/autodiscover"
+
 static void do_mqtt_subscribe(mqtt_client_t *client)
 {
     const char *subscriptions[] = {
-        "matrix_display/#",
-        "transport_parser/#",
+        WEATHER_TOPIC,
+        MEDIA_PLAYER_TOPIC,
+        CALENDAR_TOPIC,
+        SCROLLER_TOPIC,
+        TRANSPORT_TOPIC,
+        PORCH_SENSOR_TOPIC,
+        NOTIFICATION_TOPIC,
+        SET_RTC_TIME_TOPIC, 
+        BUZZER_PLAY_TOPIC,
+        LIGHT_COMMAND_TOPIC,
+        LIGHT_BRIGHTNESS_COMMAND_TOPIC,
+        SET_GRAYSCALE_TOPIC,
+        AUTODISCOVER_CONTROL_TOPIC,
+        "matrix_display/configuration/#",
         NULL,
     };
 
@@ -201,41 +228,27 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
     printf("Topic is now: %s len: %d\n", current_topic, tot_len);
 }
 
-#define WEATHER_TOPIC "matrix_display/weather"
-#define MEDIA_PLAYER_TOPIC "matrix_display/media_player"
-#define CALENDAR_TOPIC "matrix_display/calendar"
-#define SCROLLER_TOPIC "matrix_display/scroller"
-#define TRANSPORT_TOPIC "matrix_display/transport"
-#define PORCH_SENSOR_TOPIC "matrix_display/porch"
-#define NOTIFICATION_TOPIC "matrix_display/notification"
-#define SET_RTC_TIME_TOPIC "matrix_display/set_time"
-#define BUZZER_PLAY_TOPIC "matrix_display/buzzer_play"
-#define LIGHT_COMMAND_TOPIC "matrix_display/panel/switch"
-#define LIGHT_BRIGHTNESS_COMMAND_TOPIC "matrix_display/panel/brightness/set"
-#define SET_GRAYSCALE_TOPIC "matrix_display/greyscale/switch"
-#define CONFIGURATION_TOPIC "matrix_display/configuration/"
-#define AUTODISCOVER_CONTROL_TOPIC "matrix_display/autodiscover"
+char data_as_chars[16384];
+u16_t running_len = 0;
 
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags)
 {
     printf("Start of mqtt_incoming_data_cb(len: %d, flags: %d)\n", len, flags);
-    static char data_as_chars[16384];
-    static char *p = data_as_chars;
 
-    memcpy(p, data, len);
-    printf("Copy done\n");
-    p += len;
-    printf("P advanced\n");
-    *p = '\0';
-    printf("Null added\n");
+    memcpy(data_as_chars + running_len, data, len);
+    running_len += len;
+    data_as_chars[running_len] = '\0';
+    printf("Copy done, length advanced, Null added\n");
 
-    if (p - data_as_chars > 16384 - 1500) {
+    if (running_len > 16384 - 1500) {
         panic("mqtt_incoming_data_cb(): data is too long");
     }
 
     printf("topic %s flags %d\n", current_topic, flags);
 
     if (flags & MQTT_DATA_FLAG_LAST) {
+        running_len = 0;
+
         if (strcmp(current_topic, WEATHER_TOPIC) == 0) {
             handle_weather_json_data(data_as_chars);
         }
@@ -278,22 +291,9 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         else if (strcmp(current_topic, AUTODISCOVER_CONTROL_TOPIC) == 0) {
             handle_autodiscover_control_data(data_as_chars);
         }
-        else if (strcmp(current_topic, TEMPERATURE_TOPIC) == 0) {
-            printf("Ignoring temperature\n");
-        }
-#if BME680_PRESENT
-        else if (strcmp(current_topic, PRESSURE_TOPIC) == 0) {
-            printf("Ignoring pressure\n");
-        }
-        else if (strcmp(current_topic, HUMIDITY_TOPIC) == 0) {
-            printf("Ignoring humidity\n");
-        }
-#endif
         else {
             printf("Unknown topic %s\n", current_topic);
         }
-        memset(data_as_chars, 0, sizeof(data_as_chars));
-        p = data_as_chars;
     }
     printf("Done incoming_data_cb()\n");
 }

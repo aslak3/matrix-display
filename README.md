@@ -104,6 +104,12 @@ JSON formatted media player information. If the state of the player is anything 
 
 JSON formatted calendar information for the next three appointments.
 
+## matrix_display/scroller
+
+JSON formatted scroller message text. This is an array of upto four messages, each upto 256 characters long. The messages are shown in sequence with a configurable interval between messages.
+
+There is provision to show up and down arrows, intended for showing stock prices and the like. To make use of this use the magic sequence -UP- or -DOWN- in the message text.
+
 ## matrix_display/porch
 
 The `states()` of the porch motion sensor. This is not JSON formatted. That is, it needs to be either `on` for motion or `off` for no motion.
@@ -180,13 +186,14 @@ Activate autodiscovery by sending ON (case sensitive). The system will send a se
 A number of topics are recognised as configuration parameters. All of these appear under `matrix_display/configuration/`. The default value is given in parens:
 
 * `clock_duration` (1000) : The number of frames that the clock is shown for.
+* `clock_colon_flash` (0) : The frame count with which the colons in the time hold their steady state. 20 is a good rate. 0, the default, to disable the flashing.
 * `inside_temperatures_scroll_speed` (3) : The number of frames between each vertical pixel movement on the inside temperatures screen.
 * `current_weather_duration` (200) : The number of frames the current weather screen is displayed for.
 * `weather_forecast_duration` (500) : The number of frames the weather forecast screen is displayed for.
 * `media_player_scroll_speed` (1) : The number of frames between each horizontal pixel movement for this screen.
 * `calendar_scroll_speed` (3) : A vertical scroll is used on the calendar screen. This is the number of frames between movements.
 * `transport_duration` (300) : The number of frames the transport information appears on screen.
-* `scroller_interval` (20000) : The number of frames between the "scroller" appearing at the bottom of the screen.
+* `scroller_interval` (10000) : The number of frames between the "scroller" appearing at the bottom of the screen. After the message has been scrolled across the screen the next message in the queue of up to four will be shown.
 * `scroller_speed` (2) : And the speed of the scroller.
 * `snowflake_count` (0) : The count of snowflakes to show.
 
@@ -196,7 +203,7 @@ It's a little annoying using frame counts for lengths of time, but it is the mos
 
 To suppress a screen, set its duration to zero.
 
-The scroller is a somewhat incomplete concept that was intended to display extra tidbits of information over the top of anything else that might be on the screen at any one time. It is currently used to show more information about the current weather then the current weather screen shows: it will display the humidity, air pressure, wind speed and wind direction in a scrolling message at the bottom of the screen.
+The scroller is intended to display extra tidbits of information over the top of anything else that might be on the screen at any one time. An array of upto four messages can be passed in and are shown in sequence with a configurable delay between them. I currently use this fascility to present detailed information on the current weather conditions and for showing current prices for a few stocks, all formatted with the [templating](https://www.home-assistant.io/docs/configuration/templating/) capabilities of Home Assistant.
 
 Snowflakes are only for Christmas! At least if you are in the northern hemisphere. A simple algorithm is used to move white pixels around, and this configuration item sets the count of snowflakes. Past about 50 snowflakes the screen is hard to read, but the effect is still quite pleasant. Snowflakes make use of a special feature in the display code: snowflake pixels will appear at maximum brightness regardless of the brightness setting.
 
@@ -230,7 +237,7 @@ The resultant build/matrix-display.uf2 then needs to be transfered to the Pico W
 
 If `SPI_TO_FPGA` is set to 0, the HUB75 panel will need to be plugged into header that is directly connected Pi Pico W pins. Otherwise it should be attached to the FPGA's HUB75 header, once again assuming you are using the board which I have designed.
 
-If `BME680_PRESENT` is set to 1, a BME680 breakout board like [this one](https://thepihut.com/products/adafruit-bme680-temperature-humidity-pressure-and-gas-sensor-ada3660) should be attached to the I2C bus. Note that the SDO pin should be connected to ground, which will yield the correct slave address of `0x76`. In this case the temperature, humidity and presser sensor values will come from this board. Otherwise, if `BME680_PRESENT` is 0, then the temperature information will come from the RTC IC on the board alone.
+If `BME680_PRESENT` is set to 1, a BME680 breakout board like [this one](https://thepihut.com/products/adafruit-bme680-temperature-humidity-pressure-and-gas-sensor-ada3660) should be attached to the I2C bus. Note that the SDO pin should be connected to ground, which will yield the correct slave address of `0x76`. In this case the temperature, humidity and pressure sensor values will come from this board. Otherwise, if `BME680_PRESENT` is 0, then the temperature information will come from the RTC IC on the board alone.
 
 'MQTT_BROKER_PORT` can be used to set the MQTT port number, should the default 1883 not be used.
 
@@ -259,7 +266,6 @@ Debug output is produced as the system runs. It can be captured on the Pico W's 
 
 Clearly the scope for such a display as this is fairly limitless. The following is a randomly ordered list of ideas. Some of these changes are possible without touching the firmware code.
 
-* Display share price (stock) information. This would be fairly easy to do, and it is only really a question of how to obtain the raw data. There are many paid for services providing share price information, and there are probably free ones as well.
 * Display the latest sports scores.
 * Display a list of the newest YouTube videos for creators the user is subscribed to.
 * Somehow suppress the transport information screen when it's not needed. Unsure how this could be done though.
