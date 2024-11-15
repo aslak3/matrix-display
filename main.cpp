@@ -12,6 +12,8 @@
 #include <queue.h>
 #include <semphr.h>
 
+#include "matrix_display.h"
+
 #include "animation.h"
 
 #include "hub75.pio.h"
@@ -47,7 +49,7 @@ int main(void)
 {
     stdio_init_all();
 
-    printf("Hello, matrix here\n");
+    DEBUG_printf("Hello, matrix here\n");
 
     srand(0);
 
@@ -78,7 +80,7 @@ void animate_task(void *dummy)
 {
 #if FREE_RTOS_KERNEL_SMP
     vTaskCoreAffinitySet(NULL, 1 << 0);
-    printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
+    DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
 
     message_anim_t message;
@@ -89,7 +91,7 @@ void animate_task(void *dummy)
     while (1)
     {
         while (xQueueReceive(animate_queue, &message, 0) == pdTRUE) {
-            printf("New message, type: %d\n", message.message_type);
+            DEBUG_printf("New message, type: %d\n", message.message_type);
 
             switch (message.message_type) {
                 case MESSAGE_ANIM_WEATHER:
@@ -137,7 +139,7 @@ void animate_task(void *dummy)
                     break;
 
                 default:
-                    printf("Unknown message type: %d\n", message.message_type);
+                    DEBUG_printf("Unknown message type: %d\n", message.message_type);
                     break;
             }
         }
@@ -158,7 +160,7 @@ void matrix_task(void *dummy)
 {
 #if FREE_RTOS_KERNEL_SMP
     vTaskCoreAffinitySet(NULL, 1 << 1);
-    printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
+    DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
 
 #if SPI_TO_FPGA
@@ -179,7 +181,7 @@ void matrix_task(void *dummy)
 
     const uint dma_tx = dma_claim_unused_channel(true);
 
-    printf("Configure TX DMA\n");
+    DEBUG_printf("Configure TX DMA\n");
     dma_channel_config dma_config_c = dma_channel_get_default_config(dma_tx);
     // TODO: investigate DMA_SIZE_32 transfers
     channel_config_set_transfer_data_size(&dma_config_c, DMA_SIZE_8);

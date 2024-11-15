@@ -9,6 +9,8 @@
 #include <task.h>
 #include <queue.h>
 
+#include "matrix_display.h"
+
 #include "messages.h"
 
 #define BUZZER_PIN 27
@@ -19,7 +21,7 @@ void buzzer_task(void *dummy)
 {
 #if FREE_RTOS_KERNEL_SMP
     vTaskCoreAffinitySet(NULL, 1 << 0);
-    printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
+    DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
 
     gpio_set_function(BUZZER_PIN, GPIO_FUNC_PWM);
@@ -32,7 +34,7 @@ void buzzer_task(void *dummy)
         message_buzzer_t buzzer = {};
 
         if (xQueueReceive(buzzer_queue, &buzzer, 1000 / portTICK_PERIOD_MS) == pdTRUE) {
-            printf("Buzz buzz buzz\n");
+            DEBUG_printf("Buzz buzz buzz\n");
 
             switch (buzzer.message_type) {
                 case MESSAGE_BUZZER_PLAY:
@@ -67,13 +69,13 @@ void buzzer_task(void *dummy)
                             break;
                         
                         default:
-                            printf("Bad buzzer play type %d\n", buzzer.play_type);
+                            DEBUG_printf("Bad buzzer play type %d\n", buzzer.play_type);
                             break;
                     }
                     break;
 
                 default:
-                    printf("Bad buzzer message type %d\n", buzzer.message_type);
+                    DEBUG_printf("Bad buzzer message type %d\n", buzzer.message_type);
                     break;
             }
         }

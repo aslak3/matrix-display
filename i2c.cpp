@@ -9,6 +9,8 @@
 #include <task.h>
 #include <queue.h>
 
+#include "matrix_display.h"
+
 #include "messages.h"
 
 #define PICO_I2C_SDA_PIN 20
@@ -42,7 +44,7 @@ void i2c_task(void *dummy)
 {
 #if FREE_RTOS_KERNEL_SMP
     vTaskCoreAffinitySet(NULL, 1 << 0);
-    printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
+    DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
 
     static message_anim_t message_anim = {
@@ -63,7 +65,7 @@ void i2c_task(void *dummy)
     bool requested_run = false;
 
     if (!(configure_bme680())) {
-        printf("BME680: Configure failed\n");
+        DEBUG_printf("BME680: Configure failed\n");
     }
 #endif
 
@@ -76,19 +78,19 @@ void i2c_task(void *dummy)
         // See if we are at the top of the next second
         if (memcmp(&message_anim.ds3231, &old_ds3231, sizeof(ds3231_t)) != 0) {
             if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
-                printf("Could not send clock data; dropping\n");
+                DEBUG_printf("Could not send clock data; dropping\n");
             }
 
             if (climate_count == CLIMATE_SEND_INTERVAL) {
 #if BME680_PRESENT
                 if (requested_run) {
                     if (!(receive_data())) {
-                        printf("BME680: Failed to recieve data\n");
+                        DEBUG_printf("BME680: Failed to recieve data\n");
                     }
                     got_data = true;
                 }
                 if (!(request_run())) {
-                    printf("BME680: Failed to request run\n");
+                    DEBUG_printf("BME680: Failed to request run\n");
                 }
                 requested_run = true;
 
@@ -98,14 +100,14 @@ void i2c_task(void *dummy)
                     message_mqtt.climate.humidity = get_humidity();
 
                     if (xQueueSend(mqtt_queue, &message_mqtt, 10) != pdTRUE) {
-                        printf("Could not send climate data; dropping\n");
+                        DEBUG_printf("Could not send climate data; dropping\n");
                     }
                 }
 #else
                 message_mqtt.climate.temperature = get_temperature();
 
                 if (xQueueSend(mqtt_queue, &message_mqtt, 10) != pdTRUE) {
-                    printf("Could not send climate data; dropping\n");
+                    DEBUG_printf("Could not send climate data; dropping\n");
                 }
 
 #endif
@@ -121,7 +123,7 @@ void i2c_task(void *dummy)
         ds3231_t set_ds3231 = {};
 
         if (xQueueReceive(i2c_queue, &set_ds3231, 0) == pdTRUE) {
-            printf("Clock set\n");
+            DEBUG_printf("Clock set\n");
             set_ds3231_time(set_ds3231.datetime_buffer);
         }
 

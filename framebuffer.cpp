@@ -64,7 +64,7 @@ int framebuffer::print_char(font_t *font, int x, int y, char c, rgb_t rgb, bool 
 {
     // Basic sanity please
     if (!(c >= 0x20 && c <= 0x7f || c == CHAR_UP_ARROW || c == CHAR_DOWN_ARROW)) {
-        // printf("Bad character in framebuffer::printchar(): %02x\n", (int) c);
+        // DEBUG_printf("Bad character in framebuffer::printchar(): %02x\n", (int) c);
         return 0;
     }
 

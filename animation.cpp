@@ -4,6 +4,8 @@
 #include <string.h>
 #include <math.h>
 
+#include "matrix_display.h"
+
 #include "animation.h"
 
 animation::animation(framebuffer& f) : fb(f)
@@ -161,12 +163,14 @@ void animation::render_notification(void)
 
 void animation::new_weather_data(weather_data_t *weather_data)
 {
+    DEBUG_printf("Got new weather data\n");
     weather_state.data = *weather_data;
     weather_state.framestamp = frame;
 }
 
 void animation::new_media_player_data(media_player_data_t *media_player_data)
 {
+    DEBUG_printf("Got new media player data\n");
     snprintf(media_player_state.message, sizeof(media_player_state.message),
         "'%s' by '%s' on '%s'",
         media_player_data->media_title, media_player_data->media_artist,
@@ -177,7 +181,7 @@ void animation::new_media_player_data(media_player_data_t *media_player_data)
 
 void animation::new_calendar_data(calendar_data_t *calendar_data)
 {
-    printf("Got new calendar data\n");
+    DEBUG_printf("Got new calendar data\n");
     calendar_state.data = *calendar_data;
     calendar_state.message_pixel_height = 0;
     calendar_state.framestamp = frame;
@@ -187,7 +191,7 @@ void animation::new_calendar_data(calendar_data_t *calendar_data)
 
 void animation::new_scroller_data(scroller_data_t *scroller_data)
 {
-    printf("Got new scroller data\n");
+    DEBUG_printf("Got new scroller data\n");
     scroller_state.data = *scroller_data;
     for (int i = 0; i < scroller_state.data.array_size; i++) {
         special_replacement(scroller_state.data.text[i], "-UP-", CHAR_UP_ARROW);
@@ -197,13 +201,14 @@ void animation::new_scroller_data(scroller_data_t *scroller_data)
 
 void animation::new_transport_data(transport_data_t *transport_data)
 {
-    printf("Got new transport data\n");
+    DEBUG_printf("Got new transport data\n");
     transport_state.data = *transport_data;
     transport_state.framestamp = frame;
 }
 
 void animation::new_notification(notification_t *notification)
 {
+    DEBUG_printf("Got new notification data\n");
     notification_state.data = *notification;
     notification_state.framestamp = frame;
     notification_state.pixel_length = fb.string_length(medium_font, notification->text);
@@ -261,7 +266,7 @@ void animation::new_ds3231(ds3231_t *ds3231)
         strncpy(ds3231_state.date, "XXXX", sizeof(ds3231_state.date));
     }
 
-    printf("New Time: %s Date: %s\n", ds3231_state.time_colons, ds3231_state.date);
+    DEBUG_printf("New Time: %s Date: %s\n", ds3231_state.time_colons, ds3231_state.date);
 }
 
 void animation::update_configuration(configuration_t *config)
@@ -305,7 +310,7 @@ void animation::update_configuration(configuration_t *config)
 
 void animation::change_page(page_t new_page)
 {
-    printf("changing to new page %d\n", new_page);
+    DEBUG_printf("changing to new page %d\n", new_page);
     page_framestamp = frame;
 
     page = new_page;
@@ -572,7 +577,7 @@ void animation::update_scroller_message(void)
         scroller_state.message
     );
 
-    printf("update_scroller_message: message is: %s\n", scroller_state.message);
+    DEBUG_printf("update_scroller_message: message is: %s\n", scroller_state.message);
 
     scroller_state.message_offset = 0;
     scroller_state.framestamp = frame;

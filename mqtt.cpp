@@ -11,6 +11,8 @@
 #include "mqtt_opts.h"
 #include <lwip/apps/mqtt.h>
 
+#include "matrix_display.h"
+
 #include "messages.h"
 
 #include "cJSON.h"
@@ -62,7 +64,7 @@ void led_task(void *dummy)
 {
 #if FREE_RTOS_KERNEL_SMP
     vTaskCoreAffinitySet(NULL, 1 << 0);
-    printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
+    DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
 
     while (true) {
@@ -83,24 +85,24 @@ void mqtt_task(void *dummy)
 {
 #if FREE_RTOS_KERNEL_SMP
     vTaskCoreAffinitySet(NULL, 1 << 0);
-    printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
+    DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
 
     xTaskCreate(&led_task, "LED Task", 256, NULL, 0, NULL);
 
     while (1) {
         if (cyw43_arch_init_with_country(CYW43_COUNTRY_UK)) {
-            printf("failed to initialise\n");
+            DEBUG_printf("failed to initialise\n");
             exit(1);
         }
         cyw43_arch_enable_sta_mode();
 
-        printf("Connecting to WiFi...\n");
+        DEBUG_printf("Connecting to WiFi...\n");
         if (cyw43_arch_wifi_connect_blocking(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK)) {
-            printf("failed to connect.\n");
+            DEBUG_printf("failed to connect.\n");
             cyw43_arch_deinit();
         } else {
-            printf("Connected.\n");
+            DEBUG_printf("Connected.\n");
             break;
         }
     }
@@ -116,7 +118,7 @@ void mqtt_task(void *dummy)
 
     /* For now just print the result code if something goes wrong */
     if (err != ERR_OK) {
-        printf("do_mqtt_connect() return %d\n", err);
+        DEBUG_printf("do_mqtt_connect() return %d\n", err);
     }
 
     while (1) {
@@ -193,10 +195,10 @@ static void do_mqtt_subscribe(mqtt_client_t *client)
     for (const char **s = subscriptions; *s; s++) {
         err = mqtt_subscribe(client, *s, 1, mqtt_sub_request_cb, arg);
         if(err != ERR_OK) {
-            printf("mqtt_subscribe on %s return: %d\n", *s, err);
+            DEBUG_printf("mqtt_subscribe on %s return: %d\n", *s, err);
         }
         else {
-            printf("mqtt_subscribe on %s success\n", *s);
+            DEBUG_printf("mqtt_subscribe on %s success\n", *s);
         }
         vTaskDelay(10);
     }
@@ -205,18 +207,18 @@ static void do_mqtt_subscribe(mqtt_client_t *client)
 static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection_status_t status)
 {
     if (status == MQTT_CONNECT_ACCEPTED) {
-        printf("Connected\n");
+        DEBUG_printf("Connected\n");
         do_mqtt_subscribe(client);
     }
     else {
-        printf("Disconnected: %d\n", status);
+        DEBUG_printf("Disconnected: %d\n", status);
         vTaskDelay(1000);
     }
 }
 
 static void mqtt_sub_request_cb(void *arg, err_t result)
 {
-    printf("Subscribe result: %d\n", result);
+    DEBUG_printf("Subscribe result: %d\n", result);
 }
 
 char current_topic[128];
@@ -225,7 +227,7 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
 {
     strncpy(current_topic, topic, sizeof(current_topic));
 
-    printf("Topic is now: %s len: %d\n", current_topic, tot_len);
+    DEBUG_printf("Topic is now: %s len: %d\n", current_topic, tot_len);
 }
 
 char data_as_chars[16384];
@@ -233,18 +235,18 @@ u16_t running_len = 0;
 
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags)
 {
-    printf("Start of mqtt_incoming_data_cb(len: %d, flags: %d)\n", len, flags);
+    DEBUG_printf("Start of mqtt_incoming_data_cb(len: %d, flags: %d)\n", len, flags);
 
     memcpy(data_as_chars + running_len, data, len);
     running_len += len;
     data_as_chars[running_len] = '\0';
-    printf("Copy done, length advanced, Null added\n");
+    DEBUG_printf("Copy done, length advanced, Null added\n");
 
     if (running_len > 16384 - 1500) {
         panic("mqtt_incoming_data_cb(): data is too long");
     }
 
-    printf("topic %s flags %d\n", current_topic, flags);
+    DEBUG_printf("topic %s flags %d\n", current_topic, flags);
 
     if (flags & MQTT_DATA_FLAG_LAST) {
         running_len = 0;
@@ -292,10 +294,10 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
             handle_autodiscover_control_data(data_as_chars);
         }
         else {
-            printf("Unknown topic %s\n", current_topic);
+            DEBUG_printf("Unknown topic %s\n", current_topic);
         }
     }
-    printf("Done incoming_data_cb()\n");
+    DEBUG_printf("Done incoming_data_cb()\n");
 }
 
 static cJSON *json_parser(char *data_as_chars)
@@ -305,10 +307,10 @@ static cJSON *json_parser(char *data_as_chars)
     if (json == NULL) {
         const char *error_ptr = cJSON_GetErrorPtr();
         if (error_ptr != NULL) {
-            printf("Error before: %s\n", error_ptr);
+            DEBUG_printf("Error before: %s\n", error_ptr);
         }
         else {
-            printf("Unknown JSON parse error\n");
+            DEBUG_printf("Unknown JSON parse error\n");
         }
     }
     return json;
@@ -318,7 +320,7 @@ static message_anim_t message_anim;
 
 static void handle_weather_json_data(char *data_as_chars)
 {
-    printf("Weather update\n");
+    DEBUG_printf("Weather update\n");
 
     static weather_data_t weather_data;
 
@@ -329,7 +331,7 @@ static void handle_weather_json_data(char *data_as_chars)
     else {
         cJSON *inside_temperatures = cJSON_GetObjectItem(json, "inside_temperatures");
         if (!inside_temperatures) {
-            printf("Missing inside_temperatures\n");
+            DEBUG_printf("Missing inside_temperatures\n");
             cJSON_Delete(json);
             return;
         }
@@ -340,7 +342,7 @@ static void handle_weather_json_data(char *data_as_chars)
             cJSON *temperature = cJSON_GetObjectItem(item, "temperature");
 
             if (!name || !temperature) {
-                printf("Missing field(s) in inside_temperatures\n");
+                DEBUG_printf("Missing field(s) in inside_temperatures\n");
                 cJSON_Delete(json);
                 return;
             }
@@ -354,7 +356,7 @@ static void handle_weather_json_data(char *data_as_chars)
 
         cJSON *forecasts = cJSON_GetObjectItem(json, "forecasts");
         if (!forecasts) {
-            printf("Missing forecasts");
+            DEBUG_printf("Missing forecasts");
             cJSON_Delete(json);
             return;
         }
@@ -365,7 +367,7 @@ static void handle_weather_json_data(char *data_as_chars)
             cJSON *temperature = cJSON_GetObjectItem(item, "temperature");
             cJSON *precipitation_probability = cJSON_GetObjectItem(item, "precipitation_probability");
             if (!datetime || !condition || !temperature || !precipitation_probability) {
-                printf("Missing field(s) in forecasts\n");
+                DEBUG_printf("Missing field(s) in forecasts\n");
                 cJSON_Delete(json);
                 return;
             }
@@ -385,10 +387,11 @@ static void handle_weather_json_data(char *data_as_chars)
         cJSON *wind_speed = cJSON_GetObjectItem(json, "wind_speed");
         cJSON *wind_bearing = cJSON_GetObjectItem(json, "wind_bearing");
         cJSON *pressure = cJSON_GetObjectItem(json, "pressure");
+        cJSON *precipitation_probability = cJSON_GetObjectItem(json, "precipitation_probability");
         if (!condition || !temperature || !temperature ||
-           !humidity || !wind_speed || !wind_bearing || !wind_bearing)
+           !humidity || !wind_speed || !wind_bearing || !wind_bearing || !precipitation_probability)
         {
-            printf("Weather has missing field(s)\n");
+            DEBUG_printf("Weather has missing field(s)\n");
             cJSON_Delete(json);
             return;
         }
@@ -400,6 +403,7 @@ static void handle_weather_json_data(char *data_as_chars)
         weather_data.wind_speed = cJSON_GetNumberValue(wind_speed);
         weather_data.wind_bearing = cJSON_GetNumberValue(wind_bearing);
         weather_data.pressure = cJSON_GetNumberValue(pressure);
+        weather_data.precipitation_probability = cJSON_GetNumberValue(precipitation_probability);
 
         cJSON_Delete(json);
     }
@@ -409,7 +413,7 @@ static void handle_weather_json_data(char *data_as_chars)
         weather_data: weather_data,
     };
     if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
-        printf("Could not send weather data; dropping\n");
+        DEBUG_printf("Could not send weather data; dropping\n");
     }
 
     memset(&weather_data, 0, sizeof(weather_data_t));
@@ -417,7 +421,7 @@ static void handle_weather_json_data(char *data_as_chars)
 
 static void handle_media_player_json_data(char *data_as_chars)
 {
-    printf("Media player update\n");
+    DEBUG_printf("Media player update\n");
 
     static media_player_data_t media_player_data;
 
@@ -434,7 +438,7 @@ static void handle_media_player_json_data(char *data_as_chars)
         cJSON *album = cJSON_GetObjectItem(json, "album");
 
         if (!(state && title && artist && album)) {
-            printf("Media player update has missing fields\n");
+            DEBUG_printf("Media player update has missing fields\n");
             cJSON_Delete(json);
             return;
         }
@@ -456,13 +460,13 @@ static void handle_media_player_json_data(char *data_as_chars)
         media_player_data: media_player_data,
     };
     if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
-        printf("Could not send media_player data; dropping\n");
+        DEBUG_printf("Could not send media_player data; dropping\n");
     }
 }
 
 static void handle_calendar_data(char *data_as_chars)
 {
-    printf("Calendar update\n");
+    DEBUG_printf("Calendar update\n");
 
     static calendar_data_t calendar_data;
 
@@ -481,7 +485,7 @@ static void handle_calendar_data(char *data_as_chars)
             cJSON *start = cJSON_GetObjectItem(item, "start");
 
             if (!(summary && start)) {
-                printf("Calendar update has missing fields\n");
+                DEBUG_printf("Calendar update has missing fields\n");
                 cJSON_Delete(json);
                 return;
             }
@@ -490,7 +494,7 @@ static void handle_calendar_data(char *data_as_chars)
 
             const char *value = cJSON_GetStringValue(start);
             if (strlen(value) < 25) {
-                printf("Start datetime is badly formed: %s", value);
+                DEBUG_printf("Start datetime is badly formed: %s", value);
                 cJSON_Delete(json);
                 return;
             }
@@ -511,13 +515,13 @@ static void handle_calendar_data(char *data_as_chars)
     };
 
     if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
-        printf("Could not send calendar data; dropping\n");
+        DEBUG_printf("Could not send calendar data; dropping\n");
     }
 }
 
 static void handle_scroller_json_data(char *data_as_chars)
 {
-    printf("Scroller update %s\n", data_as_chars);
+    DEBUG_printf("Scroller update %s\n", data_as_chars);
 
     static scroller_data_t scroller_data;
 
@@ -535,7 +539,7 @@ static void handle_scroller_json_data(char *data_as_chars)
         scroller_data.array_size = cJSON_GetArraySize(json);
     }
     else {
-        printf("Not an arrray in scroller data\n");
+        DEBUG_printf("Not an arrray in scroller data\n");
     }
 
     cJSON_Delete(json);
@@ -546,13 +550,13 @@ static void handle_scroller_json_data(char *data_as_chars)
     };
 
     if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
-        printf("Could not send scroller data; dropping\n");
+        DEBUG_printf("Could not send scroller data; dropping\n");
     }
 }
 
 static void handle_transport_json_data(char *data_as_chars)
 {
-    printf("Transport update %s\n", data_as_chars);
+    DEBUG_printf("Transport update %s\n", data_as_chars);
 
     static transport_data_t transport_data;
 
@@ -569,7 +573,7 @@ static void handle_transport_json_data(char *data_as_chars)
             cJSON *departures_summary = cJSON_GetObjectItem(item, "DeparturesSummary");
 
             if (!towards || !departures_summary) {
-                printf("Transport missing field(s)");
+                DEBUG_printf("Transport missing field(s)");
                 return;
             }
 
@@ -581,13 +585,13 @@ static void handle_transport_json_data(char *data_as_chars)
             message_type: MESSAGE_ANIM_TRANSPORT,
             transport_data: transport_data,
         };
-        printf("Sending transport data\n");
+        DEBUG_printf("Sending transport data\n");
         if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
-            printf("Could not send transport data; dropping\n");
+            DEBUG_printf("Could not send transport data; dropping\n");
         }
     }
     else {
-        printf("Not an arrray in transport data\n");
+        DEBUG_printf("Not an arrray in transport data\n");
     }
 
     cJSON_Delete(json);
@@ -595,7 +599,7 @@ static void handle_transport_json_data(char *data_as_chars)
 
 static void handle_porch_sensor_data(char *data_as_chars)
 {
-    printf("Porch update: %s\n", data_as_chars);
+    DEBUG_printf("Porch update: %s\n", data_as_chars);
 
     porch_t porch = {
         occupied: (strcmp(data_as_chars, "on") == 0) ? true : false,
@@ -606,7 +610,7 @@ static void handle_porch_sensor_data(char *data_as_chars)
         porch: porch,
     };
     if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
-        printf("Could not send media_player data; dropping\n");
+        DEBUG_printf("Could not send media_player data; dropping\n");
     }
 
     if (porch.occupied) {
@@ -615,14 +619,14 @@ static void handle_porch_sensor_data(char *data_as_chars)
             play_type: BUZZER_PLAY_PORCH,
         };
         if (xQueueSend(buzzer_queue, &message_buzzer, 10) != pdTRUE) {
-            printf("Could not send message_buzzer data; dropping\n");
+            DEBUG_printf("Could not send message_buzzer data; dropping\n");
         }
     }
 }
 
 static void handle_notificaiton_data(char *data_as_chars)
 {
-    printf("Notifation update: %s", data_as_chars);
+    DEBUG_printf("Notifation update: %s", data_as_chars);
 
     message_anim = {
         message_type: MESSAGE_ANIM_NOTIFICATION,
@@ -631,7 +635,7 @@ static void handle_notificaiton_data(char *data_as_chars)
     strncpy(message_anim.notification.text, data_as_chars, sizeof(message_anim.notification.text));
 
     if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
-        printf("Could not send weather data; dropping");
+        DEBUG_printf("Could not send weather data; dropping");
     }
 
     message_buzzer_t message_buzzer = {
@@ -639,26 +643,26 @@ static void handle_notificaiton_data(char *data_as_chars)
         play_type: BUZZER_PLAY_NOTIFICATION,
     };
     if (xQueueSend(buzzer_queue, &message_buzzer, 10) != pdTRUE) {
-        printf("Could not send message_buzzer data; dropping\n");
+        DEBUG_printf("Could not send message_buzzer data; dropping\n");
     }
 }
 
 static void handle_set_time_data(char *data_as_chars)
 {
-    printf("handle_set_time_data()\n");
+    DEBUG_printf("handle_set_time_data()\n");
 
     ds3231_t ds3231;
 
     bcd_string_to_bytes(data_as_chars, ds3231.datetime_buffer, DS3231_DATETIME_LEN);
 
     if (xQueueSend(i2c_queue, &ds3231, 10) != pdTRUE) {
-        printf("Could not send ds3231 data; dropping\n");
+        DEBUG_printf("Could not send ds3231 data; dropping\n");
     }
 }
 
 static void handle_buzzer_play_data(char *data_as_chars)
 {
-    printf("handle_buzzer_data()\n");
+    DEBUG_printf("handle_buzzer_data()\n");
 
     message_buzzer_t message_buzzer = {
         .message_type = MESSAGE_BUZZER_PLAY,
@@ -667,7 +671,7 @@ static void handle_buzzer_play_data(char *data_as_chars)
     bcd_string_to_bytes(data_as_chars, &message_buzzer.play_type, sizeof(uint8_t));
 
     if (xQueueSend(buzzer_queue, &message_buzzer, 10) != pdTRUE) {
-        printf("Could not send buzzer data; dropping");
+        DEBUG_printf("Could not send buzzer data; dropping");
     }
 }
 
@@ -679,19 +683,19 @@ static void handle_light_command_data(char *data_as_chars)
     };
 
     if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
-        printf("Could not send light command data; dropping");
+        DEBUG_printf("Could not send light command data; dropping");
     }
 }
 
 static void handle_light_brightness_command_data(char *data_as_chars)
 {
-    printf("Brightness set: %s\n", data_as_chars);
+    DEBUG_printf("Brightness set: %s\n", data_as_chars);
 
     char *end = NULL;
     int brightness = strtol(data_as_chars, &end, 10);
 
     if (!end || brightness < 0 || brightness > 255) {
-        printf("Brightness out of range or invalid");
+        DEBUG_printf("Brightness out of range or invalid");
         return;
     }
 
@@ -701,13 +705,13 @@ static void handle_light_brightness_command_data(char *data_as_chars)
     };
 
     if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
-        printf("Could not send brightness data; dropping");
+        DEBUG_printf("Could not send brightness data; dropping");
     }
 }
 
 static void handle_set_grayscale_data(char *data_as_chars)
 {
-    printf("Grayscale update: %\ns", data_as_chars);
+    DEBUG_printf("Grayscale update: %\ns", data_as_chars);
 
     message_anim = {
         message_type: MESSAGE_ANIM_GRAYSCALE,
@@ -718,18 +722,18 @@ static void handle_set_grayscale_data(char *data_as_chars)
     } else if (strcmp(data_as_chars, "OFF") == 0) {
         message_anim.grayscale = false;
     } else {
-        printf("Malformed grayscale %s\n", data_as_chars);
+        DEBUG_printf("Malformed grayscale %s\n", data_as_chars);
         return;
     }
 
     if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
-        printf("Could not send grayscale data; dropping");
+        DEBUG_printf("Could not send grayscale data; dropping");
     }
 }
 
 static void handle_configuration_data(char *attribute, char *data_as_chars)
 {
-    printf("Configuration update\n");
+    DEBUG_printf("Configuration update\n");
 
     configuration_t configuration;
 
@@ -749,7 +753,7 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
     int value = strtol(data_as_chars, &end, 10);
 
     if (!end) {
-        printf("Could not convert configuration data to number\n");
+        DEBUG_printf("Could not convert configuration data to number\n");
         return;
     }
 
@@ -788,7 +792,7 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
         configuration.snowflake_count = value;
     }
     else {
-        printf("Unknown configuration attribute: %s", attribute);
+        DEBUG_printf("Unknown configuration attribute: %s", attribute);
     }
 
     message_anim = {
@@ -797,7 +801,7 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
     };
 
     if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
-        printf("Could not send configuration data; dropping\n");
+        DEBUG_printf("Could not send configuration data; dropping\n");
     }
 }
 
@@ -805,7 +809,7 @@ bool autodisover_enable = false;
 bool send_autodiscover = false;
 static void handle_autodiscover_control_data(char *data_as_chars)
 {
-    printf("AutoDiscover control\n");
+    DEBUG_printf("AutoDiscover control\n");
 
     autodisover_enable = strcmp(data_as_chars, "ON") == 0 ? true : false;
 
@@ -814,16 +818,16 @@ static void handle_autodiscover_control_data(char *data_as_chars)
 
 static void dump_weather_data(weather_data_t *weather_data)
 {
-    printf("--------------\n");
-    printf("Current: condition=%s temperature=%.1f humidity=%.1f\n",
+    DEBUG_printf("--------------\n");
+    DEBUG_printf("Current: condition=%s temperature=%.1f humidity=%.1f\n",
         weather_data->condition, weather_data->temperature, weather_data->humidty);
     for (int i = 0; i < weather_data->forecasts_count; i++) {
-        printf("%s: condition=%s temperature=%.1f percipitation_probability=%.1f\n",
+        DEBUG_printf("%s: condition=%s temperature=%.1f percipitation_probability=%.1f\n",
             weather_data->forecasts[i].time, weather_data->forecasts[i].condition,
             weather_data->forecasts[i].temperature,
             weather_data->forecasts[i].precipitation_probability);
     }
-    printf("--------------\n");
+    DEBUG_printf("--------------\n");
 }
 
 cJSON *create_base_object(const char *name, const char *unique_id)
@@ -870,32 +874,32 @@ static void publish_loop_body(mqtt_client_t *client)
                 int err;
                 case MESSAGE_MQTT_CLIMATE:
                     snprintf(temperature_buffer, sizeof(temperature_buffer), "%.2f", message_mqtt.climate.temperature);
-                    printf("Got temperature: %s\n", temperature_buffer);
+                    DEBUG_printf("Got temperature: %s\n", temperature_buffer);
 
 #if BME680_PRESENT
                     snprintf(pressure_buffer, sizeof(pressure_buffer), "%.2f", message_mqtt.climate.pressure);
-                    printf("Got pressure: %s\n", pressure_buffer);
+                    DEBUG_printf("Got pressure: %s\n", pressure_buffer);
                     snprintf(humidity_buffer, sizeof(humidity_buffer), "%.2f", message_mqtt.climate.humidity);
-                    printf("Got humidity: %s\n", humidity_buffer);
+                    DEBUG_printf("Got humidity: %s\n", humidity_buffer);
 #endif
 
                     cyw43_arch_lwip_begin();
                     err = mqtt_publish(client, TEMPERATURE_TOPIC, temperature_buffer, strlen(temperature_buffer), 0, 1,
                         mqtt_pub_request_cb, NULL);
                     if (err != ERR_OK) {
-                        printf("mqtt_publish on %s return: %d\n", TEMPERATURE_TOPIC, err);
+                        DEBUG_printf("mqtt_publish on %s return: %d\n", TEMPERATURE_TOPIC, err);
                     }
 
 #if BME680_PRESENT
                     err = mqtt_publish(client, PRESSURE_TOPIC, pressure_buffer, strlen(pressure_buffer), 0, 1,
                         mqtt_pub_request_cb, NULL);
                     if (err != ERR_OK) {
-                        printf("mqtt_publish on %s return: %d\n", PRESSURE_TOPIC, err);
+                        DEBUG_printf("mqtt_publish on %s return: %d\n", PRESSURE_TOPIC, err);
                     }
                     err = mqtt_publish(client, HUMIDITY_TOPIC, humidity_buffer, strlen(humidity_buffer), 0, 1,
                         mqtt_pub_request_cb, NULL);
                     if (err != ERR_OK) {
-                        printf("mqtt_publish on %s return: %d\n", HUMIDITY_TOPIC, err);
+                        DEBUG_printf("mqtt_publish on %s return: %d\n", HUMIDITY_TOPIC, err);
                     }
 #endif
 
@@ -976,7 +980,7 @@ static void publish_loop_body(mqtt_client_t *client)
             }
 
             if (err > 0) {
-                printf("mqtt_publish returned %d errors\n", err);
+                DEBUG_printf("mqtt_publish returned %d errors\n", err);
             }
 
             send_autodiscover = false;
@@ -986,7 +990,7 @@ static void publish_loop_body(mqtt_client_t *client)
     }
     else {
         if (mqtt_client_is_connected(client) == 0) {
-            printf("MQTT not connected; reconnecting\n");
+            DEBUG_printf("MQTT not connected; reconnecting\n");
             do_mqtt_connect(client);
         }
         vTaskDelay(100 / portTICK_PERIOD_MS);
@@ -995,7 +999,7 @@ static void publish_loop_body(mqtt_client_t *client)
 
 static void mqtt_pub_request_cb(void *arg, err_t result)
 {
-    printf("Publish result: %d\n", result);
+    DEBUG_printf("Publish result: %d\n", result);
 }
 
 static uint8_t bcd_digit_to_byte(char c)
