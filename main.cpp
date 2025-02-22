@@ -5,6 +5,7 @@
 #include <hardware/gpio.h>
 #include <hardware/spi.h>
 #include <hardware/dma.h>
+#include <hardware/watchdog.h>
 #include <pico/cyw43_arch.h>
 
 #include <FreeRTOS.h>
@@ -49,6 +50,9 @@ int main(void)
 {
     stdio_init_all();
 
+    // Let USB UART wake up on a listener.
+    sleep_ms(1000);
+
     DEBUG_printf("Hello, matrix here\n");
 
     srand(0);
@@ -82,6 +86,14 @@ void animate_task(void *dummy)
     vTaskCoreAffinitySet(NULL, 1 << 0);
     DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
+
+    if (watchdog_enable_caused_reboot()) {
+        DEBUG_printf("Restart caused by watchdog!\n");
+    } else {
+        DEBUG_printf("Clean start; not caused by watchdog\n");
+    }
+
+    bool watchdog_enabled = false;
 
     message_anim_t message;
     memset(&message, 0, sizeof(message_anim_t));
@@ -123,6 +135,18 @@ void animate_task(void *dummy)
                     break;
 
                 case MESSAGE_ANIM_DS3231:
+                    if (! watchdog_enabled) {
+                        // On the first message from the RTC task, Enable the watchdog
+                        // requiring the watchdog to be updated every 2s or the MCU will
+                        // reboot.
+                        watchdog_enable(2000, 1);
+                        watchdog_enabled = true;
+                        DEBUG_printf("Watchdog enabled\n");
+                    }
+                    else {
+                        // We must now get a new time every two seconds or we will reboot
+                        watchdog_update();
+                    }
                     anim.new_ds3231(&message.ds3231);
                     break;
 
