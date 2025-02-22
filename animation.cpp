@@ -583,7 +583,7 @@ void animation::update_scroller_message(void)
     scroller_state.framestamp = frame;
 
     scroller_state.current_index++;
-    if (scroller_state.current_index > scroller_state.data.array_size) {
+    if (!(scroller_state.current_index < scroller_state.data.array_size)) {
         scroller_state.current_index = 0;
     }
 }
