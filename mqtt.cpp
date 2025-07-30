@@ -191,7 +191,6 @@ static void do_mqtt_subscribe(mqtt_client_t *client)
 
     void *arg = NULL;
     int err;
-
     for (const char **s = subscriptions; *s; s++) {
         err = mqtt_subscribe(client, *s, 1, mqtt_sub_request_cb, arg);
         if(err != ERR_OK) {
@@ -221,7 +220,7 @@ static void mqtt_sub_request_cb(void *arg, err_t result)
     DEBUG_printf("Subscribe result: %d\n", result);
 }
 
-char current_topic[128];
+static char current_topic[128];
 
 static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len)
 {
@@ -230,23 +229,32 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
     DEBUG_printf("Topic is now: %s len: %d\n", current_topic, tot_len);
 }
 
-char data_as_chars[16384];
-u16_t running_len = 0;
+static char data_as_chars[4096];
 
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags)
 {
+    static u16_t running_len = 0;
+
     DEBUG_printf("Start of mqtt_incoming_data_cb(len: %d, flags: %d)\n", len, flags);
 
-    memcpy(data_as_chars + running_len, data, len);
+    taskENTER_CRITICAL();
+
+    // memcpy(data_as_chars + running_len, data, len);
+    for (u16_t c = 0; c < len; c++) {
+        data_as_chars[c + running_len] = data[c];
+    }
+    // DEBUG_printf("Copy done\n");
     running_len += len;
     data_as_chars[running_len] = '\0';
-    DEBUG_printf("Copy done, length advanced, Null added\n");
+    // DEBUG_printf("length advanced to %d, Null added\n", running_len);
 
-    if (running_len > 16384 - 1500) {
-        panic("mqtt_incoming_data_cb(): data is too long");
-    }
+    taskEXIT_CRITICAL();
 
     DEBUG_printf("topic %s flags %d\n", current_topic, flags);
+
+    if (running_len > sizeof(data_as_chars)) {
+        panic("mqtt_incoming_data_cb(): data is too long");
+    }
 
     if (flags & MQTT_DATA_FLAG_LAST) {
         running_len = 0;
@@ -574,6 +582,7 @@ static void handle_transport_json_data(char *data_as_chars)
 
             if (!towards || !departures_summary) {
                 DEBUG_printf("Transport missing field(s)");
+                cJSON_Delete(json);
                 return;
             }
 
@@ -628,23 +637,47 @@ static void handle_notificaiton_data(char *data_as_chars)
 {
     DEBUG_printf("Notifation update: %s", data_as_chars);
 
-    message_anim = {
-        message_type: MESSAGE_ANIM_NOTIFICATION,
-    };
+    cJSON *json = json_parser(data_as_chars);
 
-    strncpy(message_anim.notification.text, data_as_chars, sizeof(message_anim.notification.text));
-
-    if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
-        DEBUG_printf("Could not send weather data; dropping");
+    if (json == NULL) {
+        return;
     }
 
-    message_buzzer_t message_buzzer = {
-        message_type: MESSAGE_BUZZER_PLAY,
-        play_type: BUZZER_PLAY_NOTIFICATION,
-    };
-    if (xQueueSend(buzzer_queue, &message_buzzer, 10) != pdTRUE) {
-        DEBUG_printf("Could not send message_buzzer data; dropping\n");
+    if (cJSON_IsObject(json)) {
+        cJSON *critical = cJSON_GetObjectItem(json, "critical");
+        cJSON *text = cJSON_GetObjectItem(json, "text");
+
+        if (!critical || !text) {
+            DEBUG_printf("Notificaiton missing field(s)");
+            cJSON_Delete(json);
+            return;
+        }
+
+        message_anim = {
+            message_type: MESSAGE_ANIM_NOTIFICATION,
+        };
+
+        message_anim.notification.critical = cJSON_IsTrue(critical);
+        strncpy(message_anim.notification.text, cJSON_GetStringValue(text), sizeof(message_anim.notification.text));
+
+        if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
+            DEBUG_printf("Could not send weather data; dropping");
+        }
+
+        message_buzzer_t message_buzzer = {
+            message_type: MESSAGE_BUZZER_PLAY,
+            play_type: message_anim.notification.critical ?
+                BUZZER_PLAY_CRITICAL_NOTIFICATION : BUZZER_PLAY_NOTIFICATION,
+        };
+        if (xQueueSend(buzzer_queue, &message_buzzer, 10) != pdTRUE) {
+            DEBUG_printf("Could not send message_buzzer data; dropping\n");
+        }
     }
+    else {
+        DEBUG_printf("Not an object in notification data\n");
+    }
+
+    cJSON_Delete(json);
 }
 
 static void handle_set_time_data(char *data_as_chars)

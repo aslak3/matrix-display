@@ -57,6 +57,30 @@ void buzzer_task(void *dummy)
                             }
                             break;
 
+                        case BUZZER_PLAY_CRITICAL_NOTIFICATION:
+                            for (int i = 0; i < 8; i++) {
+                                pwm_set_clkdiv(slice_num, 500); // Overall 250Hz
+                                pwm_set_enabled(slice_num, true);
+                                vTaskDelay(200 / portTICK_PERIOD_MS);
+                                pwm_set_enabled(slice_num, false);   
+
+                                vTaskDelay(200 / portTICK_PERIOD_MS);
+
+                                pwm_set_clkdiv(slice_num, 1000.0); // Overal 125Hz
+                                pwm_set_enabled(slice_num, true);
+                                vTaskDelay(200 / portTICK_PERIOD_MS);
+                                pwm_set_enabled(slice_num, false);   
+
+                                vTaskDelay(1000 / portTICK_PERIOD_MS);
+                            }
+
+                            pwm_set_clkdiv(slice_num, 5000.0); // Overal 75Hz
+                            pwm_set_enabled(slice_num, true);
+                            vTaskDelay(2000 / portTICK_PERIOD_MS);
+                            pwm_set_enabled(slice_num, false);   
+
+                            break;
+
                         case BUZZER_PLAY_PORCH:
                             for (int j = 0; j < 5; j++) {
                                 pwm_set_clkdiv(slice_num, 500.0); // Overall 250Hz

@@ -83,6 +83,7 @@ typedef struct {
 } porch_t;
 
 typedef struct {
+    bool critical;
     char text[256];
 } notification_t;
 
@@ -161,9 +162,10 @@ typedef struct {
 #define MESSAGE_BUZZER_NULL 0
 #define MESSAGE_BUZZER_PLAY 1
 
-#define BUZZER_PLAY_NULL 0
-#define BUZZER_PLAY_NOTIFICATION 1
-#define BUZZER_PLAY_PORCH 2
+#define BUZZER_PLAY_NULL                    ((uint8_t)0)
+#define BUZZER_PLAY_NOTIFICATION            ((uint8_t)1)
+#define BUZZER_PLAY_CRITICAL_NOTIFICATION   ((uint8_t)2)
+#define BUZZER_PLAY_PORCH                   ((uint8_t)3)
 
 typedef struct {
     uint8_t message_type;

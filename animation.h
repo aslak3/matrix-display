@@ -43,6 +43,7 @@ typedef struct {
     int framestamp;
     rgb_t rgb;
     int pixel_length;
+    int repeats;
 } notification_state_t;
 
 typedef struct {
@@ -97,6 +98,8 @@ class animation {
         void new_porch(porch_t *porch);
         void new_ds3231(ds3231_t *ds3231);
         void update_configuration(configuration_t *config);
+
+        int get_frame(void);
 
     private:
         framebuffer& fb;

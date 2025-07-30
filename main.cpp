@@ -99,11 +99,16 @@ void animate_task(void *dummy)
     memset(&message, 0, sizeof(message_anim_t));
 
     animation anim(fb);
+    int last_network_message_frame = 0;
 
     while (1)
     {
         while (xQueueReceive(animate_queue, &message, 0) == pdTRUE) {
             DEBUG_printf("New message, type: %d\n", message.message_type);
+
+            if (message.message_type != MESSAGE_ANIM_DS3231) {
+                last_network_message_frame = anim.get_frame();;
+            }
 
             switch (message.message_type) {
                 case MESSAGE_ANIM_WEATHER:
@@ -133,6 +138,18 @@ void animate_task(void *dummy)
                 case MESSAGE_ANIM_PORCH:
                     anim.new_porch(&message.porch);
                     break;
+                    
+                case MESSAGE_ANIM_BRIGHTNESS:
+                    fb.set_brightness(message.brightness);
+                    break;
+
+                case MESSAGE_ANIM_GRAYSCALE:
+                    fb.set_grayscale(message.grayscale);
+                    break;
+
+                case MESSAGE_ANIM_CONFIGURATION:
+                    anim.update_configuration(&message.configuration);
+                    break;
 
                 case MESSAGE_ANIM_DS3231:
                     if (! watchdog_enabled) {
@@ -144,22 +161,13 @@ void animate_task(void *dummy)
                         DEBUG_printf("Watchdog enabled\n");
                     }
                     else {
-                        // We must now get a new time every two seconds or we will reboot
-                        watchdog_update();
+                        // Need a network related message about every 10 minutes.
+                        if (last_network_message_frame + 10 * 60 * 100 > anim.get_frame()) {
+                            // We must now get a new time every two seconds or we will reboot
+                            watchdog_update();
+                        }
                     }
                     anim.new_ds3231(&message.ds3231);
-                    break;
-
-                case MESSAGE_ANIM_BRIGHTNESS:
-                    fb.set_brightness(message.brightness);
-                    break;
-
-                case MESSAGE_ANIM_GRAYSCALE:
-                    fb.set_grayscale(message.grayscale);
-                    break;
-
-                case MESSAGE_ANIM_CONFIGURATION:
-                    anim.update_configuration(&message.configuration);
                     break;
 
                 default:

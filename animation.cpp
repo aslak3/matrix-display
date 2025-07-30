@@ -147,17 +147,37 @@ void animation::render_notification(void)
         return;
     }
 
-    notification_state.rgb = rgb_grey(255 - ((frame - notification_state.framestamp) * 16));
+    if (notification_state.data.critical) {
+        int pulse = (frame - notification_state.framestamp) % 32;
+        if (pulse > 15) {
+            pulse = 32 - pulse;
+        }
 
-    fb.filled_box(0, 8, FB_WIDTH, 16, notification_state.rgb);
-    // TODO: Line drawing
-    fb.hollow_box(0, 8, FB_WIDTH, 1, white);
-    fb.hollow_box(0, 8 + 15, FB_WIDTH, 1, white);
+        notification_state.rgb.red = pulse * 8;
+        notification_state.rgb.green = 0;
+        notification_state.rgb.blue = 0;
+        // Draw the background again, removing all foreground.
+        fb.clear(notification_state.rgb);
+    }
+    else {
+        notification_state.rgb = rgb_grey(255 - ((frame - notification_state.framestamp) * 16));
+    }
+
+    fb.filled_box(0, 8, FB_WIDTH, 16, black);
+    fb.line(0, 8, FB_WIDTH, 8, white);
+    fb.line(0, 8 + 16, FB_WIDTH, 8 + 16, white);
+
     int notification_offset = (frame - notification_state.framestamp) / 2;
     fb.print_string(medium_font, FB_WIDTH - notification_offset, 8,
-        notification_state.data.text, magenta);
+        notification_state.data.text, notification_state.data.critical ? red : yellow);
     if (notification_offset > notification_state.pixel_length + FB_WIDTH + (FB_WIDTH / 2)) {
-        clear_notification();
+        notification_state.repeats--;
+        if (notification_state.repeats == 0) {
+            clear_notification();
+        }
+        else {
+            notification_state.framestamp = frame;
+        }
     }
 }
 
@@ -213,10 +233,12 @@ void animation::new_notification(notification_t *notification)
     notification_state.framestamp = frame;
     notification_state.pixel_length = fb.string_length(medium_font, notification->text);
     notification_state.rgb = white;
+    notification_state.repeats = notification_state.data.critical ? 3 : 1;
 }
 
 void animation::clear_notification(void)
 {
+    notification_state.rgb = black;
     notification_state.framestamp = 0;
 }
 
@@ -655,7 +677,7 @@ void animation::update_snowflakes(void)
 void animation::render_snowflakes(void)
 {
     for (int c = 0; c < configuration.snowflake_count && c < NO_SNOWFLAKES; c++) {
-        fb.point((snowflakes[c].x + (32 * 256)) / 256, snowflakes[c].y / 256, bright_white);
+        fb.set_pixel((snowflakes[c].x + (32 * 256)) / 256, snowflakes[c].y / 256, bright_white);
     }
 }
 
@@ -675,4 +697,9 @@ rgb_t animation::rgb_grey(int grey_level)
         };
         return rgb;
     }
+}
+
+int animation::get_frame(void)
+{
+    return frame;
 }

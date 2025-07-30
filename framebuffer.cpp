@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 #include <pico/stdlib.h>
 
@@ -23,21 +24,44 @@ void framebuffer::clear(rgb_t rgb) {
     }
 }
 
-void framebuffer::point(int x, int y, rgb_t rgb)
+void framebuffer::set_pixel(int x, int y, rgb_t rgb)
 {
-    set_pixel(x, y, rgb);
+    if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
+        draw_fb.rgb[y][x] = rgb;
+    }
+}
+
+void framebuffer::set_pixel(int x, int y, rgb_t rgb, uint8_t gamma)
+{
+    rgb_t adjusted_rgb = {
+        red: (uint8_t)((uint32_t)(rgb.red * gamma) / 255),
+        green: (uint8_t)((uint32_t)(rgb.green * gamma) / 255),
+        blue: (uint8_t)((uint32_t)(rgb.blue * gamma) / 255),
+    };
+    if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
+        draw_fb.rgb[y][x] = adjusted_rgb;
+    }
+}
+
+rgb_t framebuffer::get_pixel(int x, int y)
+{
+    if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
+        return draw_fb.rgb[y][x];
+    }
+    else {
+        return (rgb_t) {};
+    }
 }
 
 void framebuffer::hollow_box(int x, int y, int width, int height, rgb_t rgb)
 {
-    for (int p = x; p < x + width; p++) {
-        set_pixel(p, y, rgb);
-        set_pixel(p, y + height - 1, rgb);
+    for (int i = 0; i < width; i++) {
+        set_pixel(x + i, y, rgb);
+        set_pixel(x + i, y + height - 1, rgb);
     }
-
-    for (int p = y; p < y + height; p++) {
-        set_pixel(x, p, rgb);
-        set_pixel(x + width - 1, p, rgb);
+    for (int j = 0; j < height; j++) {
+        set_pixel(x, y + j, rgb);
+        set_pixel(x + width - 1, y + j, rgb);
     }
 }
 
@@ -56,6 +80,80 @@ void framebuffer::shadow_box(int x, int y, int width, int height, uint8_t gamma)
         for (int c = x; c < x + width; c++) {
             rgb_t rgb = get_pixel(c, r);
             set_pixel(c, r, rgb, gamma);
+        }
+    }
+}
+
+void framebuffer::hollow_circle(int x, int y, int radius, rgb_t rgb)
+{
+    int radius_sq = radius * radius;
+
+    for (int i = -radius; i < radius + 1; i++) {
+        for (int j = -radius; j < radius + 1; j++) {
+            int distance_sq = (i * i) + (j * j);
+            if (distance_sq > radius_sq - radius && distance_sq < radius_sq + radius) {
+                set_pixel(x + i, y + j, rgb);
+            }
+        }
+    }
+}
+
+void framebuffer::filled_circle(int x, int y, int radius, rgb_t rgb)
+{
+    int radius_sq = radius * radius;
+
+    for (int i = -radius; i < radius + 1; i++) {
+        for (int j = -radius; j < radius + 1; j++) {
+            int distance_sq = (i * i) + (j * j);
+            if (distance_sq < radius_sq) {
+                set_pixel(x + i, y + j, rgb);
+            }
+        }
+    }
+}
+
+void framebuffer::line(int x1, int y1, int x2, int y2, rgb_t rgb)
+{
+    int dx = abs(x2 - x1);
+    int dy = abs(y2 - y1);
+
+    if (dx >= dy) {
+        int sx = (x1 < x2) ? 1 : -1;
+        int sy = (y1 < y2) ? 1 : -1;
+        int err = dx / 2;
+
+        while (true) {
+            set_pixel(x1, y1, rgb);
+            if (x1 == x2 && y1 == y2)
+                break;
+            int e2 = 2 * err;
+            if (e2 > -dy) {
+                err -= dy;
+                x1 += sx;
+            }
+            if (e2 < dx) {
+                err += dx;
+                y1 += sy;
+            }
+        }
+    } else {
+        int sx = (x1 < x2) ? 1 : -1;
+        int sy = (y1 < y2) ? 1 : -1;
+        int err = dy / 2;
+
+        while (true) {
+            set_pixel(x1, y1, rgb);
+            if (x1 == x2 && y1 == y2)
+                break;
+            int e2 = 2 * err;
+            if (e2 > -dx) {
+                err -= dx;
+                y1 += sy;
+            }
+            if (e2 < dy) {
+                err += dy;
+                x1 += sx;
+            }
         }
     }
 }
@@ -272,33 +370,3 @@ void framebuffer::atomic_fore_copy_out(fb_t *out)
     xQueuePeek(matrix_queue, out, 0);
 }
 
-////
-
-void framebuffer::set_pixel(int x, int y, rgb_t rgb)
-{
-    if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
-        draw_fb.rgb[y][x] = rgb;
-    }
-}
-
-rgb_t framebuffer::get_pixel(int x, int y)
-{
-    if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
-        return draw_fb.rgb[y][x];
-    }
-    else {
-        return (rgb_t) {};
-    }
-}
-
-void framebuffer::set_pixel(int x, int y, rgb_t rgb, uint8_t gamma)
-{
-    rgb_t adjusted_rgb = {
-        red: (uint8_t)((uint32_t)(rgb.red * gamma) / 255),
-        green: (uint8_t)((uint32_t)(rgb.green * gamma) / 255),
-        blue: (uint8_t)((uint32_t)(rgb.blue * gamma) / 255),
-    };
-    if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
-        draw_fb.rgb[y][x] = adjusted_rgb;
-    }
-}
