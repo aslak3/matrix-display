@@ -99,7 +99,8 @@ void animate_task(void *dummy)
     memset(&message, 0, sizeof(message_anim_t));
 
     animation anim(fb);
-    int last_network_message_frame = 0;
+    int last_network_message_seconds = 0;
+    int seconds_counter = 0;
 
     while (1)
     {
@@ -107,7 +108,7 @@ void animate_task(void *dummy)
             DEBUG_printf("New message, type: %d\n", message.message_type);
 
             if (message.message_type != MESSAGE_ANIM_DS3231) {
-                last_network_message_frame = anim.get_frame();;
+                last_network_message_seconds = seconds_counter;
             }
 
             switch (message.message_type) {
@@ -152,6 +153,7 @@ void animate_task(void *dummy)
                     break;
 
                 case MESSAGE_ANIM_DS3231:
+                    seconds_counter++;
                     if (! watchdog_enabled) {
                         // On the first message from the RTC task, Enable the watchdog
                         // requiring the watchdog to be updated every 2s or the MCU will
@@ -161,8 +163,8 @@ void animate_task(void *dummy)
                         DEBUG_printf("Watchdog enabled\n");
                     }
                     else {
-                        // Need a network related message about every 10 minutes.
-                        if (last_network_message_frame + 10 * 60 * 100 > anim.get_frame()) {
+                        // Need a network related message every 10 minutes.
+                        if (last_network_message_seconds + 10 * 60 > seconds_counter) {
                             // We must now get a new time every two seconds or we will reboot
                             watchdog_update();
                         }

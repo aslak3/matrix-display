@@ -698,8 +698,3 @@ rgb_t animation::rgb_grey(int grey_level)
         return rgb;
     }
 }
-
-int animation::get_frame(void)
-{
-    return frame;
-}

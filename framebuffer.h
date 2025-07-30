@@ -29,7 +29,6 @@ class framebuffer {
         void clear(rgb_t rgb);
         void set_pixel(int x, int y, rgb_t rgb);
         void set_pixel(int x, int y, rgb_t rgb, uint8_t gamma);
-        rgb_t get_pixel(int x, int y);
         void hollow_box(int x, int y, int width, int height, rgb_t rgb);
         void filled_box(int x, int y, int width, int height, rgb_t rgb);
         void shadow_box(int x, int y, int width, int height, uint8_t gamma);
@@ -50,6 +49,8 @@ class framebuffer {
         void atomic_fore_copy_out(fb_t *out);
 
     private:
+        rgb_t get_pixel(int x, int y);
+
         uint8_t brightness;
         bool grayscale;
 

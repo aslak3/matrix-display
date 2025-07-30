@@ -43,16 +43,6 @@ void framebuffer::set_pixel(int x, int y, rgb_t rgb, uint8_t gamma)
     }
 }
 
-rgb_t framebuffer::get_pixel(int x, int y)
-{
-    if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
-        return draw_fb.rgb[y][x];
-    }
-    else {
-        return (rgb_t) {};
-    }
-}
-
 void framebuffer::hollow_box(int x, int y, int width, int height, rgb_t rgb)
 {
     for (int i = 0; i < width; i++) {
@@ -370,3 +360,14 @@ void framebuffer::atomic_fore_copy_out(fb_t *out)
     xQueuePeek(matrix_queue, out, 0);
 }
 
+///
+
+rgb_t framebuffer::get_pixel(int x, int y)
+{
+    if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
+        return draw_fb.rgb[y][x];
+    }
+    else {
+        return (rgb_t) {};
+    }
+}
