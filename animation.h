@@ -3,6 +3,8 @@
 #include "framebuffer.h"
 #include "messages.h"
 
+#define FADE_DURATION 32
+
 // Incoming data from MQTT
 
 typedef struct {
@@ -63,6 +65,7 @@ typedef struct {
 } ds3231_state_t;
 
 typedef enum {
+    PAGE_NULL,
     PAGE_WAITING,
     PAGE_RTC,
     PAGE_INSIDE_TEMPERATURES,
@@ -72,6 +75,12 @@ typedef enum {
     PAGE_CALENDAR,
     PAGE_TRANSPORT,
 } page_t;
+
+typedef enum {
+    FADE_STATE_IDLE,
+    FADE_STATE_OUT,
+    FADE_STATE_IN,
+} fade_state_t;
 
 #define NO_SNOWFLAKES 255
 
@@ -104,6 +113,10 @@ class animation {
 
         page_t page;
         int frames_left_on_page;
+        page_t next_page;
+        int fade_countdown;
+        fade_state_t fade_state;
+        uint8_t fade_brightness;
 
         int frame;
         // When a page was started, which some pages use
@@ -146,6 +159,7 @@ class animation {
         font_t *ibm_font;
         font_t *tiny_font;
 
+        void set_next_page(page_t new_page);
         void change_page(page_t new_page);
 
         bool render_waiting_page(void);
@@ -166,4 +180,5 @@ class animation {
         void render_snowflakes(void);
 
         rgb_t rgb_grey(int grey_level);
+        rgb_t rgb_faded(rgb_t rgb);
 };

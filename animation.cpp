@@ -53,6 +53,10 @@ animation::animation(framebuffer& f) : fb(f)
 
     change_page(PAGE_WAITING);
 
+    fade_state = FADE_STATE_IDLE;
+    fade_countdown = 0;
+    fade_brightness = 255;
+
     init_snowflakes();
 }
 
@@ -63,52 +67,75 @@ void animation::prepare_screen(void)
 
 void animation::render_page(void)
 {
+    // uint8_t brightness = (uint8_t)(((float)(fade_countdown) / (float)(FADE_DURATION)) * 255.0);
+    uint8_t brightness = (uint8_t)((fade_countdown * 255) / FADE_DURATION);
+
+    if (fade_state == FADE_STATE_IDLE) {
+        fade_brightness = 255;
+    }
+    else if (fade_state == FADE_STATE_OUT) {
+        fade_countdown--;
+        if (fade_countdown == 0) {
+            change_page(next_page);
+            fade_state = FADE_STATE_IN;
+            fade_countdown = FADE_DURATION;
+        }
+        fade_brightness = brightness;
+    }
+    else if (fade_state == FADE_STATE_IN) {
+        fade_countdown--;
+        if (fade_countdown == 0) {
+            fade_state = FADE_STATE_IDLE;
+        }
+        fade_brightness = 255 - brightness;
+    }
+
     switch (page) {
         case PAGE_WAITING:
             if (render_waiting_page() || ds3231_state.framestamp) {
-                change_page(PAGE_RTC);
+                set_next_page(PAGE_RTC);
             }
             break;
 
         case PAGE_RTC:
-            if (!frames_left_on_page || render_clock_page())  {
-                change_page(PAGE_INSIDE_TEMPERATURES);
+            if (render_clock_page() || !frames_left_on_page)  {
+                set_next_page(PAGE_INSIDE_TEMPERATURES);
             }
             break;
 
         case PAGE_INSIDE_TEMPERATURES:
             if (render_inside_temperatures_page())  {
-                change_page(PAGE_CURRENT_WEATHER);
+                set_next_page(PAGE_CURRENT_WEATHER);
             }
             break;
 
         case PAGE_CURRENT_WEATHER:
-            if (!frames_left_on_page || render_current_weather_page()) {
-                change_page(PAGE_WEATHER_FORECAST);
+            if (render_current_weather_page() || !frames_left_on_page) {
+                set_next_page(PAGE_WEATHER_FORECAST);
             }
             break;
 
         case PAGE_WEATHER_FORECAST:
-            if (!frames_left_on_page || render_weather_forecast_page()) {
-                change_page(PAGE_MEDIA_PLAYER);
+            if (render_weather_forecast_page() || !frames_left_on_page) {
+                set_next_page(PAGE_MEDIA_PLAYER);
             }
             break;
 
         case PAGE_MEDIA_PLAYER:
             if (render_media_player_page()) {
-                change_page(PAGE_CALENDAR);
+                set_next_page(PAGE_CALENDAR);
             }
             break;
 
         case PAGE_CALENDAR:
             if (render_calendar_page()) {
-                change_page(PAGE_TRANSPORT);
+                set_next_page(PAGE_TRANSPORT);
             }
             break;
 
         case PAGE_TRANSPORT:
-            if (!frames_left_on_page || render_transport_page()) {
-                change_page(PAGE_RTC);
+            if (render_transport_page() || !frames_left_on_page) {
+                set_next_page(PAGE_RTC);
             }
             break;
 
@@ -128,6 +155,16 @@ void animation::render_page(void)
         frames_left_on_page--;
     }
     frame++;
+}
+
+void animation::set_next_page(page_t p)
+{
+    if (fade_state == FADE_STATE_IDLE) {
+        DEBUG_printf("Setting the next page to %d\n", p);
+        next_page = p;
+        fade_state = FADE_STATE_OUT;
+        fade_countdown = FADE_DURATION;
+    }
 }
 
 void animation::render_notification(void)
@@ -206,8 +243,6 @@ void animation::new_calendar_data(calendar_data_t *calendar_data)
     calendar_state.message_pixel_height = 0;
     calendar_state.framestamp = frame;
 }
-
-
 
 void animation::new_scroller_data(scroller_data_t *scroller_data)
 {
@@ -332,7 +367,7 @@ void animation::update_configuration(configuration_t *config)
 
 void animation::change_page(page_t new_page)
 {
-    DEBUG_printf("changing to new page %d\n", new_page);
+    DEBUG_printf("Changing to page %d\n", new_page);
     page_framestamp = frame;
 
     page = new_page;
@@ -388,10 +423,10 @@ bool animation::render_clock_page(void)
 {
     fb.print_string(ibm_font, 0, (FB_HEIGHT - 1) - 8 - 6,
         ds3231_state.hide_colons ? ds3231_state.time_no_colons : ds3231_state.time_colons,
-        orange);
+        rgb_faded(orange));
 
     fb.print_string(tiny_font, (FB_WIDTH / 2) - (fb.string_length(tiny_font, ds3231_state.date) / 2),
-        (FB_HEIGHT - 1) - 8 - 10 - 6, ds3231_state.date, white);
+        (FB_HEIGHT - 1) - 8 - 10 - 6, ds3231_state.date, rgb_faded(white));
 
     if (configuration.clock_colon_flash) {
         ds3231_state.colon_counter++;
@@ -421,11 +456,11 @@ bool animation::render_inside_temperatures_page(void)
             continue;
         }
 
-        fb.print_string(tiny_font, 0, running_y, inside_temp->name, orange);
+        fb.print_string(tiny_font, 0, running_y, inside_temp->name, rgb_faded(orange));
 
         char buf[10];
         snprintf(buf, sizeof(buf), "%.1fC", inside_temp->temperature);
-        fb.print_string(tiny_font, 42, running_y, buf, yellow);
+        fb.print_string(tiny_font, 42, running_y, buf, rgb_faded(yellow));
         running_y -= tiny_font->height + 1;
         running_y -= 3;
     }
@@ -448,16 +483,16 @@ bool animation::render_current_weather_page(void)
             weather_state.data.condition);
     }
 
-    fb.show_image(current_weather_image, 4, 0);
+    fb.show_image(current_weather_image, 4, 0, fade_brightness, false);
 
     char buffer[10];
     memset(buffer, 0, sizeof(buffer));
 
     snprintf(buffer, sizeof(buffer), "%dC", (int)weather_state.data.temperature);
-    fb.print_string(ibm_font, 50 - (fb.string_length(ibm_font, buffer) / 2), 20, buffer, yellow);
+    fb.print_string(ibm_font, 50 - (fb.string_length(ibm_font, buffer) / 2), 20, buffer, rgb_faded(yellow));
 
     snprintf(buffer, sizeof(buffer), "%d%%", (int)weather_state.data.precipitation_probability);
-    fb.print_string(ibm_font, 50 - (fb.string_length(ibm_font, buffer) / 2), 4, buffer, light_blue);
+    fb.print_string(ibm_font, 50 - (fb.string_length(ibm_font, buffer) / 2), 4, buffer, rgb_faded(light_blue));
 
     return false;
 }
@@ -471,18 +506,18 @@ bool animation::render_weather_forecast_page(void)
         forecast_t& forecast = weather_state.data.forecasts[c];
 
         fb.print_string(tiny_font, offset_x + 11 - (fb.string_length(tiny_font, forecast.time) / 2),
-            24, forecast.time, white);
+            24, forecast.time, rgb_faded(white));
 
         char buffer[10];
         memset(buffer, 0, sizeof(buffer));
 
         if ((frame % 400) < 200) {
             snprintf(buffer, sizeof(buffer), "%dC", (int)forecast.temperature);
-            fb.print_string(tiny_font, offset_x + 11 - (fb.string_length(tiny_font, buffer) / 2), 16, buffer, yellow);
+            fb.print_string(tiny_font, offset_x + 11 - (fb.string_length(tiny_font, buffer) / 2), 16, buffer, rgb_faded(yellow));
         }
         else {
             snprintf(buffer, sizeof(buffer), "%d%%", (int)forecast.precipitation_probability);
-            fb.print_string(tiny_font, offset_x + 11 - (fb.string_length(tiny_font, buffer) / 2), 16, buffer, light_blue);
+            fb.print_string(tiny_font, offset_x + 11 - (fb.string_length(tiny_font, buffer) / 2), 16, buffer, rgb_faded(light_blue));
         }
 
         image_t *current_weather_image = get_image(forecast.condition, 16, 16);
@@ -491,7 +526,7 @@ bool animation::render_weather_forecast_page(void)
                 forecast.condition);
         }
 
-        fb.show_image(current_weather_image, offset_x + 2, 0);
+        fb.show_image(current_weather_image, offset_x + 2, 0, fade_brightness, false);
 
         offset_x += 22;
     }
@@ -519,12 +554,12 @@ bool animation::render_media_player_page(void)
     if (! state_image) {
         panic("Could not load media_player state image for %s", mpd->state);
     }
-    fb.show_image(state_image, 16, 0, 0x40, true);
+    fb.show_image(state_image, 16, 0, (64 * fade_brightness) / 255, true);
 
     if (strcmp(mpd->state, "off") != 0 ) {
         int message_offset = (frame - media_player_state.framestamp) / configuration.media_player_scroll_speed;
         fb.print_string(medium_font, FB_WIDTH - message_offset, 8,
-            media_player_state.message, cyan);
+            media_player_state.message, rgb_faded(cyan));
 
         if (message_offset >
             media_player_state.message_pixel_length + FB_WIDTH + (FB_WIDTH / 2))
@@ -549,9 +584,9 @@ bool animation::render_calendar_page(void)
             continue;
         }
 
-        fb.print_string(tiny_font, 0, running_y, app->start, yellow);
+        fb.print_string(tiny_font, 0, running_y, app->start, rgb_faded(yellow));
         running_y -= tiny_font->height + 1;
-        running_y = fb.print_wrapped_string(tiny_font, running_y, app->summary, white);
+        running_y = fb.print_wrapped_string(tiny_font, running_y, app->summary, rgb_faded(white));
         running_y -= 3;
     }
 
@@ -571,12 +606,12 @@ bool animation::render_transport_page(void)
         return true;
     }
 
-    rgb_t towards_colour = light_blue;
-    rgb_t departures_colour = cyan;
+    rgb_t towards_colour = rgb_faded(light_blue);
+    rgb_t departures_colour = rgb_faded(cyan);
     // If bus info is stale (older then 5 minutes) make it red instead of blue
     if (frame - ds3231_state.framestamp > 300 * ds3231_state.frames_per_second) {
-        towards_colour = dark_red;
-        departures_colour = red;
+        towards_colour = rgb_faded(dark_red);
+        departures_colour = rgb_faded(red);
     }
 
     fb.print_string(tiny_font, 0, 24, transport_state.data.journies[0].towards,
@@ -697,4 +732,13 @@ rgb_t animation::rgb_grey(int grey_level)
         };
         return rgb;
     }
+}
+
+rgb_t animation::rgb_faded(rgb_t rgb)
+{
+    return rgb_t {
+        red: (uint8_t)((uint32_t)(rgb.red * fade_brightness) / 256),
+        green: (uint8_t)((uint32_t)(rgb.green * fade_brightness) / 256),
+        blue: (uint8_t)((uint32_t)(rgb.blue * fade_brightness) / 256),
+    };
 }
