@@ -14,6 +14,7 @@ set(PROJECT matrix-display)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffile-prefix-map=${PROJECT_SOURCE_DIR}/=")
 
 option(SPI_TO_FPGA "Use the iCE40 FPGA for the display" 1)
 option(BME680_PRESENT "Use a BME680 for temperature, humidity and air preasure" 0)
