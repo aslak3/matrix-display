@@ -160,17 +160,19 @@ typedef struct {
 // Messages destined at buzzer task
 
 #define MESSAGE_BUZZER_NULL 0
-#define MESSAGE_BUZZER_PLAY 1
+#define MESSAGE_BUZZER_SIMPLE 1
+#define MESSAGE_BUZZER_RTTTL 2
 
-#define BUZZER_PLAY_NULL                    ((uint8_t)0)
-#define BUZZER_PLAY_NOTIFICATION            ((uint8_t)1)
-#define BUZZER_PLAY_CRITICAL_NOTIFICATION   ((uint8_t)2)
-#define BUZZER_PLAY_PORCH                   ((uint8_t)3)
+#define BUZZER_SIMPLE_NULL                      ((uint8_t)0)
+#define BUZZER_SIMPLE_NOTIFICATION              ((uint8_t)1)
+#define BUZZER_SIMPLE_CRITICAL_NOTIFICATION     ((uint8_t)2)
+#define BUZZER_SIMPLE_PORCH                     ((uint8_t)3)
 
 typedef struct {
     uint8_t message_type;
     union {
-        uint8_t play_type;
+        uint8_t simple_type;
+        char rtttl_tune[1024];
     };
 } message_buzzer_t;
 

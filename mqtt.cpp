@@ -41,7 +41,7 @@ static void handle_transport_json_data(char *data_as_chars);
 static void handle_porch_sensor_data(char *data_as_chars);
 static void handle_notificaiton_data(char *data_as_chars);
 static void handle_set_time_data(char *data_as_chars);
-static void handle_buzzer_play_data(char *data_as_chars);
+static void handle_buzzer_play_rtttl_data(char *data_as_chars);
 static void handle_light_command_data(char *data_as_chars);
 static void handle_light_brightness_command_data(char *data_as_chars);
 static void handle_set_grayscale_data(char *data_as_chars);
@@ -162,7 +162,7 @@ static int do_mqtt_connect(mqtt_client_t *client)
 #define PORCH_SENSOR_TOPIC "matrix_display/porch"
 #define NOTIFICATION_TOPIC "matrix_display/notification"
 #define SET_RTC_TIME_TOPIC "matrix_display/set_time"
-#define BUZZER_PLAY_TOPIC "matrix_display/buzzer_play"
+#define BUZZER_PLAY_RTTTL_TOPIC "matrix_display/buzzer_play_rtttl"
 #define LIGHT_COMMAND_TOPIC "matrix_display/panel/switch"
 #define LIGHT_BRIGHTNESS_COMMAND_TOPIC "matrix_display/panel/brightness/set"
 #define SET_GRAYSCALE_TOPIC "matrix_display/greyscale/switch"
@@ -179,8 +179,8 @@ static void do_mqtt_subscribe(mqtt_client_t *client)
         TRANSPORT_TOPIC,
         PORCH_SENSOR_TOPIC,
         NOTIFICATION_TOPIC,
-        SET_RTC_TIME_TOPIC, 
-        BUZZER_PLAY_TOPIC,
+        SET_RTC_TIME_TOPIC,
+        BUZZER_PLAY_RTTTL_TOPIC,
         LIGHT_COMMAND_TOPIC,
         LIGHT_BRIGHTNESS_COMMAND_TOPIC,
         SET_GRAYSCALE_TOPIC,
@@ -283,8 +283,8 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         else if (strcmp(current_topic, SET_RTC_TIME_TOPIC) == 0) {
             handle_set_time_data(data_as_chars);
         }
-        else if (strcmp(current_topic, BUZZER_PLAY_TOPIC) == 0) {
-            handle_buzzer_play_data(data_as_chars);
+        else if (strcmp(current_topic, BUZZER_PLAY_RTTTL_TOPIC) == 0) {
+            handle_buzzer_play_rtttl_data(data_as_chars);
         }
         else if (strcmp(current_topic, LIGHT_COMMAND_TOPIC) == 0) {
             handle_light_command_data(data_as_chars);
@@ -624,8 +624,8 @@ static void handle_porch_sensor_data(char *data_as_chars)
 
     if (porch.occupied) {
         message_buzzer_t message_buzzer = {
-            message_type: MESSAGE_BUZZER_PLAY,
-            play_type: BUZZER_PLAY_PORCH,
+            message_type: MESSAGE_BUZZER_SIMPLE,
+            simple_type: BUZZER_SIMPLE_PORCH,
         };
         if (xQueueSend(buzzer_queue, &message_buzzer, 10) != pdTRUE) {
             DEBUG_printf("Could not send message_buzzer data; dropping\n");
@@ -646,6 +646,8 @@ static void handle_notificaiton_data(char *data_as_chars)
     if (cJSON_IsObject(json)) {
         cJSON *critical = cJSON_GetObjectItem(json, "critical");
         cJSON *text = cJSON_GetObjectItem(json, "text");
+        // RTTTL tune is optional and may be null.
+        cJSON *rtttl_tune = cJSON_GetObjectItem(json, "rtttl_tune");
 
         if (!critical || !text) {
             DEBUG_printf("Notificaiton missing field(s)");
@@ -661,16 +663,29 @@ static void handle_notificaiton_data(char *data_as_chars)
         strncpy(message_anim.notification.text, cJSON_GetStringValue(text), sizeof(message_anim.notification.text));
 
         if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
-            DEBUG_printf("Could not send weather data; dropping");
+            DEBUG_printf("Could not send anim notification data; dropping");
         }
 
-        message_buzzer_t message_buzzer = {
-            message_type: MESSAGE_BUZZER_PLAY,
-            play_type: message_anim.notification.critical ?
-                BUZZER_PLAY_CRITICAL_NOTIFICATION : BUZZER_PLAY_NOTIFICATION,
-        };
+        message_buzzer_t message_buzzer;
+
+        // Send the optional RTTTL tune, or play a pre-rolled tone sequence.
+        if (rtttl_tune) {
+            message_buzzer = {
+                message_type: MESSAGE_BUZZER_RTTTL,
+            };
+            strncpy(message_buzzer.rtttl_tune, cJSON_GetStringValue(rtttl_tune),
+                sizeof(message_buzzer.rtttl_tune));
+        }
+        else {
+            message_buzzer = {
+                message_type: MESSAGE_BUZZER_SIMPLE,
+                simple_type: message_anim.notification.critical ?
+                    BUZZER_SIMPLE_CRITICAL_NOTIFICATION : BUZZER_SIMPLE_NOTIFICATION,
+            };
+
+        }
         if (xQueueSend(buzzer_queue, &message_buzzer, 10) != pdTRUE) {
-            DEBUG_printf("Could not send message_buzzer data; dropping\n");
+            DEBUG_printf("Could not send buzzer notification data; dropping\n");
         }
     }
     else {
@@ -693,15 +708,15 @@ static void handle_set_time_data(char *data_as_chars)
     }
 }
 
-static void handle_buzzer_play_data(char *data_as_chars)
+static void handle_buzzer_play_rtttl_data(char *data_as_chars)
 {
-    DEBUG_printf("handle_buzzer_data()\n");
+    DEBUG_printf("handle_buzzer_play_rtttl_data()\n");
 
     message_buzzer_t message_buzzer = {
-        .message_type = MESSAGE_BUZZER_PLAY,
+        .message_type = MESSAGE_BUZZER_RTTTL,
     };
 
-    bcd_string_to_bytes(data_as_chars, &message_buzzer.play_type, sizeof(uint8_t));
+    strncpy(message_buzzer.rtttl_tune, data_as_chars, sizeof(message_buzzer.rtttl_tune));
 
     if (xQueueSend(buzzer_queue, &message_buzzer, 10) != pdTRUE) {
         DEBUG_printf("Could not send buzzer data; dropping");

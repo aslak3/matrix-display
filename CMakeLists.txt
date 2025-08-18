@@ -57,6 +57,7 @@ add_executable(
     buzzer.cpp
     framebuffer.cpp
     animation.cpp
+    rtttl.cpp
     cJSON.c
     ${CLIMATE_SOURCE}
 )
