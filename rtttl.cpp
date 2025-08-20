@@ -136,9 +136,11 @@ bool rtttl::get_next_note(rtttl_note_t *note)
     bool pause = false;
     if (*p && (*p >= 'a' && *p <= 'g')) {
         key_number = (*p++ - 'a' + 5) % 7;
-        if (*p && *p == '#') {
+        if (*p && *p++ == '#') {
             sharp = true;
-            p++;
+        }
+        if (*p && *p++ == '.') {
+            duration += duration / 2;
         }
     }
     else if (*p && *p == 'p') {
