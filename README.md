@@ -1,6 +1,6 @@
 # An LED matrix display for Home Assistant
 
-This is the central component for a project to show various information from a [Home Assistant](http://home-assistant.io) installation on a nice and clear LED-based display:
+This is the central component for a project to show various information from a [Home Assistant](http://home-assistant.io) installation on a nice and clear LED-based display. The protocol used is MQTT so in theory other automation platforms can be used:
 
 ![clock](assets/clock.jpg)
 ![weather](assets/wather-forecast.jpg)
@@ -14,22 +14,22 @@ The following information can currently be shown:
 1. Time and Date - The display doubles up as a mantlepiece clock
 2. Inside the house temperature information
 3. Current weather
-4. Weather forecast for the next 9 hours, in 3 hour increments
+4. Weather forecast for the next few hours
 5. The next 3 items in the calendar
 6. If music is playing somewhere, you can see the track title name, album name and artist name
 7. Transport information: two sets of two lines of text for use in showing the time of the next train, bus, etc
 
-The system also supports notifications, which will scroll across the display. Lastly there is support for displaying an icon when there is movement in the house porch, should such a thing be needed.
+The system also supports notifications, which will scroll across the display. Critical and normal notifications are supported. Lastly there is support for displaying an icon when there is movement in the house porch, should such a thing be needed.
 
-The communication link to the Home Assistant install is via MQTT, with auto-discovery being supported to create a device in Home Assistant for the control and monitoring of the system.
+The communication link, as mentioned, to the Home Assistant install is via MQTT, with auto-discovery being supported to create a device in Home Assistant for the control and monitoring of the system.
 
-The system runs atop of [FreeRTOS](https://www.freertos.org/). This project uses the relatively new support for SMP mode on the RP2040 on the Pi Pico W.
+The system runs atop of [FreeRTOS](https://www.freertos.org/). This project uses the  support for SMP mode on the RP2040 on the Pi Pico W.
 
-The display drawing code supports the usual graphical primitives, all utilising the 64x32 screen: proportional and non proportional fonts, icons (used for showing weather state), filled and unfilled boxes, and a primitive alpha channel scheme for producing a dimmed box suitable for drawing other elements like text atop of. The display output path has a brightness control, allowing the screen's intensity to be scaled according to a brightness value.
+The display drawing code supports the usual graphical primitives, all utilising the 64x32 screen: proportional and non proportional fonts, icons (used for showing weather state, etc), filled and unfilled boxes, filled and unfilled circles, lines, and a primitive alpha channel scheme for producing a dimmed box suitable for drawing other elements like text atop of. The display output path has a brightness control, allowing the screen's intensity to be scaled according to a brightness value.
 
 # Supported hardware
 
-This firmware is designed to be run on a Pi Pico W attached to a main board I have designed, though it could, fairly easily, be adapted to other platforms such as those based around an ESP32. The board features the following main components:
+This firmware is designed to be run on a Pi Pico W attached to a main board I have designed, though it could, in theory, be adapted to other platforms such as those based around an ESP32. The board features the following main components:
 
 * Power via 5V barrel jack
 * A Pi Pico W (obviously)
@@ -42,19 +42,19 @@ This firmware is designed to be run on a Pi Pico W attached to a main board I ha
   * IDC16 HUB75 connector attached to the FPGA
   * LED
 
-It is possible to build the firmware with support for either the attached FPGA or not. If the FPGA is not used, the HUB75 display will be driven via the RP2040 PIO mode, which has some drawbacks including flickering when the RP2040 is under heavy network load. Additionally the firmware can collect the device's own temperature either from the temperature sensor within the DS3231 RTC IC, or from an external [BME680](https://cdn-shop.adafruit.com/product-files/3660/BME680.pdf) (PDF) temperature, humidly, air pressure and gas sensor attached to a breakout board. Due to reporting on atmospheric air quality requiring a proprietary library only temperature, humidity and air pressure readings are currently reported.
+It is possible to build the firmware with support for either the attached FPGA or not. If the FPGA is not used, the HUB75 display will be driven via the RP2040 PIO mode, which has some drawbacks including very slight flickering when the RP2040 is under heavy network load. Additionally the firmware can collect the device's own temperature either from the temperature sensor within the DS3231 RTC IC, or from an external [BME680](https://cdn-shop.adafruit.com/product-files/3660/BME680.pdf) (PDF) temperature, humidly, air pressure and gas sensor attached to a breakout board.
 
 # Time and Date
 
-One of the oddities with this design is that the time and date is held in an RTC. The clock is polled 10 times a second and on a second rollover the display is updated. The principle reason for this is simplicity. While obtaining the time via NTP from within an FreeRTOS application is certainly possible, it would complicate the code somewhat. Nonetheless I may change this over in the future. A quirk of this choice is that the time and date must be set in the RTC using a special MQTT message; see below. The system has no concept of timezone as well.
+One of the interesting aspets with this design is that the time and date is held in an RTC. The clock is polled 10 times a second and on a second rollover the display is updated. The principle reason for this is simplicity. While obtaining the time via NTP from within an FreeRTOS application is certainly possible, it would complicate the code somewhat. Nonetheless I may change this over in the future. A quirk of this choice is that the time and date must be set in the RTC using a special MQTT message; see below. The system has no concept of timezone as well.
 
 # Configuring Home Assistant
 
-You require a working MQTT setup in your Home Assistant, so make sure that is working before going further.
+You require a working MQTT setup in your Home Assistant, so make sure that is working before going further. Only non SSL connections are currently supported.
 
 The data shown on the display, beside the time and date, is pushed up to the display via Home Assistant automations using MQTT. This affords a large amount of flexibility in what is shown, vs the display being configured with entities which it is interested in which is an alternative approach I discarded. Eventually I hope to have a nice HA blueprint that makes this part of the setup of the automation easier, but for now these notes will have to suffice.
 
-A [complete example](examples/automation.yaml) of an automation for configuring most aspects of the display is included in this repo. It should be fairly simple, for the experienced Home Assistant user, to tailor this to any particular setup.
+A [complete example](examples/automation.yaml) of an automation for configuring most aspects of the display is included in this repo. This example is probably slightly out of date, but it should be fairly simple, for the experienced Home Assistant user, to tailor this to any particular setup.
 
 The automation I have running divides the chore of sending up the needed information into four blocks: weather, media player, calendar and porch. The weather information includes the temperature data for inside the house.
 
@@ -82,7 +82,7 @@ data:
 
 As said above, refer to the complete example automation YAML to get started.
 
-Note that I do not use Home Assistant as the originator of the transport information in my setup. Instead I use a Go script, [included here as a source of inspiration](tools/bluestar-parser/bluestar-parser.go), which does MQTT publishing operations based on web-scraped data.
+For the source of transport information I have written [my own custom integration](https://github.com/aslak3/go_south_coast) for my local bus company. Other sources are possible; previously I use a Go script, [which I will continue to included here as a source of inspiration](tools/bluestar-parser/bluestar-parser.go), which does MQTT publishing operations based on web-scraped data.
 
 Before creating the automation you should verify basic functionality of your display by activating auto-detection. This is done by sending a MQTT message with the text `ON` in it to the topic `matrix_display/autodetect`.
 
@@ -131,11 +131,37 @@ The current transport situation. JSON data of the form:
 ]
 ```
 
+(Yes I'm aware those dictionary keys have inconsistent case. Likely because the generator of the data was a Go script.)
+
 Currently only two destinations are supported. Strings need to be kept as short as possible, as no scrolling is done.
+
+## matrix_display/buzzer_play_rtttl
+
+The buzzer can play a [Ring Tone Text Transfer Language](https://en.wikipedia.org/wiki/Ring_Tone_Text_Transfer_Language) tune, allowing you to reminisce about the 1990s. If you weren't alive then: RTTTL is a simple text format describing the pitch and duration of a sequence of notes. 1990s phones used these phones as ringtones.
+
+Why you'd want to do this I'm not quite sure, but it is pretty neat and I had fun writing the code, and testing it out with different tunes I found online.
+
+Here is a rendition of the Mission Impossible theme:
+
+```
+mission_imp:d=16,o=6,b=95:32d,32d#,32d,32d#,32d,32d#,32d,32d#,32d,32d,32d#,32e,32f,32f#,32g,g,8p,g,8p,a#,p,c7,p,g,8p,g,8p,f,p,f#,p,g,8p,g,8p,a#,p,c7,p,g,8p,g,8p,f,p,f#,p,a#,g,2d,32p,a#,g,2c#,32p,a#,g,2c,a#5,8c,2p,32p,a#5,g5,2f#,32p,a#5,g5,2f,32p,a#5,g5,2e,d#,8d
+```
 
 ## matrix_display/notification
 
-A plain text message to present. The screen is flashed white, the buzzer will play some tones, and the message will be scrolled across the screen in large lettering.
+A plain text message to present, wrapped in a dictionary:
+
+```JSON
+{
+  "critical": true,
+  "text": "This is a very important notification",
+  "rtttl_tune": "... tune data ..."
+}
+```
+
+The screen is flashed white, the buzzer will play some tones, and the message will be scrolled across the screen in large lettering. If a critical message is shown, it will be shown in red text and will be shown 3 times, and the beeps are a little more "aggressive".
+
+Note that `rtttl_tune` is optional. If it is missing the standard beeps, for that level of criticality, are played.
 
 ## matrix_display/set_time
 
@@ -150,10 +176,6 @@ Sets the time in the RTC. The message body should be a textual version of the by
 7. Year (sans 20xx)
 
 That is the message should be exactly 14 bytes long. Day 1 is Sunday.
-
-## matrix_display/buzzer_play
-
-Two tones are supported by the buzzer at present, controlled by the message text. Send 01 for the tone that is played automatically when a notification is shown, or 02 for the porch beeps. This will be extended in the future to user-created tunes passed in by the caller of this message.
 
 ## matrix_display/panel/switch
 
@@ -213,7 +235,7 @@ One of the first things I automated was to turn the panel off when it isn't need
 
 All of the notifications that happen in my Home Assistant setup go through an automation script. This script can, based on how it is called, generate alerts on the user phones, or it will speak the notification via the Nabu-Casa Text To Speech service, or it will put the notification on the matrix display via an MQTT publish service call. I use notifications for such things as:
 
-* When it's going to rain
+* When it's going to rain (it might be fun to try to get the buzzer to play back some pitter-patter noises)
 * When Home Assistant detects someone is on their way home
 * Upcoming appointments in the calendar
 
@@ -277,3 +299,4 @@ Clearly the scope for such a display as this is fairly limitless. The following 
 
 * [MDFPGA](https://github.com/aslak3/MDFPGA) The PCB design for the base board.
 * [HUB75 Controller](https://github.com/aslak3/hub75-controller) A HUB75 LED matrix controller implemented in Verilog.
+* [Go South Coast integration](https://github.com/aslak3/go_south_coast) My integration for retrieving bus times for the local, to me on the south coast of England, bus company.
