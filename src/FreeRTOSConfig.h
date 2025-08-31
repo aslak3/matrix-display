@@ -25,6 +25,7 @@
  * 1 tab == 4 spaces!
  */
 
+#if PICO_SDK
 #ifndef FREERTOS_CONFIG_H
 #define FREERTOS_CONFIG_H
 
@@ -140,3 +141,4 @@ to exclude the API function. */
 /* A header file that defines trace macro can be included here. */
 
 #endif /* FREERTOS_CONFIG_H */
+#endif

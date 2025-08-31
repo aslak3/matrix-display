@@ -2,11 +2,21 @@
 #include <string.h>
 #include <math.h>
 
+#if PICO_SDK
+
 #include <pico/stdlib.h>
 
 #include <FreeRTOS.h>
 #include <task.h>
 #include <queue.h>
+
+#else
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/queue.h>
+
+#endif
 
 #include "framebuffer.h"
 
@@ -37,6 +47,7 @@ void framebuffer::set_pixel(int x, int y, rgb_t rgb, uint8_t gamma)
         red: (uint8_t)((uint32_t)(rgb.red * gamma) / 255),
         green: (uint8_t)((uint32_t)(rgb.green * gamma) / 255),
         blue: (uint8_t)((uint32_t)(rgb.blue * gamma) / 255),
+        flags: 0,
     };
     if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
         draw_fb.rgb[y][x] = adjusted_rgb;
@@ -151,7 +162,7 @@ void framebuffer::line(int x1, int y1, int x2, int y2, rgb_t rgb)
 int framebuffer::print_char(font_t *font, int x, int y, char c, rgb_t rgb, bool length_only)
 {
     // Basic sanity please
-    if (!(c >= 0x20 && c <= 0x7f || c == CHAR_UP_ARROW || c == CHAR_DOWN_ARROW)) {
+    if (!((c >= 0x20 && c <= 0x7f) || c == CHAR_UP_ARROW || c == CHAR_DOWN_ARROW)) {
         // DEBUG_printf("Bad character in framebuffer::printchar(): %02x\n", (int) c);
         return 0;
     }
@@ -160,10 +171,10 @@ int framebuffer::print_char(font_t *font, int x, int y, char c, rgb_t rgb, bool 
     // Override colour for those two chars.
     rgb_t final_rgb = rgb;
     if (c == CHAR_UP_ARROW) {
-        final_rgb = { red: 0, green: 0xff, blue: 0 };
+        final_rgb = { red: 0, green: 0xff, blue: 0, flags: 0 };
     }
     else if (c == CHAR_DOWN_ARROW) {
-        final_rgb = { red: 0xff, green: 0, blue: 0 };
+        final_rgb = { red: 0xff, green: 0, blue: 0, flags: 0 };
     }
 
     int index = (int)(c - ' ');
@@ -203,6 +214,7 @@ int framebuffer::print_char(font_t *font, int x, int y, char c, rgb_t rgb, bool 
                         .red =   (uint8_t)((uint32_t)(font->data[count] * final_rgb.red) / 256),
                         .green = (uint8_t)((uint32_t)(font->data[count] * final_rgb.green) / 256),
                         .blue =  (uint8_t)((uint32_t)(font->data[count] * final_rgb.blue) / 256),
+                        .flags = 0,
                     });
                 }
                 count++;
@@ -302,6 +314,7 @@ void framebuffer::show_image(image_t *image, int x, int y, uint8_t gamma, bool t
                 red: *(off + 0),
                 green: *(off + 1),
                 blue: *(off + 2),
+                flags: 0,
             };
             if (rgb.red || rgb.green || rgb.blue || !transparent) {
                 set_pixel(c + x, image_dsc->height + (y - r), rgb, gamma);
@@ -340,6 +353,7 @@ void framebuffer::atomic_back_to_fore_copy(void)
                     red: rgb.red,
                     green: rgb.green,
                     blue: rgb.blue,
+                    flags: 0,
                 };
             }
             else {
@@ -347,6 +361,7 @@ void framebuffer::atomic_back_to_fore_copy(void)
                     red: (uint8_t)((uint32_t)(rgb.red * brightness) / 255),
                     green: (uint8_t)((uint32_t)(rgb.green * brightness) / 255),
                     blue: (uint8_t)((uint32_t)(rgb.blue * brightness) / 255),
+                    flags: 0,
                 };
             }
         }

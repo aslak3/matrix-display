@@ -1,23 +1,36 @@
 #include <stdio.h>
 #include <math.h>
+#include <inttypes.h>
+#include <string.h>
+#include <stdlib.h>
 
-#include <pico/stdlib.h>
+#if PICO_SDK
+
 #include <hardware/gpio.h>
 #include <hardware/spi.h>
 #include <hardware/dma.h>
 #include <hardware/watchdog.h>
 #include <pico/cyw43_arch.h>
 
+#include "hub75.pio.h"
+
 #include <FreeRTOS.h>
 #include <task.h>
 #include <queue.h>
 #include <semphr.h>
 
+#else
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/queue.h>
+#include <freertos/semphr.h>
+
+#endif
+
 #include "matrix_display.h"
 
 #include "animation.h"
-
-#include "hub75.pio.h"
 
 #if SPI_TO_FPGA
 #define FPGA_RESET_PIN 26
@@ -46,12 +59,16 @@ QueueHandle_t mqtt_queue;
 QueueHandle_t i2c_queue;
 QueueHandle_t buzzer_queue;
 
+#if PICO_SDK
 int main(void)
 {
     stdio_init_all();
-
+#else
+extern "C" void app_main(void)
+{
+#endif
     // Let USB UART wake up on a listener.
-    sleep_ms(1000);
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
 
     DEBUG_printf("Hello, matrix here\n");
 
@@ -75,7 +92,9 @@ int main(void)
 
     while(1);
 
+#if PICO_SDK
     return 0;
+#endif
 }
 
 framebuffer fb;
@@ -87,6 +106,7 @@ void animate_task(void *dummy)
     DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
 
+#if PICO_SDK
     if (watchdog_enable_caused_reboot()) {
         DEBUG_printf("Restart caused by watchdog!\n");
     } else {
@@ -94,22 +114,24 @@ void animate_task(void *dummy)
     }
 
     bool watchdog_enabled = false;
-
+    int last_network_message_seconds = 0;
+    int seconds_counter = 0;
+#endif
     message_anim_t message;
     memset(&message, 0, sizeof(message_anim_t));
 
     animation anim(fb);
-    int last_network_message_seconds = 0;
-    int seconds_counter = 0;
 
     while (1)
     {
         while (xQueueReceive(animate_queue, &message, 0) == pdTRUE) {
             DEBUG_printf("New message, type: %d\n", message.message_type);
 
+#if PICO_SDK
             if (message.message_type != MESSAGE_ANIM_DS3231) {
                 last_network_message_seconds = seconds_counter;
             }
+#endif
 
             switch (message.message_type) {
                 case MESSAGE_ANIM_WEATHER:
@@ -153,6 +175,7 @@ void animate_task(void *dummy)
                     break;
 
                 case MESSAGE_ANIM_DS3231:
+#if PICO_SDK
                     seconds_counter++;
                     if (! watchdog_enabled) {
                         // On the first message from the RTC task, Enable the watchdog
@@ -169,6 +192,7 @@ void animate_task(void *dummy)
                             watchdog_update();
                         }
                     }
+#endif
                     anim.new_ds3231(&message.ds3231);
                     break;
 
@@ -188,6 +212,7 @@ void animate_task(void *dummy)
 
         vTaskDelay(10);
     }
+    
 }
 
 void matrix_task(void *dummy)
@@ -197,6 +222,7 @@ void matrix_task(void *dummy)
     DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
 
+#if PICO_SDK
 #if SPI_TO_FPGA
     gpio_init(FPGA_RESET_PIN);
     gpio_set_dir(FPGA_RESET_PIN, true);
@@ -282,4 +308,24 @@ void matrix_task(void *dummy)
         }
     }
 #endif
+#else
+// ESP32 bitbang
+#endif
 }
+
+#if ESP32_SDK
+void panic(const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+
+    // Add a prefix for logging
+    printf("PANIC!!! : ");
+    vprintf(format, args);
+    printf("\n");
+
+    va_end(args);
+
+    while(1);
+}
+#endif

@@ -1,4 +1,6 @@
+#if PICO_SDK
 #include <pico/stdlib.h>
+#endif
 
 #include "framebuffer.h"
 #include "messages.h"
@@ -136,20 +138,20 @@ class animation {
 
         configuration_t configuration;
 
-        const rgb_t black = { red: 0, green: 0, blue: 0 };
-        const rgb_t white = { red: 0xff, green: 0xff, blue: 0xff };
-        const rgb_t red = { red: 0xff, green: 0, blue: 0 };
-        const rgb_t dark_red = { red: 0x80, green: 0, blue: 0 };
-        const rgb_t green = { red: 0, green: 0xff, blue: 0 };
-        const rgb_t dark_green { red: 0, green: 0x80, blue: 0 };
-        const rgb_t blue = { red: 0, green: 0, blue: 0xff };
-        const rgb_t dark_blue = { red: 0, green: 0, blue: 0x80 };
-        const rgb_t cyan = { red: 0, green: 0xff, blue: 0xff };
-        const rgb_t yellow = { red: 0xff, green: 0xff, blue: 0 };
-        const rgb_t magenta = { red: 0xff, green: 0, blue: 0xff };
-        const rgb_t grey = { red: 0x08, green: 0x08, blue: 0x08 };
-        const rgb_t orange { red: 0xff, green: 0xa5, blue: 0 };
-        const rgb_t light_blue = { red: 0, green: 0x40, blue: 0xff };
+        const rgb_t black = { red: 0, green: 0, blue: 0, flags: 0 };
+        const rgb_t white = { red: 0xff, green: 0xff, blue: 0xff, flags: 0 };
+        const rgb_t red = { red: 0xff, green: 0, blue: 0, flags: 0 };
+        const rgb_t dark_red = { red: 0x80, green: 0, blue: 0, flags: 0 };
+        const rgb_t green = { red: 0, green: 0xff, blue: 0, flags: 0 };
+        const rgb_t dark_green { red: 0, green: 0x80, blue: 0, flags: 0 };
+        const rgb_t blue = { red: 0, green: 0, blue: 0xff, flags: 0 };
+        const rgb_t dark_blue = { red: 0, green: 0, blue: 0x80, flags: 0 };
+        const rgb_t cyan = { red: 0, green: 0xff, blue: 0xff, flags: 0 };
+        const rgb_t yellow = { red: 0xff, green: 0xff, blue: 0, flags: 0 };
+        const rgb_t magenta = { red: 0xff, green: 0, blue: 0xff, flags: 0 };
+        const rgb_t grey = { red: 0x08, green: 0x08, blue: 0x08, flags: 0 };
+        const rgb_t orange { red: 0xff, green: 0xa5, blue: 0, flags: 0 };
+        const rgb_t light_blue = { red: 0, green: 0x40, blue: 0xff, flags: 0 };
 
         const rgb_t bright_white = { red: 0xff, green: 0xff, blue: 0xff, flags: RGB_FLAGS_BRIGHT };
 

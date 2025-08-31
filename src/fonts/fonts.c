@@ -1,5 +1,6 @@
-#include "string.h"
+#include <string.h>
 
+#include "../matrix_display.h"
 #include "fonts.h"
 
 extern const lv_font_glyph_dsc_t noto10p_glyph_dsc[];
@@ -39,7 +40,7 @@ void special_replacement(char *haystack, const char *needle, char replacement)
 {
     char *start = haystack;
     
-    while (start = strstr(start, needle)) {
+    while ((start = strstr(start, needle))) {
         *start = replacement;
         char *copyback = start + 1;
         while (*(copyback + strlen(needle) - 1)) {

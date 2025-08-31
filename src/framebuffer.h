@@ -1,4 +1,6 @@
+#if PICO_SDK
 #include <pico/stdlib.h>
+#endif
 
 #include "fonts/fonts.h"
 #include "images/images.h"

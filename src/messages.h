@@ -1,4 +1,6 @@
+#if PICO_SDK
 #include <pico/stdlib.h>
+#endif
 
 // Messages destined at the animation task
 

@@ -1,4 +1,6 @@
+#if PICO_SDK
 #include <pico/stdlib.h>
+#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -729,6 +731,7 @@ rgb_t animation::rgb_grey(int grey_level)
             red: (uint8_t) grey_level,
             green: (uint8_t) grey_level,
             blue: (uint8_t) grey_level,
+            flags: (uint8_t) 0,
         };
         return rgb;
     }
@@ -740,5 +743,6 @@ rgb_t animation::rgb_faded(rgb_t rgb)
         red: (uint8_t)((uint32_t)(rgb.red * fade_brightness) / 256),
         green: (uint8_t)((uint32_t)(rgb.green * fade_brightness) / 256),
         blue: (uint8_t)((uint32_t)(rgb.blue * fade_brightness) / 256),
+        flags: (uint8_t) 0,
     };
 }
