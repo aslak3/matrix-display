@@ -141,4 +141,8 @@ to exclude the API function. */
 /* A header file that defines trace macro can be included here. */
 
 #endif /* FREERTOS_CONFIG_H */
+#else
+// Not PCIO_SDK, include the stock ESP32 SDK FreeRTOSConfig.h, which would
+// have been picked up if this file hadn't existed.
+#include <freertos/FreeRTOSConfig.h>
 #endif

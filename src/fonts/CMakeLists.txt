@@ -8,6 +8,4 @@ add_library(
     tiny5x6.c
 )
 
-target_link_libraries(fonts pico_stdlib)
-
 target_include_directories(fonts PUBLIC)

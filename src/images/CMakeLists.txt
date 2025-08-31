@@ -7,6 +7,4 @@ add_library(
     misc.c
 )
 
-target_link_libraries(images pico_stdlib)
-
 target_include_directories(images PUBLIC)

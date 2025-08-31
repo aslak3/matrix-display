@@ -3,8 +3,8 @@ set(PROJECT matrix-display)
 set(ALL_SOURCE
     main.cpp
     mqtt.cpp
-    i2c.cpp
-    buzzer.cpp
+#    i2c.cpp
+#    buzzer.cpp
     framebuffer.cpp
     animation.cpp
     rtttl.cpp
@@ -105,10 +105,11 @@ if($ENV{MATRIX_DISPLAY_SDK} STREQUAL "PICO")
 else()
     set(PICO_SDK 0)
     set(ESP32_SDK 1)
+    set(MQTT_SOURCE "$ENV{IDF_PATH}/components/lwip/lwip/src/apps/mqtt/mqtt.c")
 
     idf_component_register(
-        SRCS ${ALL_SOURCE} ${CLIMATE_SOURCE}
-
+        SRCS ${ALL_SOURCE} ${MQTT_SOURCE} ${CLIMATE_SOURCE}
+        REQUIRES esp_wifi esp_driver_gpio
     )
     target_link_libraries(${COMPONENT_LIB} images fonts)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE

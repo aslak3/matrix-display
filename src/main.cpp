@@ -32,6 +32,7 @@
 
 #include "animation.h"
 
+#if PICO_SDK
 #if SPI_TO_FPGA
 #define FPGA_RESET_PIN 26
 #else
@@ -42,6 +43,8 @@
 #define CLK_PIN 13
 #define STROBE_PIN 14
 #define OEN_PIN 15
+#endif
+#else
 #endif
 
 void animate_task(void *dummy);
@@ -83,10 +86,10 @@ extern "C" void app_main(void)
 
     xTaskCreate(&animate_task, "Animate Task", 4096, NULL, 0, NULL);
     xTaskCreate(&mqtt_task, "MQTT Task", 4096, NULL, 0, NULL);
-    xTaskCreate(&i2c_task, "I2C Task", 4096, NULL, 0, NULL);
-    xTaskCreate(&buzzer_task, "Buzzer Task", 4096, NULL, 0, NULL);
+    // xTaskCreate(&i2c_task, "I2C Task", 4096, NULL, 0, NULL);
+    // xTaskCreate(&buzzer_task, "Buzzer Task", 4096, NULL, 0, NULL);
 
-    xTaskCreate(&matrix_task, "Matrix Task", 1024, NULL, 10, NULL);
+    // xTaskCreate(&matrix_task, "Matrix Task", 1024, NULL, 10, NULL);
 
     vTaskStartScheduler();
 

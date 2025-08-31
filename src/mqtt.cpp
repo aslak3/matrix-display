@@ -1,12 +1,21 @@
 #include <stdio.h>
-#include <stdlib.h>
+#include <string.h>
 
+#if PICO_SDK
 #include <FreeRTOS.h>
 #include <task.h>
 #include <queue.h>
 
 #include <pico/stdlib.h>
 #include <pico/cyw43_arch.h>
+#else
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+
+#include "driver/gpio.h"
+#include "esp_wifi.h"
+#endif
 
 #include "mqtt_opts.h"
 #include <lwip/apps/mqtt.h>
@@ -17,6 +26,10 @@
 
 #include "cJSON.h"
 
+#if ESP32_SDK
+#define LED_GPIO GPIO_NUM_13
+#endif
+
 extern QueueHandle_t mqtt_queue;
 extern QueueHandle_t animate_queue;
 extern QueueHandle_t i2c_queue;
@@ -24,7 +37,7 @@ extern QueueHandle_t buzzer_queue;
 
 void led_task(void *dummy);
 
-static void connect_wifi(void);
+static void connect_wifi(const char *ssid, const char *password);
 static int do_mqtt_connect(mqtt_client_t *client);
 static void do_mqtt_subscribe(mqtt_client_t *client);
 static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection_status_t status);
@@ -45,10 +58,8 @@ static void handle_buzzer_play_rtttl_data(char *data_as_chars);
 static void handle_light_command_data(char *data_as_chars);
 static void handle_light_brightness_command_data(char *data_as_chars);
 static void handle_set_grayscale_data(char *data_as_chars);
-static void handle_set_snowflakes_data(char *data_as_chars);
 static void handle_configuration_data(char *attribute, char *data_as_chars);
 static void handle_autodiscover_control_data(char *data_as_chars);
-
 static void dump_weather_data(weather_data_t *weather_data);
 
 cJSON *create_base_object(const char *name, const char *unique_id);
@@ -67,18 +78,104 @@ void led_task(void *dummy)
     DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
 #endif
 
+#if ESP32_SDK
+    gpio_reset_pin(LED_GPIO);
+    gpio_set_direction(LED_GPIO, GPIO_MODE_OUTPUT);
+#endif
+
     while (true) {
+#if PICO_SDK
         cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
+#else
+        gpio_set_level(LED_GPIO, true);
+#endif
         vTaskDelay(1000);
+#if PICO_SDK
         cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
+#else
+        gpio_set_level(LED_GPIO, false);
+#endif
         vTaskDelay(1000);
     }
 }
 
-#define TEMPERATURE_TOPIC "matrix_display/temperature"
-#if BME680_PRESENT
-#define PRESSURE_TOPIC "matrix_display/pressure"
-#define HUMIDITY_TOPIC "matrix_display/humidity"
+#if PICO_SDK
+
+static void connect_wifi(const char *ssid, const char *password)
+{
+    while (1) {
+        if (cyw43_arch_init_with_country(CYW43_COUNTRY_UK)) {
+            panic("failed to initialise\n");
+        }
+        cyw43_arch_enable_sta_mode();
+
+        DEBUG_printf("Connecting to WiFi...\n");
+        if (cyw43_arch_wifi_connect_blocking(ssid, password, CYW43_AUTH_WPA2_MIXED_PSK)) {
+            DEBUG_printf("failed to connect.\n");
+            cyw43_arch_deinit();
+        } else {
+            DEBUG_printf("Connected.\n");
+            break;
+        }
+    }
+}
+
+#else
+
+void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id,
+    void *event_data);
+
+bool networking_available = false;
+
+static void connect_wifi(const char *ssid, const char *password)
+{
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    esp_netif_create_default_wifi_sta();
+
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+    esp_event_handler_instance_t instance_any_id;
+    esp_event_handler_instance_t instance_got_ip;
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
+        ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, &instance_any_id));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
+        IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL, &instance_got_ip));
+
+    wifi_config_t wifi_config;
+    memset(&wifi_config, 0, sizeof(wifi_config));
+    memcpy(wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid));
+    memcpy(wifi_config.sta.password, ssid, sizeof(wifi_config.sta.password));
+
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+    ESP_ERROR_CHECK(esp_wifi_start());
+
+    while (!networking_available) {
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+        DEBUG_printf("Waiting for networking...\n");
+    }
+
+    DEBUG_printf("Wi-Fi initialization complete.\n");
+}
+
+void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id,
+    void *event_data)
+{
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+        esp_wifi_connect();
+    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        networking_available = false;
+        DEBUG_printf("Disconnected. Reconnecting...\n");
+        esp_wifi_connect();
+    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+        ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
+        DEBUG_printf("Got IP: %d.%d.%d.%d\n", IP2STR(&event->ip_info.ip));
+        networking_available = true;
+    }
+}
+
 #endif
 
 void mqtt_task(void *dummy)
@@ -90,24 +187,7 @@ void mqtt_task(void *dummy)
 
     xTaskCreate(&led_task, "LED Task", 256, NULL, 0, NULL);
 
-    while (1) {
-        if (cyw43_arch_init_with_country(CYW43_COUNTRY_UK)) {
-            DEBUG_printf("failed to initialise\n");
-            exit(1);
-        }
-        cyw43_arch_enable_sta_mode();
-
-        DEBUG_printf("Connecting to WiFi...\n");
-        if (cyw43_arch_wifi_connect_blocking(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK)) {
-            DEBUG_printf("failed to connect.\n");
-            cyw43_arch_deinit();
-        } else {
-            DEBUG_printf("Connected.\n");
-            break;
-        }
-    }
-
-    vTaskDelay(1000);
+    connect_wifi(WIFI_SSID, WIFI_PASSWORD);
 
     mqtt_client_t *client = mqtt_client_new();
 
@@ -144,16 +224,25 @@ static int do_mqtt_connect(mqtt_client_t *client)
     ip_addr_t broker_addr;
     ip4addr_aton(MQTT_BROKER_IP, &broker_addr);
 
+#if PICO_SDK
     cyw43_arch_lwip_begin();
+#endif
 
     int err = mqtt_client_connect(client, &broker_addr, MQTT_BROKER_PORT,
         mqtt_connection_cb, 0, &ci);
 
+#if PICO_SDK
     cyw43_arch_lwip_end();
+#endif
 
     return err;
 }
 
+#define TEMPERATURE_TOPIC "matrix_display/temperature"
+#if BME680_PRESENT
+#define PRESSURE_TOPIC "matrix_display/pressure"
+#define HUMIDITY_TOPIC "matrix_display/humidity"
+#endif
 #define WEATHER_TOPIC "matrix_display/weather"
 #define MEDIA_PLAYER_TOPIC "matrix_display/media_player"
 #define CALENDAR_TOPIC "matrix_display/calendar"
@@ -226,7 +315,7 @@ static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len
 {
     strncpy(current_topic, topic, sizeof(current_topic));
 
-    DEBUG_printf("Topic is now: %s len: %d\n", current_topic, tot_len);
+    DEBUG_printf("Topic is now: %s len: %lu\n", current_topic, tot_len);
 }
 
 static char data_as_chars[4096];
@@ -235,9 +324,11 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
 {
     static u16_t running_len = 0;
 
-    DEBUG_printf("Start of mqtt_incoming_data_cb(len: %d, flags: %d)\n", len, flags);
+    DEBUG_printf("Start of mqtt_incoming_data_cb(len: %u, flags: %u)\n", len, flags);
 
+#if PICO_SDK
     taskENTER_CRITICAL();
+#endif
 
     // memcpy(data_as_chars + running_len, data, len);
     for (u16_t c = 0; c < len; c++) {
@@ -248,7 +339,9 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
     data_as_chars[running_len] = '\0';
     // DEBUG_printf("length advanced to %d, Null added\n", running_len);
 
+#if PICO_SDK
     taskEXIT_CRITICAL();
+#endif
 
     DEBUG_printf("topic %s flags %d\n", current_topic, flags);
 
@@ -657,9 +750,12 @@ static void handle_notificaiton_data(char *data_as_chars)
 
         message_anim = {
             message_type: MESSAGE_ANIM_NOTIFICATION,
+            notification: {
+                critical: (bool) cJSON_IsTrue(critical),
+                text: {},
+            }
         };
 
-        message_anim.notification.critical = cJSON_IsTrue(critical);
         strncpy(message_anim.notification.text, cJSON_GetStringValue(text), sizeof(message_anim.notification.text));
 
         if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
@@ -672,6 +768,7 @@ static void handle_notificaiton_data(char *data_as_chars)
         if (rtttl_tune) {
             message_buzzer = {
                 message_type: MESSAGE_BUZZER_RTTTL,
+                rtttl_tune: {},
             };
             strncpy(message_buzzer.rtttl_tune, cJSON_GetStringValue(rtttl_tune),
                 sizeof(message_buzzer.rtttl_tune));
@@ -714,6 +811,7 @@ static void handle_buzzer_play_rtttl_data(char *data_as_chars)
 
     message_buzzer_t message_buzzer = {
         .message_type = MESSAGE_BUZZER_RTTTL,
+        .rtttl_tune = "",
     };
 
     strncpy(message_buzzer.rtttl_tune, data_as_chars, sizeof(message_buzzer.rtttl_tune));
@@ -759,10 +857,11 @@ static void handle_light_brightness_command_data(char *data_as_chars)
 
 static void handle_set_grayscale_data(char *data_as_chars)
 {
-    DEBUG_printf("Grayscale update: %\ns", data_as_chars);
+    DEBUG_printf("Grayscale update: %s\n", data_as_chars);
 
     message_anim = {
         message_type: MESSAGE_ANIM_GRAYSCALE,
+        grayscale: false,
     };
 
     if (strcmp(data_as_chars, "ON") == 0) {
@@ -896,12 +995,15 @@ int publish_object_as_device_entity(cJSON *obj, cJSON *device, mqtt_client_t *cl
     char *json_chars = cJSON_PrintUnformatted(obj);
     cJSON_free(obj);
 
+#if PICO_SDK    
     cyw43_arch_lwip_begin();
-
+#endif
     int err = mqtt_publish(client, topic, json_chars, strlen(json_chars), 0, 1, mqtt_pub_request_cb, NULL);
     free(json_chars);
 
+#if PICO_SDK
     cyw43_arch_lwip_end();
+#endif    
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
     return err;
@@ -931,7 +1033,10 @@ static void publish_loop_body(mqtt_client_t *client)
                     DEBUG_printf("Got humidity: %s\n", humidity_buffer);
 #endif
 
+#if PICO_SDK
                     cyw43_arch_lwip_begin();
+#endif
+
                     err = mqtt_publish(client, TEMPERATURE_TOPIC, temperature_buffer, strlen(temperature_buffer), 0, 1,
                         mqtt_pub_request_cb, NULL);
                     if (err != ERR_OK) {
@@ -951,7 +1056,9 @@ static void publish_loop_body(mqtt_client_t *client)
                     }
 #endif
 
+#if PICO_SDK
                     cyw43_arch_lwip_end();
+#endif
                     break;
 
                 default:
@@ -962,7 +1069,6 @@ static void publish_loop_body(mqtt_client_t *client)
 
         if (send_autodiscover) {
             int err = 0;
-            char *json_chars = NULL;
             if (autodisover_enable) {
                 cJSON *device = cJSON_CreateObject();
                 cJSON_AddItemToObject(device, "name", cJSON_CreateString("Matrix Display"));
@@ -1013,7 +1119,9 @@ static void publish_loop_body(mqtt_client_t *client)
                 cJSON_free(device);
             }
             else {
+#if PICO_SDK
                 cyw43_arch_lwip_begin();
+#endif
 
                 err += mqtt_publish(client, "homeassistant/light/matrix_display/config", "", 0,
                     0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
@@ -1024,7 +1132,10 @@ static void publish_loop_body(mqtt_client_t *client)
                 err += mqtt_publish(client, "homeassistant/number/matrix_display/config", "", 0,
                     0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
 
+#if PICO_SDK
                 cyw43_arch_lwip_end();
+#endif
+
             }
 
             if (err > 0) {
