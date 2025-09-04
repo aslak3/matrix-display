@@ -1,13 +1,21 @@
 set(PROJECT matrix-display)
 
 if($ENV{MATRIX_DISPLAY_SDK} STREQUAL "PICO")
-    set(MATRIX_DISPLAY_DIR ${PROJECT_SOURCE_DIR})
+    set(PICO_SDK_PATH $ENV{PICO_SDK_PATH})
+    set(PICO_BOARD pico_w)
+
+    include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
+    project(matrix-display CXX C ASM)
+
+    pico_sdk_init()
+
+    set(SRC_DIR ${PROJECT_SOURCE_DIR})
 else()
-    set(MATRIX_DISPLAY_DIR ${PROJECT_DIR})
+    set(SRC_DIR ${PROJECT_DIR}/src)
 endif()
 
-include(${MATRIX_DISPLAY_DIR}/src/fonts/CMakeLists.txt)
-include(${MATRIX_DISPLAY_DIR}/src/images/CMakeLists.txt)
+include(${SRC_DIR}/fonts/CMakeLists.txt)
+include(${SRC_DIR}/images/CMakeLists.txt)
 
 set(ALL_SOURCE
     main.cpp
@@ -38,7 +46,7 @@ set(MQTT_BROKER_PORT "1883" CACHE STRING "MQTT broker port number")
 set(MQTT_BROKER_USERNAME "" CACHE STRING "MQTT broker username")
 set(MQTT_BROKER_PASSWORD "" CACHE STRING "MQTT broker password")
 
-include(${MATRIX_DISPLAY_DIR}/private.cmake)
+include(${SRC_DIR}/../private.cmake)
 
 if(BME680_PRESENT)
     set(CLIMATE_SOURCE bme680-climate.cpp)
@@ -78,11 +86,7 @@ if($ENV{MATRIX_DISPLAY_SDK} STREQUAL "PICO")
     set(PICO_SDK 1)
     set(ESP32_SDK 0)
 
-    set(PICO_SDK_PATH $ENV{PICO_SDK_PATH})
     set(FREERTOS_KERNEL_PATH $ENV{FREERTOS_KERNEL_PATH})
-    set(PICO_BOARD pico_w)
-
-    project(matrix-display CXX C ASM)
 
     add_executable(
         ${PROJECT}

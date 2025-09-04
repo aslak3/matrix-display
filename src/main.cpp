@@ -12,12 +12,12 @@
 #include <hardware/watchdog.h>
 #include <pico/cyw43_arch.h>
 
-#include "hub75.pio.h"
-
 #include <FreeRTOS.h>
 #include <task.h>
 #include <queue.h>
 #include <semphr.h>
+
+#include "hub75.pio.h"
 
 #elif ESP32_SDK
 
@@ -68,7 +68,7 @@ QueueHandle_t buzzer_queue;
 int main(void)
 {
     stdio_init_all();
-#else
+#elif ESP32_SDK
 extern "C" void app_main(void)
 {
 #endif
