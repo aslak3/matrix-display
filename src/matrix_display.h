@@ -3,8 +3,10 @@
 
 #if PICO_SDK
 #include "pico/stdlib.h"
-#else
+#elif ESP32_SDK
 #include <stdlib.h>
+#else
+#error "PICO_SDK or ESP32_SDK needs to be set"
 #endif
 
 #define DEBUG_MSGS
@@ -22,4 +24,10 @@
 
 #if ESP32_SDK
 void panic(const char *format, ...);
+#endif
+
+#if PICO_SDK
+#define GET_CORE_NUMBER get_core_num
+#elif ESP32_SDK
+#define GET_CORE_NUMBER xPortGetCoreID
 #endif

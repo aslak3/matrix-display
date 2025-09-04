@@ -1,6 +1,4 @@
-add_library(
-    fonts
-    fonts.c
+set(FONTS_SOURCE
     noto10p.c
     noto16p.c
     noto20p.c
@@ -8,4 +6,4 @@ add_library(
     tiny5x6.c
 )
 
-target_include_directories(fonts PUBLIC)
+list(TRANSFORM FONTS_SOURCE PREPEND "fonts/")

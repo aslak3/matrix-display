@@ -19,12 +19,14 @@
 #include <queue.h>
 #include <semphr.h>
 
-#else
+#elif ESP32_SDK
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/queue.h>
 #include <freertos/semphr.h>
+
+#include "nvs_flash.h"
 
 #endif
 
@@ -77,6 +79,10 @@ extern "C" void app_main(void)
 
     srand(0);
 
+#if ESP32_SDK
+    ESP_ERROR_CHECK(nvs_flash_init());
+#endif
+
     animate_queue = xQueueCreate(3, sizeof(message_anim_t));
     mqtt_queue = xQueueCreate(3, sizeof(message_mqtt_t));
     i2c_queue = xQueueCreate(3, sizeof(message_i2c_t));
@@ -91,9 +97,14 @@ extern "C" void app_main(void)
 
     // xTaskCreate(&matrix_task, "Matrix Task", 1024, NULL, 10, NULL);
 
+#if PICO_SDK
     vTaskStartScheduler();
+#endif
 
-    while(1);
+    while (1) {
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        DEBUG_printf("Hello there... bottom of app_main()\n");
+    }
 
 #if PICO_SDK
     return 0;
@@ -101,12 +112,14 @@ extern "C" void app_main(void)
 }
 
 framebuffer fb;
+animation anim(fb);
+message_anim_t message;
 
 void animate_task(void *dummy)
 {
 #if FREE_RTOS_KERNEL_SMP
     vTaskCoreAffinitySet(NULL, 1 << 0);
-    DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
+    DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), GET_CORE_NUMBER());
 #endif
 
 #if PICO_SDK
@@ -120,11 +133,6 @@ void animate_task(void *dummy)
     int last_network_message_seconds = 0;
     int seconds_counter = 0;
 #endif
-    message_anim_t message;
-    memset(&message, 0, sizeof(message_anim_t));
-
-    animation anim(fb);
-
     while (1)
     {
         while (xQueueReceive(animate_queue, &message, 0) == pdTRUE) {
@@ -164,7 +172,7 @@ void animate_task(void *dummy)
                 case MESSAGE_ANIM_PORCH:
                     anim.new_porch(&message.porch);
                     break;
-                    
+
                 case MESSAGE_ANIM_BRIGHTNESS:
                     fb.set_brightness(message.brightness);
                     break;
@@ -215,14 +223,14 @@ void animate_task(void *dummy)
 
         vTaskDelay(10);
     }
-    
+
 }
 
 void matrix_task(void *dummy)
 {
 #if FREE_RTOS_KERNEL_SMP
     vTaskCoreAffinitySet(NULL, 1 << 1);
-    DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
+    DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), GET_CORE_NUMBER());
 #endif
 
 #if PICO_SDK
@@ -311,7 +319,7 @@ void matrix_task(void *dummy)
         }
     }
 #endif
-#else
+#elif ESP32_SDK
 // ESP32 bitbang
 #endif
 }

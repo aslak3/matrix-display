@@ -1,5 +1,14 @@
 set(PROJECT matrix-display)
 
+if($ENV{MATRIX_DISPLAY_SDK} STREQUAL "PICO")
+    set(MATRIX_DISPLAY_DIR ${PROJECT_SOURCE_DIR})
+else()
+    set(MATRIX_DISPLAY_DIR ${PROJECT_DIR})
+endif()
+
+include(${MATRIX_DISPLAY_DIR}/src/fonts/CMakeLists.txt)
+include(${MATRIX_DISPLAY_DIR}/src/images/CMakeLists.txt)
+
 set(ALL_SOURCE
     main.cpp
     mqtt.cpp
@@ -9,6 +18,10 @@ set(ALL_SOURCE
     animation.cpp
     rtttl.cpp
     cJSON.c
+    fonts/fonts.c
+    images/images.c
+    ${FONTS_SOURCE}
+    ${IMAGES_SOURCE}
 )
 
 set(CMAKE_C_STANDARD 11)
@@ -25,7 +38,7 @@ set(MQTT_BROKER_PORT "1883" CACHE STRING "MQTT broker port number")
 set(MQTT_BROKER_USERNAME "" CACHE STRING "MQTT broker username")
 set(MQTT_BROKER_PASSWORD "" CACHE STRING "MQTT broker password")
 
-include(/home/lawrence/esp/projects/src/private.cmake)
+include(${MATRIX_DISPLAY_DIR}/private.cmake)
 
 if(BME680_PRESENT)
     set(CLIMATE_SOURCE bme680-climate.cpp)
@@ -51,14 +64,14 @@ if(MQTT_BROKER_PASSWORD STREQUAL "")
 endif()
 
 set(COMPILE_DEFS
-    WIFI_SSID=\"${WIFI_SSID}\"
-    WIFI_PASSWORD=\"${WIFI_PASSWORD}\"
+    WIFI_SSID="${WIFI_SSID}"
+    WIFI_PASSWORD="${WIFI_PASSWORD}"
     SPI_TO_FPGA=${SPI_TO_FPGA}
     BME680_PRESENT=${BME680_PRESENT}
-    MQTT_BROKER_IP=\"${MQTT_BROKER_IP}\"
+    MQTT_BROKER_IP="${MQTT_BROKER_IP}"
     MQTT_BROKER_PORT=${MQTT_BROKER_PORT}
-    MQTT_BROKER_USERNAME=\"${MQTT_BROKER_USERNAME}\"
-    MQTT_BROKER_PASSWORD=\"${MQTT_BROKER_PASSWORD}\"
+    MQTT_BROKER_USERNAME="${MQTT_BROKER_USERNAME}"
+    MQTT_BROKER_PASSWORD="${MQTT_BROKER_PASSWORD}"
 )
 
 if($ENV{MATRIX_DISPLAY_SDK} STREQUAL "PICO")
@@ -77,53 +90,44 @@ if($ENV{MATRIX_DISPLAY_SDK} STREQUAL "PICO")
         ${CLIMATE_SOURCE}
     )
 
-    pico_add_extra_outputs(${PROJECT})
-    
-    target_compile_definitions(${PROJECT} PRIVATE
+    include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
+    include(${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
+
+    target_include_directories(${PROJECT} PUBLIC "pico_include/" ${CMAKE_CURRENT_LIST_DIR})
+    add_compile_definitions(
         ${COMPILE_DEFS}
         PICO_SDK=${PICO_SDK}
         ESP32_SDK=${ESP32_SDK}
     )
-
-    pico_enable_stdio_usb(${PROJECT} 1)
-    pico_enable_stdio_uart(${PROJECT} 1)
-
-    pico_generate_pio_header(${PROJECT} ${CMAKE_CURRENT_LIST_DIR}/hub75.pio)
-    
-    include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
-    include(${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
-
-    # pull in common dependencies
-    target_link_libraries(${PROJECT} fonts images
+    target_link_libraries(${PROJECT} PUBLIC
         pico_stdlib hardware_i2c hardware_spi hardware_dma hardware_pwm
         pico_cyw43_arch_lwip_sys_freertos
         pico_lwip_mqtt
         FreeRTOS-Kernel-Heap4
     )
 
-    target_include_directories(${PROJECT} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+    pico_enable_stdio_usb(${PROJECT} 1)
+    pico_enable_stdio_uart(${PROJECT} 1)
+
+    pico_generate_pio_header(${PROJECT} ${CMAKE_CURRENT_LIST_DIR}/hub75.pio)
+
+    pico_add_extra_outputs(${PROJECT})
 else()
     set(PICO_SDK 0)
     set(ESP32_SDK 1)
+
     set(MQTT_SOURCE "$ENV{IDF_PATH}/components/lwip/lwip/src/apps/mqtt/mqtt.c")
 
     idf_component_register(
         SRCS ${ALL_SOURCE} ${MQTT_SOURCE} ${CLIMATE_SOURCE}
-        REQUIRES esp_wifi esp_driver_gpio
+        REQUIRES esp_wifi esp_driver_gpio nvs_flash
     )
-    target_link_libraries(${COMPONENT_LIB} images fonts)
-    target_compile_definitions(${COMPONENT_LIB} PRIVATE
+
+    target_include_directories(${COMPONENT_LIB} PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+    add_compile_definitions(
         ${COMPILE_DEFS}
         PICO_SDK=${PICO_SDK}
         ESP32_SDK=${ESP32_SDK}
     )
-    target_include_directories(${COMPONENT_LIB} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+#    target_link_libraries(${COMPONENT_LIB} images fonts)
 endif()
-
-add_subdirectory(
-    fonts
-)
-
-add_subdirectory(
-    images
-)

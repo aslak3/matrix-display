@@ -1,5 +1,4 @@
-add_library(
-    images
+set(IMAGES_SOURCE
     images.c
     weather-16x16.c
     weather-32x32.c
@@ -7,4 +6,4 @@ add_library(
     misc.c
 )
 
-target_include_directories(images PUBLIC)
+list(TRANSFORM IMAGES_SOURCE PREPEND "images/")

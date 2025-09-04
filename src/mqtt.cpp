@@ -15,6 +15,8 @@
 
 #include "driver/gpio.h"
 #include "esp_wifi.h"
+#include "nvs_flash.h"
+#include "esp_event.h"
 #endif
 
 #include "mqtt_opts.h"
@@ -37,7 +39,7 @@ extern QueueHandle_t buzzer_queue;
 
 void led_task(void *dummy);
 
-static void connect_wifi(const char *ssid, const char *password);
+static void connect_wifi(void);
 static int do_mqtt_connect(mqtt_client_t *client);
 static void do_mqtt_subscribe(mqtt_client_t *client);
 static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection_status_t status);
@@ -75,7 +77,7 @@ void led_task(void *dummy)
 {
 #if FREE_RTOS_KERNEL_SMP
     vTaskCoreAffinitySet(NULL, 1 << 0);
-    DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
+    DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), GET_CORE_NUMBER());
 #endif
 
 #if ESP32_SDK
@@ -89,19 +91,50 @@ void led_task(void *dummy)
 #else
         gpio_set_level(LED_GPIO, true);
 #endif
-        vTaskDelay(1000);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
 #if PICO_SDK
         cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
 #else
         gpio_set_level(LED_GPIO, false);
 #endif
-        vTaskDelay(1000);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+}
+
+void mqtt_task(void *dummy)
+{
+#if FREE_RTOS_KERNEL_SMP
+    vTaskCoreAffinitySet(NULL, 1 << 0);
+    DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), GET_CORE_NUMBER());
+#endif
+
+    DEBUG_printf("ssid %s password %s\n", WIFI_SSID, WIFI_PASSWORD);
+
+    xTaskCreate(&led_task, "LED Task", 4096, NULL, 0, NULL);
+
+    connect_wifi();
+
+    mqtt_client_t *client = mqtt_client_new();
+
+    /* Setup callback for incoming publish requests */
+    mqtt_set_inpub_callback(client, mqtt_incoming_publish_cb, mqtt_incoming_data_cb, NULL);
+
+    int err = do_mqtt_connect(client);
+
+    /* For now just print the result code if something goes wrong */
+    if (err != ERR_OK) {
+        DEBUG_printf("do_mqtt_connect() return %d\n", err);
+    }
+
+    while (1) {
+        // publish_loop_body(client);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
 
 #if PICO_SDK
 
-static void connect_wifi(const char *ssid, const char *password)
+static void connect_wifi(void)
 {
     while (1) {
         if (cyw43_arch_init_with_country(CYW43_COUNTRY_UK)) {
@@ -110,7 +143,7 @@ static void connect_wifi(const char *ssid, const char *password)
         cyw43_arch_enable_sta_mode();
 
         DEBUG_printf("Connecting to WiFi...\n");
-        if (cyw43_arch_wifi_connect_blocking(ssid, password, CYW43_AUTH_WPA2_MIXED_PSK)) {
+        if (cyw43_arch_wifi_connect_blocking(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK)) {
             DEBUG_printf("failed to connect.\n");
             cyw43_arch_deinit();
         } else {
@@ -127,7 +160,7 @@ void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id
 
 bool networking_available = false;
 
-static void connect_wifi(const char *ssid, const char *password)
+static void connect_wifi(void)
 {
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -145,8 +178,8 @@ static void connect_wifi(const char *ssid, const char *password)
 
     wifi_config_t wifi_config;
     memset(&wifi_config, 0, sizeof(wifi_config));
-    memcpy(wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid));
-    memcpy(wifi_config.sta.password, ssid, sizeof(wifi_config.sta.password));
+    strncpy((char *) wifi_config.sta.ssid, WIFI_SSID, sizeof(wifi_config.sta.ssid));
+    strncpy((char *) wifi_config.sta.password, WIFI_PASSWORD, sizeof(wifi_config.sta.password));
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
@@ -170,41 +203,13 @@ void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id
         DEBUG_printf("Disconnected. Reconnecting...\n");
         esp_wifi_connect();
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+        networking_available = true;
         ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
         DEBUG_printf("Got IP: %d.%d.%d.%d\n", IP2STR(&event->ip_info.ip));
-        networking_available = true;
     }
 }
 
 #endif
-
-void mqtt_task(void *dummy)
-{
-#if FREE_RTOS_KERNEL_SMP
-    vTaskCoreAffinitySet(NULL, 1 << 0);
-    DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
-#endif
-
-    xTaskCreate(&led_task, "LED Task", 256, NULL, 0, NULL);
-
-    connect_wifi(WIFI_SSID, WIFI_PASSWORD);
-
-    mqtt_client_t *client = mqtt_client_new();
-
-    /* Setup callback for incoming publish requests */
-    mqtt_set_inpub_callback(client, mqtt_incoming_publish_cb, mqtt_incoming_data_cb, NULL);
-
-    int err = do_mqtt_connect(client);
-
-    /* For now just print the result code if something goes wrong */
-    if (err != ERR_OK) {
-        DEBUG_printf("do_mqtt_connect() return %d\n", err);
-    }
-
-    while (1) {
-        publish_loop_body(client);
-    }
-}
 
 static int do_mqtt_connect(mqtt_client_t *client)
 {
@@ -213,8 +218,8 @@ static int do_mqtt_connect(mqtt_client_t *client)
     /* Setup an empty client info structure */
     memset(&ci, 0, sizeof(ci));
 
-    static char client_id[16];
-    snprintf(client_id, sizeof(client_id), "picow-%d", rand());
+    static char client_id[32];
+    snprintf(client_id, sizeof(client_id), "matrix-%d", rand());
 
     ci.client_id = client_id;
     ci.client_user = MQTT_BROKER_USERNAME;
@@ -222,18 +227,20 @@ static int do_mqtt_connect(mqtt_client_t *client)
     ci.keep_alive = 60;
 
     ip_addr_t broker_addr;
-    ip4addr_aton(MQTT_BROKER_IP, &broker_addr);
+    ipaddr_aton("10.52.0.2", &broker_addr);
 
 #if PICO_SDK
     cyw43_arch_lwip_begin();
 #endif
 
     int err = mqtt_client_connect(client, &broker_addr, MQTT_BROKER_PORT,
-        mqtt_connection_cb, 0, &ci);
+        mqtt_connection_cb, NULL, &ci);
 
 #if PICO_SDK
     cyw43_arch_lwip_end();
 #endif
+
+    DEBUG_printf("mqtt_client_connect result %d\n", err);
 
     return err;
 }
@@ -278,6 +285,8 @@ static void do_mqtt_subscribe(mqtt_client_t *client)
         NULL,
     };
 
+    DEBUG_printf("Doing MQTT subscriptions\n");
+
     void *arg = NULL;
     int err;
     for (const char **s = subscriptions; *s; s++) {
@@ -288,19 +297,21 @@ static void do_mqtt_subscribe(mqtt_client_t *client)
         else {
             DEBUG_printf("mqtt_subscribe on %s success\n", *s);
         }
-        vTaskDelay(10);
+        vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 }
 
 static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection_status_t status)
 {
+    DEBUG_printf("connection_cb called\n");
+
     if (status == MQTT_CONNECT_ACCEPTED) {
-        DEBUG_printf("Connected\n");
+        DEBUG_printf("MQTT Connected\n");
         do_mqtt_subscribe(client);
     }
     else {
         DEBUG_printf("Disconnected: %d\n", status);
-        vTaskDelay(1000);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
 
