@@ -2,10 +2,10 @@
 #include <math.h>
 #include <inttypes.h>
 #include <string.h>
-#include <stdlib.h>
 
 #if PICO_SDK
 
+#include "pico/stdlib.h"
 #include <hardware/gpio.h>
 #include <hardware/spi.h>
 #include <hardware/dma.h>
@@ -46,7 +46,8 @@
 #define STROBE_PIN 14
 #define OEN_PIN 15
 #endif
-#else
+#elif ESP32_SDK
+//ESP32 pinnning
 #endif
 
 void animate_task(void *dummy);
@@ -72,8 +73,8 @@ int main(void)
 extern "C" void app_main(void)
 {
 #endif
-    // Let USB UART wake up on a listener.
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    // Let USB UART wake up on a listener, schedular not running yet so use sleep_ms().
+    sleep_ms(1000);
 
     DEBUG_printf("Hello, matrix here\n");
 
@@ -92,10 +93,10 @@ extern "C" void app_main(void)
 
     xTaskCreate(&animate_task, "Animate Task", 4096, NULL, 0, NULL);
     xTaskCreate(&mqtt_task, "MQTT Task", 4096, NULL, 0, NULL);
-    // xTaskCreate(&i2c_task, "I2C Task", 4096, NULL, 0, NULL);
-    // xTaskCreate(&buzzer_task, "Buzzer Task", 4096, NULL, 0, NULL);
+    xTaskCreate(&i2c_task, "I2C Task", 4096, NULL, 0, NULL);
+    xTaskCreate(&buzzer_task, "Buzzer Task", 4096, NULL, 0, NULL);
 
-    // xTaskCreate(&matrix_task, "Matrix Task", 1024, NULL, 10, NULL);
+    xTaskCreate(&matrix_task, "Matrix Task", 1024, NULL, 10, NULL);
 
 #if PICO_SDK
     vTaskStartScheduler();
