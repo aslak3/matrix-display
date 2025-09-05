@@ -27,6 +27,9 @@
 #include <freertos/semphr.h>
 
 #include "nvs_flash.h"
+#include "driver/gpio.h"
+#include "driver/dedic_gpio.h"
+#include "rom/ets_sys.h"
 
 #endif
 
@@ -42,12 +45,28 @@
 #define DATA_N_PINS 6
 #define ROWSEL_BASE_PIN 8
 #define ROWSEL_N_PINS 4
+
 #define CLK_PIN 13
 #define STROBE_PIN 14
 #define OEN_PIN 15
 #endif
 #elif ESP32_SDK
-//ESP32 pinnning
+#define RED1_PIN GPIO_NUM_42
+#define GREEN1_PIN GPIO_NUM_41
+#define BLUE1_PIN GPIO_NUM_40
+#define RED2_PIN GPIO_NUM_38
+#define GREEN2_PIN GPIO_NUM_39
+#define BLUE2_PIN GPIO_NUM_37
+
+#define ROWSEL_A_PIN GPIO_NUM_45
+#define ROWSEL_B_PIN GPIO_NUM_36
+#define ROWSEL_C_PIN GPIO_NUM_48
+#define ROWSEL_D_PIN GPIO_NUM_35
+#define ROWSEL_E_PIN GPIO_NUM_21
+
+#define CLK_PIN GPIO_NUM_2
+#define STROBE_PIN GPIO_NUM_47
+#define OEN_PIN GPIO_NUM_14
 #endif
 
 void animate_task(void *dummy);
@@ -73,8 +92,12 @@ int main(void)
 extern "C" void app_main(void)
 {
 #endif
-    // Let USB UART wake up on a listener, schedular not running yet so use sleep_ms().
+#if PICO_SDK
+    // Let USB UART wake up on a listener, schedular not running yet so can't use vTaskDelay
     sleep_ms(1000);
+#elif ESP32_SDK
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+#endif
 
     DEBUG_printf("Hello, matrix here\n");
 
@@ -118,10 +141,8 @@ message_anim_t message;
 
 void animate_task(void *dummy)
 {
-#if FREE_RTOS_KERNEL_SMP
     vTaskCoreAffinitySet(NULL, 1 << 0);
     DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), GET_CORE_NUMBER());
-#endif
 
 #if PICO_SDK
     if (watchdog_enable_caused_reboot()) {
@@ -229,10 +250,8 @@ void animate_task(void *dummy)
 
 void matrix_task(void *dummy)
 {
-#if FREE_RTOS_KERNEL_SMP
     vTaskCoreAffinitySet(NULL, 1 << 1);
     DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), GET_CORE_NUMBER());
-#endif
 
 #if PICO_SDK
 #if SPI_TO_FPGA
@@ -321,7 +340,93 @@ void matrix_task(void *dummy)
     }
 #endif
 #elif ESP32_SDK
-// ESP32 bitbang
+    gpio_config_t io_conf = {
+        .pin_bit_mask =
+            (1ULL << CLK_PIN) | (1ULL << STROBE_PIN) | (1ULL << OEN_PIN) |
+            (1ULL << ROWSEL_A_PIN) | (1ULL << ROWSEL_B_PIN) |
+            (1ULL << ROWSEL_C_PIN) | (1ULL << ROWSEL_D_PIN),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+
+    ESP_ERROR_CHECK(gpio_config(&io_conf));
+
+    // Define data GPIO pins for the bundle
+    int data_pins[] = {
+        RED1_PIN, GREEN1_PIN, BLUE1_PIN, RED2_PIN, GREEN2_PIN, BLUE2_PIN,
+    };
+    dedic_gpio_bundle_handle_t data_bundle;
+
+    dedic_gpio_bundle_config_t data_bundle_config = {
+        .gpio_array = data_pins,
+        .array_size = sizeof(data_pins) / sizeof(int),
+        .flags = {
+            .out_en = 1,
+        }
+    };
+
+    // Create the rowsel GPIO bundle
+    dedic_gpio_new_bundle(&data_bundle_config, &data_bundle);
+
+    DEBUG_printf("Created dedic GPIO\n");
+
+    static fb_t output_fb;
+
+    while (1) {
+        // fb.atomic_fore_copy_out(&output_fb);
+        // for (int pwm_threshold = 16; pwm_threshold < 256; pwm_threshold *= 2) {
+            for (int y = 0; y < 16; y++) {
+                gpio_set_level(ROWSEL_A_PIN, y & 0x1 ? true : false);
+                gpio_set_level(ROWSEL_B_PIN, y & 0x2 ? true : false);
+                gpio_set_level(ROWSEL_C_PIN, y & 0x4 ? true : false);
+                gpio_set_level(ROWSEL_D_PIN, y & 0x8 ? true : false);
+
+                for (int x = 63; x >= 0; x--) {
+                    // uint32_t colour = 0;
+                    // if (output_fb.rgb[x][y].red > pwm_threshold) {
+                    //     colour |= 0x01;
+                    // }
+                    // if (output_fb.rgb[x][y + 16].red < pwm_threshold) {
+                    //     colour |= 0x02;
+                    // }
+                    // if (output_fb.rgb[x][y].green < pwm_threshold) {
+                    //     colour |= 0x04;
+                    // }
+                    // if (output_fb.rgb[x][y + 16].green < pwm_threshold) {
+                    //     colour |= 0x08;
+                    // }
+                    // if (output_fb.rgb[x][y].blue < pwm_threshold) {
+                    //     colour |= 0x10;
+                    // }
+                    // if (output_fb.rgb[x][y + 16].blue < pwm_threshold) {
+                    //     colour |= 0x02;
+                    // }
+
+                    dedic_gpio_bundle_write(data_bundle, 0x3f, 0x3f);//colour);
+
+                    // clock high
+                    gpio_set_level(CLK_PIN, true);
+                    // ets_delay_us(1);
+                    // clock low
+                    gpio_set_level(CLK_PIN, false);
+                    // ets_delay_us(1);
+                }
+
+                // oe high
+                gpio_set_level(OEN_PIN, true);
+                // latch high
+                gpio_set_level(STROBE_PIN, true);
+                // latch low
+                gpio_set_level(STROBE_PIN, false);
+                // oe low
+                gpio_set_level(OEN_PIN, false);
+
+                // ets_delay_us(100);
+        // }
+            }
+    }
 #endif
 }
 
@@ -331,7 +436,7 @@ void panic(const char *format, ...)
     va_list args;
     va_start(args, format);
 
-    // Add a prefix for logging
+    // Add a prefix for this panic
     printf("PANIC!!! : ");
     vprintf(format, args);
     printf("\n");

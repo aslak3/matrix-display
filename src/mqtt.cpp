@@ -29,7 +29,7 @@
 #include "cJSON.h"
 
 #if ESP32_SDK
-#define LED_GPIO GPIO_NUM_13
+#define LED_PIN GPIO_NUM_13
 #endif
 
 extern QueueHandle_t mqtt_queue;
@@ -75,27 +75,25 @@ static void bcd_string_to_bytes(char *in, uint8_t *buffer, uint8_t len);
 
 void led_task(void *dummy)
 {
-#if FREE_RTOS_KERNEL_SMP
     vTaskCoreAffinitySet(NULL, 1 << 0);
     DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), GET_CORE_NUMBER());
-#endif
 
 #if ESP32_SDK
-    gpio_reset_pin(LED_GPIO);
-    gpio_set_direction(LED_GPIO, GPIO_MODE_OUTPUT);
+    gpio_reset_pin(LED_PIN);
+    gpio_set_direction(LED_PIN, GPIO_MODE_OUTPUT);
 #endif
 
     while (true) {
 #if PICO_SDK
         cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
 #else
-        gpio_set_level(LED_GPIO, true);
+        gpio_set_level(LED_PIN, true);
 #endif
         vTaskDelay(1000 / portTICK_PERIOD_MS);
 #if PICO_SDK
         cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
 #else
-        gpio_set_level(LED_GPIO, false);
+        gpio_set_level(LED_PIN, false);
 #endif
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
@@ -103,10 +101,8 @@ void led_task(void *dummy)
 
 void mqtt_task(void *dummy)
 {
-#if FREE_RTOS_KERNEL_SMP
     vTaskCoreAffinitySet(NULL, 1 << 0);
     DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), GET_CORE_NUMBER());
-#endif
 
     DEBUG_printf("ssid %s password %s\n", WIFI_SSID, WIFI_PASSWORD);
 
@@ -127,7 +123,7 @@ void mqtt_task(void *dummy)
     }
 
     while (1) {
-        // publish_loop_body(client);
+        publish_loop_body(client);
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
@@ -1006,7 +1002,7 @@ int publish_object_as_device_entity(cJSON *obj, cJSON *device, mqtt_client_t *cl
     char *json_chars = cJSON_PrintUnformatted(obj);
     cJSON_free(obj);
 
-#if PICO_SDK    
+#if PICO_SDK
     cyw43_arch_lwip_begin();
 #endif
     int err = mqtt_publish(client, topic, json_chars, strlen(json_chars), 0, 1, mqtt_pub_request_cb, NULL);
@@ -1014,7 +1010,7 @@ int publish_object_as_device_entity(cJSON *obj, cJSON *device, mqtt_client_t *cl
 
 #if PICO_SDK
     cyw43_arch_lwip_end();
-#endif    
+#endif
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
     return err;

@@ -22,10 +22,8 @@ void play_note(uint slice_num, rtttl_note_t note);
 
 void buzzer_task(void *dummy)
 {
-#if FREE_RTOS_KERNEL_SMP
     vTaskCoreAffinitySet(NULL, 1 << 0);
-    DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), get_core_num());
-#endif
+    DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), GET_CORE_NUMBER());
 
     gpio_set_function(BUZZER_PIN, GPIO_FUNC_PWM);
     uint slice_num = pwm_gpio_to_slice_num(BUZZER_PIN);
@@ -36,7 +34,7 @@ void buzzer_task(void *dummy)
         message_buzzer_t buzzer = {};
         rtttl rtttl;
 
-        if (xQueueReceive(buzzer_queue, &buzzer, 1000 / portTICK_PERIOD_MS) == pdTRUE) {
+        if (xQueueReceive(buzzer_queue, &buzzer, portMAX_DELAY == pdTRUE)) {
             switch (buzzer.message_type) {
                 case MESSAGE_BUZZER_SIMPLE:
                     DEBUG_printf("Buzzer simple\n");
@@ -125,7 +123,7 @@ void play_note(uint slice_num, rtttl_note_t note)
         int wrap = 500*1000 / note.frequency_hz;
         pwm_set_wrap(slice_num, wrap);
         pwm_set_chan_level(slice_num, PWM_CHAN_B, wrap / 2); // 50% duty
-        
+
         pwm_set_counter(slice_num, 0);
         pwm_set_enabled(slice_num, true);
     }

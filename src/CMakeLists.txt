@@ -21,7 +21,6 @@ set(ALL_SOURCE
     main.cpp
     mqtt.cpp
     i2c.cpp
-    buzzer.cpp
     framebuffer.cpp
     animation.cpp
     rtttl.cpp
@@ -50,8 +49,14 @@ include(${SRC_DIR}/../private.cmake)
 
 if(BME680_PRESENT)
     set(CLIMATE_SOURCE bme680-climate.cpp)
-else()
+elseif(DS3231_PRESENT)
     set(CLIMATE_SOURCE ds3231-climate.cpp)
+else()
+    set(CLIMAGE_SOURCE)
+endif()
+
+if(BUZZER_PRESENT)
+    set(BUZZER_SOURCE buzzer.cpp)
 endif()
 
 if(WIFI_SSID STREQUAL "")
@@ -92,6 +97,7 @@ if($ENV{MATRIX_DISPLAY_SDK} STREQUAL "PICO")
         ${PROJECT}
         ${ALL_SOURCE}
         ${CLIMATE_SOURCE}
+        ${BUZZER_SOURCE}
     )
 
     include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
@@ -123,7 +129,7 @@ else()
     set(MQTT_SOURCE "$ENV{IDF_PATH}/components/lwip/lwip/src/apps/mqtt/mqtt.c")
 
     idf_component_register(
-        SRCS ${ALL_SOURCE} ${MQTT_SOURCE} ${CLIMATE_SOURCE}
+        SRCS ${ALL_SOURCE} ${MQTT_SOURCE} ${CLIMATE_SOURCE} ${BUZZER_SOURCE}
         REQUIRES esp_wifi esp_driver_gpio nvs_flash
     )
 
@@ -133,5 +139,4 @@ else()
         PICO_SDK=${PICO_SDK}
         ESP32_SDK=${ESP32_SDK}
     )
-#    target_link_libraries(${COMPONENT_LIB} images fonts)
 endif()
