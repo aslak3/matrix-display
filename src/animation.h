@@ -56,7 +56,7 @@ typedef struct {
 } porch_state_t;
 
 typedef struct {
-    ds3231_t data;
+    struct tm data;
     int framestamp;
     int frames_per_second;
     int hide_colons;
@@ -64,7 +64,7 @@ typedef struct {
     char time_colons[10];
     char time_no_colons[10];
     char date[20];
-} ds3231_state_t;
+} time_state_t;
 
 typedef enum {
     PAGE_NULL,
@@ -107,7 +107,7 @@ class animation {
         void new_notification(notification_t *notification);
         void clear_notification(void);
         void new_porch(porch_t *porch);
-        void new_ds3231(ds3231_t *ds3231);
+        void new_time(struct tm *timeinfo);
         void update_configuration(configuration_t *config);
 
     private:
@@ -131,7 +131,7 @@ class animation {
         transport_state_t transport_state;
         notification_state_t notification_state;
         porch_state_t porch_state;
-        ds3231_state_t ds3231_state;
+        time_state_t time_state;
 
         snowflake_t snowflakes[NO_SNOWFLAKES];
         int16_t snowflake_wind_vector;
@@ -149,8 +149,8 @@ class animation {
         const rgb_t cyan = { red: 0, green: 0xff, blue: 0xff, flags: 0 };
         const rgb_t yellow = { red: 0xff, green: 0xff, blue: 0, flags: 0 };
         const rgb_t magenta = { red: 0xff, green: 0, blue: 0xff, flags: 0 };
-        const rgb_t grey = { red: 0x08, green: 0x08, blue: 0x08, flags: 0 };
-        const rgb_t orange { red: 0xff, green: 0xa5, blue: 0, flags: 0 };
+        const rgb_t grey = { red: 0x80, green: 0x80, blue: 0x80, flags: 0 };
+        const rgb_t orange { red: 0xff, green: 0x80, blue: 0, flags: 0 };
         const rgb_t light_blue = { red: 0, green: 0x40, blue: 0xff, flags: 0 };
 
         const rgb_t bright_white = { red: 0xff, green: 0xff, blue: 0xff, flags: RGB_FLAGS_BRIGHT };

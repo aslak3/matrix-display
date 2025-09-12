@@ -2,6 +2,8 @@
 #include <pico/stdlib.h>
 #endif
 
+#include <time.h>
+
 // Messages destined at the animation task
 
 typedef struct {
@@ -89,11 +91,6 @@ typedef struct {
     char text[256];
 } notification_t;
 
-#define DS3231_DATETIME_LEN 7
-
-typedef struct {
-    uint8_t datetime_buffer[DS3231_DATETIME_LEN];
-} ds3231_t;
 
 typedef struct {
     float temperature;
@@ -125,7 +122,7 @@ typedef struct {
 #define MESSAGE_ANIM_NOTIFICATION 5
 #define MESSAGE_ANIM_TRANSPORT 6
 #define MESSAGE_ANIM_PORCH 7
-#define MESSAGE_ANIM_DS3231 8
+#define MESSAGE_ANIM_TIMEINFO 8
 #define MESSAGE_ANIM_BRIGHTNESS 9
 #define MESSAGE_ANIM_GRAYSCALE 10
 #define MESSAGE_ANIM_CONFIGURATION 100
@@ -140,24 +137,21 @@ typedef struct {
         transport_data_t transport_data;
         porch_t porch;
         notification_t notification;
-        ds3231_t ds3231;
+        struct tm timeinfo;
         uint8_t brightness;
         bool grayscale;
         configuration_t configuration;
     };
 } message_anim_t;
 
-// Messages destined at I2C task
+// Messages destined at time task
 
-#define MESSAGE_DS3231_NULL 0
-#define MESSAGE_DS3231_DS3231 1
+#define MESSAGE_TIME_NULL 0
+#define MESSAGE_TIME_TIMESYNC 1
 
 typedef struct {
     uint8_t message_type;
-    union {
-        ds3231_t ds3231;
-    };
-} message_i2c_t;
+} message_time_t;
 
 // Messages destined at buzzer task
 

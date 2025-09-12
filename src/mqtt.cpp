@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #if PICO_SDK
 #include <FreeRTOS.h>
@@ -8,7 +9,7 @@
 
 #include <pico/stdlib.h>
 #include <pico/cyw43_arch.h>
-#else
+#elif ESP32_SDK
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
@@ -17,7 +18,12 @@
 #include "esp_wifi.h"
 #include "nvs_flash.h"
 #include "esp_event.h"
+#include "esp_sntp.h"
 #endif
+
+#include "lwip/dns.h"
+#include "lwip/opt.h"
+// #include "lwip/apps/sntp.h"
 
 #include "mqtt_opts.h"
 #include <lwip/apps/mqtt.h>
@@ -34,7 +40,7 @@
 
 extern QueueHandle_t mqtt_queue;
 extern QueueHandle_t animate_queue;
-extern QueueHandle_t i2c_queue;
+extern QueueHandle_t time_queue;
 extern QueueHandle_t buzzer_queue;
 
 void led_task(void *dummy);
@@ -99,6 +105,19 @@ void led_task(void *dummy)
     }
 }
 
+void time_sync_notification_cb(struct timeval *tv)
+{
+    message_time_t message_time;
+
+    message_time.message_type = MESSAGE_TIME_TIMESYNC;
+
+    DEBUG_printf("Obtained from SNTP; notified time task.\n");
+
+    if (xQueueSend(time_queue, &message_time, 10) != pdTRUE) {
+        DEBUG_printf("Could not send ds3231 data; dropping\n");
+    }
+}
+
 void mqtt_task(void *dummy)
 {
     vTaskCoreAffinitySet(NULL, 1 << 0);
@@ -110,20 +129,28 @@ void mqtt_task(void *dummy)
 
     connect_wifi();
 
+    const ip_addr_t *dns0 = dns_getserver(0);
+    DEBUG_printf("Using DNS server: %s\n", ipaddr_ntoa(dns0));
+
+    sntp_setoperatingmode(SNTP_OPMODE_POLL);
+    sntp_set_time_sync_notification_cb(time_sync_notification_cb);
+    sntp_setservername(0, "pool.ntp.org");
+    sntp_init();
+
     mqtt_client_t *client = mqtt_client_new();
 
-    /* Setup callback for incoming publish requests */
+    // Setup callback for incoming publish requests
     mqtt_set_inpub_callback(client, mqtt_incoming_publish_cb, mqtt_incoming_data_cb, NULL);
 
     int err = do_mqtt_connect(client);
 
-    /* For now just print the result code if something goes wrong */
+    // For now just print the result code if something goes wrong
     if (err != ERR_OK) {
         DEBUG_printf("do_mqtt_connect() return %d\n", err);
     }
 
     while (1) {
-        publish_loop_body(client);
+        // publish_loop_body(client);
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
@@ -132,21 +159,36 @@ void mqtt_task(void *dummy)
 
 static void connect_wifi(void)
 {
-    while (1) {
-        if (cyw43_arch_init_with_country(CYW43_COUNTRY_UK)) {
-            panic("failed to initialise\n");
-        }
-        cyw43_arch_enable_sta_mode();
-
-        DEBUG_printf("Connecting to WiFi...\n");
-        if (cyw43_arch_wifi_connect_blocking(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK)) {
-            DEBUG_printf("failed to connect.\n");
-            cyw43_arch_deinit();
-        } else {
-            DEBUG_printf("Connected.\n");
-            break;
-        }
+    if (cyw43_arch_init_with_country(CYW43_COUNTRY_UK)) {
+        panic("failed to initialise\n");
     }
+
+    cyw43_arch_enable_sta_mode();
+
+    DEBUG_printf("Connecting to WiFi...\n");
+    int err;
+    // if ((err = cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK, 30000))) {    
+    //     DEBUG_printf("Could not connect (%d), trying again..\n", err);
+    //     cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
+
+    //     cyw43_arch_deinit();
+
+    //     if (cyw43_arch_init_with_country(CYW43_COUNTRY_UK)) {
+    //         panic("failed to initialise\n");
+    //     }
+
+    //     cyw43_arch_enable_sta_mode();
+
+    //     if ((err = cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK, 30000))) {
+    //         panic("Could not connect after two tries (%d)", err);
+    //     } else {
+    //         DEBUG_printf("Connected.\n");
+    //     }
+    // }
+
+    cyw43_arch_wifi_connect_async(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK);
+
+    vTaskDelay(10000 / portTICK_PERIOD_MS);
 }
 
 #else
@@ -186,6 +228,8 @@ static void connect_wifi(void)
         DEBUG_printf("Waiting for networking...\n");
     }
 
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+
     DEBUG_printf("Wi-Fi initialization complete.\n");
 }
 
@@ -211,7 +255,7 @@ static int do_mqtt_connect(mqtt_client_t *client)
 {
     struct mqtt_connect_client_info_t ci;
 
-    /* Setup an empty client info structure */
+    // Setup an empty client info structure
     memset(&ci, 0, sizeof(ci));
 
     static char client_id[32];
@@ -232,52 +276,42 @@ static int do_mqtt_connect(mqtt_client_t *client)
     int err = mqtt_client_connect(client, &broker_addr, MQTT_BROKER_PORT,
         mqtt_connection_cb, NULL, &ci);
 
+    DEBUG_printf("mqtt_client_connect result %d\n", err);            
+
 #if PICO_SDK
     cyw43_arch_lwip_end();
 #endif
 
-    DEBUG_printf("mqtt_client_connect result %d\n", err);
-
     return err;
 }
 
-#define TEMPERATURE_TOPIC "matrix_display/temperature"
-#if BME680_PRESENT
-#define PRESSURE_TOPIC "matrix_display/pressure"
-#define HUMIDITY_TOPIC "matrix_display/humidity"
-#endif
 #define WEATHER_TOPIC "matrix_display/weather"
-#define MEDIA_PLAYER_TOPIC "matrix_display/media_player"
 #define CALENDAR_TOPIC "matrix_display/calendar"
 #define SCROLLER_TOPIC "matrix_display/scroller"
 #define TRANSPORT_TOPIC "matrix_display/transport"
-#define PORCH_SENSOR_TOPIC "matrix_display/porch"
-#define NOTIFICATION_TOPIC "matrix_display/notification"
-#define SET_RTC_TIME_TOPIC "matrix_display/set_time"
-#define BUZZER_PLAY_RTTTL_TOPIC "matrix_display/buzzer_play_rtttl"
-#define LIGHT_COMMAND_TOPIC "matrix_display/panel/switch"
-#define LIGHT_BRIGHTNESS_COMMAND_TOPIC "matrix_display/panel/brightness/set"
-#define SET_GRAYSCALE_TOPIC "matrix_display/greyscale/switch"
-#define CONFIGURATION_TOPIC "matrix_display/configuration/"
-#define AUTODISCOVER_CONTROL_TOPIC "matrix_display/autodiscover"
+
+#define TEMPERATURE_TOPIC "matrix_display_test/temperature"
+#if BME680_PRESENT
+#define PRESSURE_TOPIC "matrix_display_test/pressure"
+#define HUMIDITY_TOPIC "matrix_display_test/humidity"
+#endif
+#define PORCH_SENSOR_TOPIC "matrix_display_test/porch"
+#define NOTIFICATION_TOPIC "matrix_display_test/notification"
+#define SET_RTC_TIME_TOPIC "matrix_display_test/set_time"
+#define BUZZER_PLAY_RTTTL_TOPIC "matrix_display_test/buzzer_play_rtttl"
+#define LIGHT_COMMAND_TOPIC "matrix_display_test/panel/switch"
+#define LIGHT_BRIGHTNESS_COMMAND_TOPIC "matrix_display_test/panel/brightness/set"
+#define SET_GRAYSCALE_TOPIC "matrix_display_test/greyscale/switch"
+#define CONFIGURATION_TOPIC "matrix_display_test/configuration/"
+#define AUTODISCOVER_CONTROL_TOPIC "matrix_display_test/autodiscover"
+#define MEDIA_PLAYER_TOPIC "matrix_display_test/media_player"
 
 static void do_mqtt_subscribe(mqtt_client_t *client)
 {
     const char *subscriptions[] = {
-        WEATHER_TOPIC,
-        MEDIA_PLAYER_TOPIC,
-        CALENDAR_TOPIC,
-        SCROLLER_TOPIC,
-        TRANSPORT_TOPIC,
-        PORCH_SENSOR_TOPIC,
-        NOTIFICATION_TOPIC,
-        SET_RTC_TIME_TOPIC,
-        BUZZER_PLAY_RTTTL_TOPIC,
-        LIGHT_COMMAND_TOPIC,
-        LIGHT_BRIGHTNESS_COMMAND_TOPIC,
-        SET_GRAYSCALE_TOPIC,
-        AUTODISCOVER_CONTROL_TOPIC,
-        "matrix_display/configuration/#",
+        "matrix_display/#",
+        "matrix_display_test/#",
+        "matrix_display_test/configuration/#",
         NULL,
     };
 
@@ -287,7 +321,7 @@ static void do_mqtt_subscribe(mqtt_client_t *client)
     int err;
     for (const char **s = subscriptions; *s; s++) {
         err = mqtt_subscribe(client, *s, 1, mqtt_sub_request_cb, arg);
-        if(err != ERR_OK) {
+        if (err != ERR_OK) {
             DEBUG_printf("mqtt_subscribe on %s return: %d\n", *s, err);
         }
         else {
@@ -337,14 +371,11 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
     taskENTER_CRITICAL();
 #endif
 
-    // memcpy(data_as_chars + running_len, data, len);
     for (u16_t c = 0; c < len; c++) {
         data_as_chars[c + running_len] = data[c];
     }
-    // DEBUG_printf("Copy done\n");
     running_len += len;
     data_as_chars[running_len] = '\0';
-    // DEBUG_printf("length advanced to %d, Null added\n", running_len);
 
 #if PICO_SDK
     taskEXIT_CRITICAL();
@@ -803,13 +834,11 @@ static void handle_set_time_data(char *data_as_chars)
 {
     DEBUG_printf("handle_set_time_data()\n");
 
-    ds3231_t ds3231;
-
-    bcd_string_to_bytes(data_as_chars, ds3231.datetime_buffer, DS3231_DATETIME_LEN);
-
+#if 0
     if (xQueueSend(i2c_queue, &ds3231, 10) != pdTRUE) {
         DEBUG_printf("Could not send ds3231 data; dropping\n");
     }
+#endif
 }
 
 static void handle_buzzer_play_rtttl_data(char *data_as_chars)

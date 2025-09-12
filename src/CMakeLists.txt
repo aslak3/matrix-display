@@ -20,7 +20,7 @@ include(${SRC_DIR}/images/CMakeLists.txt)
 set(ALL_SOURCE
     main.cpp
     mqtt.cpp
-    i2c.cpp
+    time.cpp
     framebuffer.cpp
     animation.cpp
     rtttl.cpp

@@ -30,6 +30,7 @@
 #include "driver/gpio.h"
 #include "driver/dedic_gpio.h"
 #include "rom/ets_sys.h"
+#include "esp_task_wdt.h"
 
 #endif
 
@@ -41,14 +42,23 @@
 #if SPI_TO_FPGA
 #define FPGA_RESET_PIN 26
 #else
-#define DATA_BASE_PIN 2
+// #define DATA_BASE_PIN 2
+// #define DATA_N_PINS 6
+// #define ROWSEL_BASE_PIN 8
+// #define ROWSEL_N_PINS 4
+
+// #define CLK_PIN 13
+// #define STROBE_PIN 14
+// #define OEN_PIN 15
+
+#define DATA_BASE_PIN 0
 #define DATA_N_PINS 6
-#define ROWSEL_BASE_PIN 8
+#define ROWSEL_BASE_PIN 6
 #define ROWSEL_N_PINS 4
 
-#define CLK_PIN 13
-#define STROBE_PIN 14
-#define OEN_PIN 15
+#define CLK_PIN 11
+#define STROBE_PIN 12
+#define OEN_PIN 13
 #endif
 #elif ESP32_SDK
 #define RED1_PIN GPIO_NUM_42
@@ -71,17 +81,15 @@
 
 void animate_task(void *dummy);
 void matrix_task(void *dummy);
-void i2c_task(void *dummy);
-void buzzer_task(void *dummy);
 
-void vApplicationTickHook(void);
-
+extern void time_task(void *dummy);
+extern void buzzer_task(void *dummy);
 extern void mqtt_task(void *dummy);
 
 QueueHandle_t animate_queue;
 QueueHandle_t matrix_queue;
 QueueHandle_t mqtt_queue;
-QueueHandle_t i2c_queue;
+QueueHandle_t time_queue;
 QueueHandle_t buzzer_queue;
 
 #if PICO_SDK
@@ -91,17 +99,22 @@ int main(void)
 #elif ESP32_SDK
 extern "C" void app_main(void)
 {
-#endif
+    // esp_task_wdt_deinit();
+    #endif
 #if PICO_SDK
     // Let USB UART wake up on a listener, schedular not running yet so can't use vTaskDelay
-    sleep_ms(1000);
+    sleep_ms(2500);
 #elif ESP32_SDK
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    vTaskDelay(5000 / portTICK_PERIOD_MS);
 #endif
 
     DEBUG_printf("Hello, matrix here\n");
 
     srand(0);
+
+    // Good for UK only at the momemt
+    setenv("TZ", "GMT0BST,M3.5.0/1,M10.5.0", 1);
+    tzset();
 
 #if ESP32_SDK
     ESP_ERROR_CHECK(nvs_flash_init());
@@ -109,17 +122,17 @@ extern "C" void app_main(void)
 
     animate_queue = xQueueCreate(3, sizeof(message_anim_t));
     mqtt_queue = xQueueCreate(3, sizeof(message_mqtt_t));
-    i2c_queue = xQueueCreate(3, sizeof(message_i2c_t));
+    time_queue = xQueueCreate(3, sizeof(message_time_t));
     buzzer_queue = xQueueCreate(3, sizeof(message_buzzer_t));
 
     matrix_queue = xQueueCreate(1, sizeof(fb_t));
 
-    xTaskCreate(&animate_task, "Animate Task", 4096, NULL, 0, NULL);
-    xTaskCreate(&mqtt_task, "MQTT Task", 4096, NULL, 0, NULL);
-    xTaskCreate(&i2c_task, "I2C Task", 4096, NULL, 0, NULL);
-    xTaskCreate(&buzzer_task, "Buzzer Task", 4096, NULL, 0, NULL);
+    xTaskCreate(&animate_task, "Animate Task", 8196, NULL, 0, NULL);
+    xTaskCreate(&mqtt_task, "MQTT Task", 8196, NULL, 0, NULL);
+    xTaskCreate(&time_task, "Time Task", 4096, NULL, 0, NULL);
+    // xTaskCreate(&buzzer_task, "Buzzer Task", 4096, NULL, 0, NULL);
 
-    xTaskCreate(&matrix_task, "Matrix Task", 1024, NULL, 10, NULL);
+    xTaskCreate(&matrix_task, "Matrix Task", 8196, NULL, 10, NULL);
 
 #if PICO_SDK
     vTaskStartScheduler();
@@ -207,7 +220,7 @@ void animate_task(void *dummy)
                     anim.update_configuration(&message.configuration);
                     break;
 
-                case MESSAGE_ANIM_DS3231:
+                case MESSAGE_ANIM_TIMEINFO:
 #if PICO_SDK
                     seconds_counter++;
                     if (! watchdog_enabled) {
@@ -226,7 +239,7 @@ void animate_task(void *dummy)
                         }
                     }
 #endif
-                    anim.new_ds3231(&message.ds3231);
+                    anim.new_time(&message.timeinfo);
                     break;
 
                 default:
@@ -243,13 +256,15 @@ void animate_task(void *dummy)
 
         fb.atomic_back_to_fore_copy();
 
-        vTaskDelay(10);
+        vTaskDelay(1);
     }
 
 }
 
-void matrix_task(void *dummy)
+IRAM_ATTR void matrix_task(void *dummy)
 {
+    esp_task_wdt_deinit();
+
     vTaskCoreAffinitySet(NULL, 1 << 1);
     DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), GET_CORE_NUMBER());
 
@@ -340,6 +355,9 @@ void matrix_task(void *dummy)
     }
 #endif
 #elif ESP32_SDK
+    // Setup address and the three other IO pins as outputs; sadly the ESP32-S3 cannot
+    // have more than eight lines in a single "bundle", otherwise we'd create another
+    // one for the address bits
     gpio_config_t io_conf = {
         .pin_bit_mask =
             (1ULL << CLK_PIN) | (1ULL << STROBE_PIN) | (1ULL << OEN_PIN) |
@@ -353,12 +371,11 @@ void matrix_task(void *dummy)
 
     ESP_ERROR_CHECK(gpio_config(&io_conf));
 
-    // Define data GPIO pins for the bundle
+    // Define data GPIO pins for the data (pixel colour) bundle
     int data_pins[] = {
         RED1_PIN, GREEN1_PIN, BLUE1_PIN, RED2_PIN, GREEN2_PIN, BLUE2_PIN,
     };
     dedic_gpio_bundle_handle_t data_bundle;
-
     dedic_gpio_bundle_config_t data_bundle_config = {
         .gpio_array = data_pins,
         .array_size = sizeof(data_pins) / sizeof(int),
@@ -367,65 +384,66 @@ void matrix_task(void *dummy)
         }
     };
 
-    // Create the rowsel GPIO bundle
+    // Finally create the actual data bundle
     dedic_gpio_new_bundle(&data_bundle_config, &data_bundle);
 
-    DEBUG_printf("Created dedic GPIO\n");
-
-    static fb_t output_fb;
+   static fb_t output_fb;
 
     while (1) {
-        // fb.atomic_fore_copy_out(&output_fb);
-        // for (int pwm_threshold = 16; pwm_threshold < 256; pwm_threshold *= 2) {
+        // Obtain the framebuffer.
+        fb.atomic_fore_copy_out(&output_fb);
+        // Double up the PWM length, so this will loop 7 times
+        for (int pwm_threshold = 1; pwm_threshold < 256; pwm_threshold *= 2) {
             for (int y = 0; y < 16; y++) {
+                for (int x = 0; x < 64; x++) {
+                    uint32_t colour = 0;
+                    if (output_fb.rgb[y][x].red > pwm_threshold) {
+                        colour |= 0x01;
+                    }
+                    if (output_fb.rgb[y + 16][x].red > pwm_threshold) {
+                        colour |= 0x08;
+                    }
+                    if (output_fb.rgb[y][x].green > pwm_threshold) {
+                        colour |= 0x02;
+                    }
+                    if (output_fb.rgb[y + 16][x].green > pwm_threshold) {
+                        colour |= 0x10;
+                    }
+                    if (output_fb.rgb[y][x].blue > pwm_threshold) {
+                        colour |= 0x04;
+                    }
+                    if (output_fb.rgb[y + 16][x].blue > pwm_threshold) {
+                        colour |= 0x20;
+                    }
+
+                    dedic_gpio_bundle_write(data_bundle, 0x3f, colour);
+
+                    // clock high
+                    gpio_set_level(CLK_PIN, true);
+                    // clock low
+                    gpio_set_level(CLK_PIN, false);
+                }
+
                 gpio_set_level(ROWSEL_A_PIN, y & 0x1 ? true : false);
                 gpio_set_level(ROWSEL_B_PIN, y & 0x2 ? true : false);
                 gpio_set_level(ROWSEL_C_PIN, y & 0x4 ? true : false);
                 gpio_set_level(ROWSEL_D_PIN, y & 0x8 ? true : false);
 
-                for (int x = 63; x >= 0; x--) {
-                    // uint32_t colour = 0;
-                    // if (output_fb.rgb[x][y].red > pwm_threshold) {
-                    //     colour |= 0x01;
-                    // }
-                    // if (output_fb.rgb[x][y + 16].red < pwm_threshold) {
-                    //     colour |= 0x02;
-                    // }
-                    // if (output_fb.rgb[x][y].green < pwm_threshold) {
-                    //     colour |= 0x04;
-                    // }
-                    // if (output_fb.rgb[x][y + 16].green < pwm_threshold) {
-                    //     colour |= 0x08;
-                    // }
-                    // if (output_fb.rgb[x][y].blue < pwm_threshold) {
-                    //     colour |= 0x10;
-                    // }
-                    // if (output_fb.rgb[x][y + 16].blue < pwm_threshold) {
-                    //     colour |= 0x02;
-                    // }
-
-                    dedic_gpio_bundle_write(data_bundle, 0x3f, 0x3f);//colour);
-
-                    // clock high
-                    gpio_set_level(CLK_PIN, true);
-                    // ets_delay_us(1);
-                    // clock low
-                    gpio_set_level(CLK_PIN, false);
-                    // ets_delay_us(1);
-                }
-
-                // oe high
-                gpio_set_level(OEN_PIN, true);
                 // latch high
                 gpio_set_level(STROBE_PIN, true);
                 // latch low
                 gpio_set_level(STROBE_PIN, false);
-                // oe low
+
+                // oe high
                 gpio_set_level(OEN_PIN, false);
 
-                // ets_delay_us(100);
-        // }
+                // Set a delay the same as the PWM tipping point
+                ets_delay_us(pwm_threshold);
+                
+                // oe low
+                gpio_set_level(OEN_PIN, true);
             }
+        }
     }
 #endif
 }

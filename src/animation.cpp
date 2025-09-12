@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <time.h>
 
 #include "matrix_display.h"
 
@@ -35,9 +36,9 @@ animation::animation(framebuffer& f) : fb(f)
     configuration.scroller_speed = 2;
     configuration.snowflake_count = 0;
 
-    ds3231_state.colon_counter = 0;
-    ds3231_state.hide_colons = 0;
-    ds3231_state.framestamp = 0;
+    time_state.colon_counter = 0;
+    time_state.hide_colons = 0;
+    time_state.framestamp = 0;
 
     weather_state.framestamp = 0;
 
@@ -94,7 +95,7 @@ void animation::render_page(void)
 
     switch (page) {
         case PAGE_WAITING:
-            if (render_waiting_page() || ds3231_state.framestamp) {
+            if (render_waiting_page() || time_state.framestamp) {
                 set_next_page(PAGE_RTC);
             }
             break;
@@ -285,11 +286,11 @@ void animation::new_porch(porch_t *porch)
     porch_state.framestamp = frame;
 }
 
-void animation::new_ds3231(ds3231_t *ds3231)
+void animation::new_time(struct tm *timeinfo)
 {
-    ds3231_state.data = *ds3231;
-    ds3231_state.frames_per_second = frame - ds3231_state.framestamp;
-    ds3231_state.framestamp = frame;
+    time_state.data = *timeinfo;
+    time_state.frames_per_second = frame - time_state.framestamp;
+    time_state.framestamp = frame;
 
     const char *month_names[] = {
         "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -298,34 +299,24 @@ void animation::new_ds3231(ds3231_t *ds3231)
         "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
     };
 
-    uint8_t *buffer = ds3231_state.data.datetime_buffer;
-
-    snprintf(ds3231_state.time_colons, sizeof(ds3231_state.time_colons), "%02x:%02x:%02x",
-        buffer[2] & 0x3f,
-        buffer[1] & 0x7f,
-        buffer[0] & 0x7f
+    snprintf(time_state.time_colons, sizeof(time_state.time_colons), "%02d:%02d:%02d",
+        time_state.data.tm_hour,
+        time_state.data.tm_min,
+        time_state.data.tm_sec
     );
-    snprintf(ds3231_state.time_no_colons, sizeof(ds3231_state.time_no_colons), "%02x %02x %02x",
-        buffer[2] & 0x3f,
-        buffer[1] & 0x7f,
-        buffer[0] & 0x7f
+    snprintf(time_state.time_no_colons, sizeof(time_state.time_no_colons), "%02d %02d %02d",
+        time_state.data.tm_hour,
+        time_state.data.tm_min,
+        time_state.data.tm_sec
     );
 
-    const int day_number = (buffer[3] & 0x0f) + (((buffer[3] & 0xf0) >> 4) * 10) - 1;
-    const int month_number = (buffer[5] & 0x0f) + (((buffer[5] & 0xf0) >> 4) * 10) - 1;
+    snprintf(time_state.date, sizeof(time_state.date), "%s %d %s",
+        day_names[time_state.data.tm_wday],
+        time_state.data.tm_mday,
+        month_names[time_state.data.tm_mon]
+    );
 
-    if (month_number < 12 && day_number < 7) {
-        snprintf(ds3231_state.date, sizeof(ds3231_state.date), "%s %02x %s",
-            day_names[day_number],
-            buffer[4],
-            month_names[month_number]
-        );
-    }
-    else {
-        strncpy(ds3231_state.date, "XXXX", sizeof(ds3231_state.date));
-    }
-
-    DEBUG_printf("New Time: %s Date: %s\n", ds3231_state.time_colons, ds3231_state.date);
+    DEBUG_printf("New Time: %s Date: %s\n", time_state.time_colons, time_state.date);
 }
 
 void animation::update_configuration(configuration_t *config)
@@ -424,22 +415,22 @@ bool animation::render_waiting_page(void)
 bool animation::render_clock_page(void)
 {
     fb.print_string(ibm_font, 0, (FB_HEIGHT - 1) - 8 - 6,
-        ds3231_state.hide_colons ? ds3231_state.time_no_colons : ds3231_state.time_colons,
+        time_state.hide_colons ? time_state.time_no_colons : time_state.time_colons,
         rgb_faded(orange));
 
-    fb.print_string(tiny_font, (FB_WIDTH / 2) - (fb.string_length(tiny_font, ds3231_state.date) / 2),
-        (FB_HEIGHT - 1) - 8 - 10 - 6, ds3231_state.date, rgb_faded(white));
+    fb.print_string(tiny_font, (FB_WIDTH / 2) - (fb.string_length(tiny_font, time_state.date) / 2),
+        (FB_HEIGHT - 1) - 8 - 10 - 6, time_state.date, rgb_faded(white));
 
     if (configuration.clock_colon_flash) {
-        ds3231_state.colon_counter++;
-        if (ds3231_state.colon_counter > configuration.clock_colon_flash) {
-            ds3231_state.hide_colons = !ds3231_state.hide_colons;
-            ds3231_state.colon_counter = 0;
+        time_state.colon_counter++;
+        if (time_state.colon_counter > configuration.clock_colon_flash) {
+            time_state.hide_colons = !time_state.hide_colons;
+            time_state.colon_counter = 0;
         }
     }
     else {
         // Not flashing? Force colons to shown.
-        ds3231_state.hide_colons = 0;
+        time_state.hide_colons = 0;
     }
 
     return false;
@@ -611,7 +602,7 @@ bool animation::render_transport_page(void)
     rgb_t towards_colour = rgb_faded(light_blue);
     rgb_t departures_colour = rgb_faded(cyan);
     // If bus info is stale (older then 5 minutes) make it red instead of blue
-    if (frame - ds3231_state.framestamp > 300 * ds3231_state.frames_per_second) {
+    if (frame - time_state.framestamp > 300 * time_state.frames_per_second) {
         towards_colour = rgb_faded(dark_red);
         departures_colour = rgb_faded(red);
     }
