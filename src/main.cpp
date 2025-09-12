@@ -174,7 +174,7 @@ void animate_task(void *dummy)
             DEBUG_printf("New message, type: %d\n", message.message_type);
 
 #if PICO_SDK
-            if (message.message_type != MESSAGE_ANIM_DS3231) {
+            if (message.message_type != MESSAGE_ANIM_TIMEINFO) {
                 last_network_message_seconds = seconds_counter;
             }
 #endif
@@ -261,9 +261,16 @@ void animate_task(void *dummy)
 
 }
 
+#if ESP32_SDK
+// Run this function out of IRAM for speed
 IRAM_ATTR void matrix_task(void *dummy)
+#elif PICO_SDK
+void matrix_task(void *dummy)
+#endif
 {
+#if ESP32_SD
     esp_task_wdt_deinit();
+#endif
 
     vTaskCoreAffinitySet(NULL, 1 << 1);
     DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), GET_CORE_NUMBER());
@@ -318,7 +325,7 @@ IRAM_ATTR void matrix_task(void *dummy)
         dma_channel_set_read_addr(dma_tx, &output_fb.uint32, true);
         dma_channel_wait_for_finish_blocking(dma_tx);
     }
-#else
+#else // !SPI_TO_FPGA
     PIO pio = pio0;
     uint sm_data = 0;
     uint sm_row = 1;
@@ -353,7 +360,7 @@ IRAM_ATTR void matrix_task(void *dummy)
             }
         }
     }
-#endif
+#endif // SPI_TO_FPGA
 #elif ESP32_SDK
     // Setup address and the three other IO pins as outputs; sadly the ESP32-S3 cannot
     // have more than eight lines in a single "bundle", otherwise we'd create another
@@ -439,13 +446,13 @@ IRAM_ATTR void matrix_task(void *dummy)
 
                 // Set a delay the same as the PWM tipping point
                 ets_delay_us(pwm_threshold);
-                
+
                 // oe low
                 gpio_set_level(OEN_PIN, true);
             }
         }
     }
-#endif
+#endif // ESP32_SDK
 }
 
 #if ESP32_SDK
@@ -461,6 +468,8 @@ void panic(const char *format, ...)
 
     va_end(args);
 
+    // Not the best. Probably better things to do then just loop the task that we want to
+    // die.
     while(1);
 }
 #endif
