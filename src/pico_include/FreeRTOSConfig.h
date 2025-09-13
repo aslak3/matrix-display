@@ -139,4 +139,12 @@ to exclude the API function. */
 
 /* A header file that defines trace macro can be included here. */
 
+#if PICO_RP2350
+#define configENABLE_MPU                        0
+#define configENABLE_TRUSTZONE                  0
+#define configRUN_FREERTOS_SECURE_ONLY          1
+#define configENABLE_FPU                        1
+#define configMAX_SYSCALL_INTERRUPT_PRIORITY    16
+#endif
+
 #endif /* FREERTOS_CONFIG_H */

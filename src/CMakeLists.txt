@@ -2,7 +2,7 @@ set(PROJECT matrix-display)
 
 if($ENV{MATRIX_DISPLAY_SDK} STREQUAL "PICO")
     set(PICO_SDK_PATH $ENV{PICO_SDK_PATH})
-    set(PICO_BOARD pico_w)
+    set(PICO_BOARD pico2_w)
 
     include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
     project(matrix-display CXX C ASM)
@@ -108,11 +108,12 @@ if($ENV{MATRIX_DISPLAY_SDK} STREQUAL "PICO")
         ${COMPILE_DEFS}
         PICO_SDK=${PICO_SDK}
         ESP32_SDK=${ESP32_SDK}
+        SNTP_SET_SYSTEM_TIME=set_system_time
     )
     target_link_libraries(${PROJECT} PUBLIC
         pico_stdlib hardware_i2c hardware_spi hardware_dma hardware_pwm
         pico_cyw43_arch_lwip_sys_freertos
-        pico_lwip_mqtt
+        pico_lwip_mqtt pico_lwip_sntp
         FreeRTOS-Kernel-Heap4
     )
 

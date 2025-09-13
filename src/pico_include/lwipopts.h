@@ -88,8 +88,9 @@
 
 /* You need to increase MEMP_NUM_SYS_TIMEOUT by one if you use MQTT!
  * see https://forums.raspberrypi.com/viewtopic.php?t=341914
+ * And another one for SNTP.
  */
-#define MEMP_NUM_SYS_TIMEOUT   (LWIP_NUM_SYS_TIMEOUT_INTERNAL + 1)
+#define MEMP_NUM_SYS_TIMEOUT   (LWIP_NUM_SYS_TIMEOUT_INTERNAL + 2)
 
 #define TCPIP_THREAD_STACKSIZE 1024
 #define DEFAULT_THREAD_STACKSIZE 1024
@@ -102,5 +103,8 @@
 
 // ping_thread sets socket receive timeout, so enable this feature
 #define LWIP_SO_RCVTIMEO 1
+
+// SNTP
+#define SNTP_SERVER_DNS 1
 
 #endif /* __LWIPOPTS_H__ */

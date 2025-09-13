@@ -96,15 +96,12 @@ QueueHandle_t buzzer_queue;
 int main(void)
 {
     stdio_init_all();
-#elif ESP32_SDK
-extern "C" void app_main(void)
-{
-    // esp_task_wdt_deinit();
-    #endif
-#if PICO_SDK
+
     // Let USB UART wake up on a listener, schedular not running yet so can't use vTaskDelay
     sleep_ms(2500);
 #elif ESP32_SDK
+extern "C" void app_main(void)
+{
     vTaskDelay(5000 / portTICK_PERIOD_MS);
 #endif
 
@@ -112,7 +109,7 @@ extern "C" void app_main(void)
 
     srand(0);
 
-    // Good for UK only at the momemt
+    // Good for UK only at the moment
     setenv("TZ", "GMT0BST,M3.5.0/1,M10.5.0", 1);
     tzset();
 
@@ -127,12 +124,12 @@ extern "C" void app_main(void)
 
     matrix_queue = xQueueCreate(1, sizeof(fb_t));
 
-    xTaskCreate(&animate_task, "Animate Task", 8196, NULL, 0, NULL);
+    xTaskCreate(&animate_task, "Animate Task", 4096, NULL, 0, NULL);
     xTaskCreate(&mqtt_task, "MQTT Task", 8196, NULL, 0, NULL);
     xTaskCreate(&time_task, "Time Task", 4096, NULL, 0, NULL);
     // xTaskCreate(&buzzer_task, "Buzzer Task", 4096, NULL, 0, NULL);
 
-    xTaskCreate(&matrix_task, "Matrix Task", 8196, NULL, 10, NULL);
+    xTaskCreate(&matrix_task, "Matrix Task", 4096, NULL, 10, NULL);
 
 #if PICO_SDK
     vTaskStartScheduler();
@@ -256,9 +253,12 @@ void animate_task(void *dummy)
 
         fb.atomic_back_to_fore_copy();
 
+#if ESP32_SDK
         vTaskDelay(1);
+#elif PICO_SDK
+        vTaskDelay(20);
+#endif
     }
-
 }
 
 #if ESP32_SDK
@@ -268,7 +268,7 @@ IRAM_ATTR void matrix_task(void *dummy)
 void matrix_task(void *dummy)
 #endif
 {
-#if ESP32_SD
+#if ESP32_SDK
     esp_task_wdt_deinit();
 #endif
 

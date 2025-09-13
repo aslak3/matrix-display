@@ -9,6 +9,8 @@
 
 #include <pico/stdlib.h>
 #include <pico/cyw43_arch.h>
+
+#include "lwip/apps/sntp.h"
 #elif ESP32_SDK
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -23,7 +25,6 @@
 
 #include "lwip/dns.h"
 #include "lwip/opt.h"
-// #include "lwip/apps/sntp.h"
 
 #include "mqtt_opts.h"
 #include <lwip/apps/mqtt.h>
@@ -44,8 +45,12 @@ extern QueueHandle_t time_queue;
 extern QueueHandle_t buzzer_queue;
 
 void led_task(void *dummy);
+void mqtt_task(void *dummy);
 
 static void connect_wifi(void);
+
+static void start_sntp_client(void);
+
 static int do_mqtt_connect(mqtt_client_t *client);
 static void do_mqtt_subscribe(mqtt_client_t *client);
 static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection_status_t status);
@@ -105,19 +110,6 @@ void led_task(void *dummy)
     }
 }
 
-void time_sync_notification_cb(struct timeval *tv)
-{
-    message_time_t message_time;
-
-    message_time.message_type = MESSAGE_TIME_TIMESYNC;
-
-    DEBUG_printf("Obtained from SNTP; notified time task.\n");
-
-    if (xQueueSend(time_queue, &message_time, 10) != pdTRUE) {
-        DEBUG_printf("Could not send ds3231 data; dropping\n");
-    }
-}
-
 void mqtt_task(void *dummy)
 {
     vTaskCoreAffinitySet(NULL, 1 << 0);
@@ -132,10 +124,7 @@ void mqtt_task(void *dummy)
     const ip_addr_t *dns0 = dns_getserver(0);
     DEBUG_printf("Using DNS server: %s\n", ipaddr_ntoa(dns0));
 
-    sntp_setoperatingmode(SNTP_OPMODE_POLL);
-    sntp_set_time_sync_notification_cb(time_sync_notification_cb);
-    sntp_setservername(0, "pool.ntp.org");
-    sntp_init();
+    start_sntp_client();
 
     mqtt_client_t *client = mqtt_client_new();
 
@@ -250,6 +239,47 @@ void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id
 }
 
 #endif
+
+#if PICO_SDK
+extern "C" void set_system_time(u32_t sec, u32_t frac)
+{
+    struct timeval tv;
+
+    tv.tv_sec = sec;
+    tv.tv_usec = 0;
+    settimeofday(&tv, NULL);
+#elif ESP32_SDK
+void time_sync_notification_cb(struct timeval *tv)
+{
+#endif
+    message_time_t message_time;
+
+    message_time.message_type = MESSAGE_TIME_TIMESYNC;
+
+    DEBUG_printf("Obtained from SNTP; notified time task.\n");
+
+    if (xQueueSend(time_queue, &message_time, 10) != pdTRUE) {
+        DEBUG_printf("Could not send ds3231 data; dropping\n");
+    }
+}
+
+void start_sntp_client(void)
+{
+#if PICO_SDK
+    cyw43_arch_lwip_begin();
+#endif
+
+    sntp_setoperatingmode(SNTP_OPMODE_POLL);
+#if ESP32_SDK
+    sntp_set_time_sync_notification_cb(time_sync_notification_cb);
+#endif
+    sntp_setservername(0, "pool.ntp.org");
+    sntp_init();
+
+#if PICO_SDK
+    cyw43_arch_lwip_end();
+#endif
+}
 
 static int do_mqtt_connect(mqtt_client_t *client)
 {
