@@ -82,9 +82,10 @@
 void animate_task(void *dummy);
 void matrix_task(void *dummy);
 
-extern void time_task(void *dummy);
-extern void buzzer_task(void *dummy);
 extern void mqtt_task(void *dummy);
+extern void time_task(void *dummy);
+extern void sensor_task(void *dummy);
+extern void buzzer_task(void *dummy);
 
 QueueHandle_t animate_queue;
 QueueHandle_t matrix_queue;
@@ -127,6 +128,7 @@ extern "C" void app_main(void)
     xTaskCreate(&animate_task, "Animate Task", 4096, NULL, 0, NULL);
     xTaskCreate(&mqtt_task, "MQTT Task", 8196, NULL, 0, NULL);
     xTaskCreate(&time_task, "Time Task", 4096, NULL, 0, NULL);
+    xTaskCreate(&sensor_task, "Sensor Task", 4096, NULL, 0, NULL);
     // xTaskCreate(&buzzer_task, "Buzzer Task", 4096, NULL, 0, NULL);
 
     xTaskCreate(&matrix_task, "Matrix Task", 4096, NULL, 10, NULL);

@@ -21,14 +21,16 @@ set(ALL_SOURCE
     main.cpp
     mqtt.cpp
     time.cpp
+    sensor.cpp
+    i2c.cpp
     framebuffer.cpp
     animation.cpp
     rtttl.cpp
-    cJSON.c
     fonts/fonts.c
     images/images.c
     ${FONTS_SOURCE}
     ${IMAGES_SOURCE}
+    cJSON.c
 )
 
 set(CMAKE_C_STANDARD 11)
@@ -36,6 +38,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffile-prefix-map=${PROJECT_SOURCE_DIR}/=")
 
+set(DEVICE_PRETTY_NAME "Matrix Display" CACHE STRING "The name given this device via autodiscovery")
+set(DEVICE_POSTFIX "" CACHE STRING "Optional string to include in topics and entities after matrix_display")
 option(SPI_TO_FPGA "Use the iCE40 FPGA for the display" 1)
 option(BME680_PRESENT "Use a BME680 for temperature, humidity and air preasure" 0)
 set(WIFI_SSID "" CACHE STRING "Wi-Fi SSD network name")
@@ -77,14 +81,19 @@ if(MQTT_BROKER_PASSWORD STREQUAL "")
 endif()
 
 set(COMPILE_DEFS
+    DEVICE_PRETTY_NAME="${DEVICE_PRETTY_NAME}"
+    DEVICE_POSTFIX="${DEVICE_POSTFIX}"
     WIFI_SSID="${WIFI_SSID}"
     WIFI_PASSWORD="${WIFI_PASSWORD}"
     SPI_TO_FPGA=${SPI_TO_FPGA}
     BME680_PRESENT=${BME680_PRESENT}
+    DS3231_PRESENT=${DS3231_PRESENT}
     MQTT_BROKER_IP="${MQTT_BROKER_IP}"
     MQTT_BROKER_PORT=${MQTT_BROKER_PORT}
     MQTT_BROKER_USERNAME="${MQTT_BROKER_USERNAME}"
     MQTT_BROKER_PASSWORD="${MQTT_BROKER_PASSWORD}"
+    # Override mqtt_opts.h setting
+    MQTT_OUTPUT_RINGBUF_SIZE=1024
 )
 
 if($ENV{MATRIX_DISPLAY_SDK} STREQUAL "PICO")

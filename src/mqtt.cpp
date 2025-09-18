@@ -23,17 +23,13 @@
 #include "esp_sntp.h"
 #endif
 
+#include "lwip/apps/mqtt.h"
 #include "lwip/dns.h"
-#include "lwip/opt.h"
-
-#include "mqtt_opts.h"
-#include <lwip/apps/mqtt.h>
-
-#include "matrix_display.h"
-
-#include "messages.h"
 
 #include "cJSON.h"
+
+#include "messages.h" 
+#include "matrix_display.h"
 
 #if ESP32_SDK
 #define LED_PIN GPIO_NUM_13
@@ -110,6 +106,7 @@ void led_task(void *dummy)
     }
 }
 
+mqtt_client_t *client;
 void mqtt_task(void *dummy)
 {
     vTaskCoreAffinitySet(NULL, 1 << 0);
@@ -126,7 +123,7 @@ void mqtt_task(void *dummy)
 
     start_sntp_client();
 
-    mqtt_client_t *client = mqtt_client_new();
+    client = mqtt_client_new();
 
     // Setup callback for incoming publish requests
     mqtt_set_inpub_callback(client, mqtt_incoming_publish_cb, mqtt_incoming_data_cb, NULL);
@@ -139,7 +136,7 @@ void mqtt_task(void *dummy)
     }
 
     while (1) {
-        // publish_loop_body(client);
+        publish_loop_body(client);
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
@@ -148,36 +145,23 @@ void mqtt_task(void *dummy)
 
 static void connect_wifi(void)
 {
-    if (cyw43_arch_init_with_country(CYW43_COUNTRY_UK)) {
-        panic("failed to initialise\n");
+    if (cyw43_arch_init()) {
+        panic("failed to initialise CYW43\n");
     }
 
     cyw43_arch_enable_sta_mode();
 
-    DEBUG_printf("Connecting to WiFi...\n");
+    DEBUG_printf("Connecting to WiFi...\n");    
+    
+    if (cyw43_arch_wifi_connect_async(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK)) {
+        panic("Could not connect to WiFi\n");
+    }
+    
     int err;
-    // if ((err = cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK, 30000))) {    
-    //     DEBUG_printf("Could not connect (%d), trying again..\n", err);
-    //     cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
-
-    //     cyw43_arch_deinit();
-
-    //     if (cyw43_arch_init_with_country(CYW43_COUNTRY_UK)) {
-    //         panic("failed to initialise\n");
-    //     }
-
-    //     cyw43_arch_enable_sta_mode();
-
-    //     if ((err = cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK, 30000))) {
-    //         panic("Could not connect after two tries (%d)", err);
-    //     } else {
-    //         DEBUG_printf("Connected.\n");
-    //     }
-    // }
-
-    cyw43_arch_wifi_connect_async(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_MIXED_PSK);
-
-    vTaskDelay(10000 / portTICK_PERIOD_MS);
+    while ((err = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA)) != CYW43_LINK_UP) {
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        DEBUG_printf("Waiting for Wi-FI TCP/IP... (%d)\n", err);
+    }
 }
 
 #else
@@ -320,28 +304,28 @@ static int do_mqtt_connect(mqtt_client_t *client)
 #define SCROLLER_TOPIC "matrix_display/scroller"
 #define TRANSPORT_TOPIC "matrix_display/transport"
 
-#define TEMPERATURE_TOPIC "matrix_display_test/temperature"
+#define TEMPERATURE_TOPIC "matrix_display" DEVICE_POSTFIX "/temperature"
 #if BME680_PRESENT
-#define PRESSURE_TOPIC "matrix_display_test/pressure"
-#define HUMIDITY_TOPIC "matrix_display_test/humidity"
+#define PRESSURE_TOPIC "matrix_display" DEVICE_POSTFIX "/pressure"
+#define HUMIDITY_TOPIC "matrix_display" DEVICE_POSTFIX "/humidity"
 #endif
-#define PORCH_SENSOR_TOPIC "matrix_display_test/porch"
-#define NOTIFICATION_TOPIC "matrix_display_test/notification"
-#define SET_RTC_TIME_TOPIC "matrix_display_test/set_time"
-#define BUZZER_PLAY_RTTTL_TOPIC "matrix_display_test/buzzer_play_rtttl"
-#define LIGHT_COMMAND_TOPIC "matrix_display_test/panel/switch"
-#define LIGHT_BRIGHTNESS_COMMAND_TOPIC "matrix_display_test/panel/brightness/set"
-#define SET_GRAYSCALE_TOPIC "matrix_display_test/greyscale/switch"
-#define CONFIGURATION_TOPIC "matrix_display_test/configuration/"
-#define AUTODISCOVER_CONTROL_TOPIC "matrix_display_test/autodiscover"
-#define MEDIA_PLAYER_TOPIC "matrix_display_test/media_player"
+#define PORCH_SENSOR_TOPIC "matrix_display" DEVICE_POSTFIX "/porch"
+#define NOTIFICATION_TOPIC "matrix_display" DEVICE_POSTFIX "/notification"
+#define SET_RTC_TIME_TOPIC "matrix_display" DEVICE_POSTFIX "/set_time"
+#define BUZZER_PLAY_RTTTL_TOPIC "matrix_display" DEVICE_POSTFIX "/buzzer_play_rtttl"
+#define LIGHT_COMMAND_TOPIC "matrix_display" DEVICE_POSTFIX "/panel/switch"
+#define LIGHT_BRIGHTNESS_COMMAND_TOPIC "matrix_display" DEVICE_POSTFIX "/panel/brightness/set"
+#define SET_GRAYSCALE_TOPIC "matrix_display" DEVICE_POSTFIX "/greyscale/switch"
+#define CONFIGURATION_TOPIC "matrix_display" DEVICE_POSTFIX "/configuration/"
+#define AUTODISCOVER_CONTROL_TOPIC "matrix_display" DEVICE_POSTFIX "/autodiscover"
+#define MEDIA_PLAYER_TOPIC "matrix_display" DEVICE_POSTFIX "/media_player"
 
 static void do_mqtt_subscribe(mqtt_client_t *client)
 {
     const char *subscriptions[] = {
         "matrix_display/#",
-        "matrix_display_test/#",
-        "matrix_display_test/configuration/#",
+        "matrix_display" DEVICE_POSTFIX "/#",
+        "matrix_display" DEVICE_POSTFIX "/configuration/#",
         NULL,
     };
 
@@ -1022,25 +1006,72 @@ bool autodisover_enable = false;
 bool send_autodiscover = false;
 static void handle_autodiscover_control_data(char *data_as_chars)
 {
-    DEBUG_printf("AutoDiscover control\n");
-
     autodisover_enable = strcmp(data_as_chars, "ON") == 0 ? true : false;
-
+    
     send_autodiscover = true;
-}
 
-static void dump_weather_data(weather_data_t *weather_data)
-{
-    DEBUG_printf("--------------\n");
-    DEBUG_printf("Current: condition=%s temperature=%.1f humidity=%.1f\n",
-        weather_data->condition, weather_data->temperature, weather_data->humidty);
-    for (int i = 0; i < weather_data->forecasts_count; i++) {
-        DEBUG_printf("%s: condition=%s temperature=%.1f percipitation_probability=%.1f\n",
-            weather_data->forecasts[i].time, weather_data->forecasts[i].condition,
-            weather_data->forecasts[i].temperature,
-            weather_data->forecasts[i].precipitation_probability);
+    DEBUG_printf("AutoDiscover control, sending: %d\n", autodisover_enable);
+
+    int err = 0;
+    if (autodisover_enable) {
+        cJSON *device = cJSON_CreateObject();
+        cJSON_AddItemToObject(device, "name", cJSON_CreateString(DEVICE_PRETTY_NAME));
+        cJSON_AddItemToObject(device, "identifiers", cJSON_CreateString("matrix_display" DEVICE_POSTFIX));
+        cJSON_AddItemToObject(device, "manufacturer", cJSON_CreateString("lawrence@aslak.net"));
+        cJSON_AddItemToObject(device, "model", cJSON_CreateString("Matrix Display 64x32"));
+
+        cJSON *light = create_base_object("Panel", "matrix_display" DEVICE_POSTFIX "_brightness");
+        cJSON_AddItemToObject(light, "command_topic", cJSON_CreateString(LIGHT_COMMAND_TOPIC));
+        cJSON_AddItemToObject(light, "payload_off", cJSON_CreateString("OFF"));
+        cJSON_AddItemToObject(light, "brightness_command_topic", cJSON_CreateString(LIGHT_BRIGHTNESS_COMMAND_TOPIC));
+        cJSON_AddItemToObject(light, "on_command_type", cJSON_CreateString("brightness"));
+        err += publish_object_as_device_entity(light, device, client, "homeassistant/light/matrix_display" DEVICE_POSTFIX "/config")
+            != ERR_OK ? 1 : 0;
+
+        cJSON *grayscale = create_base_object("Grayscale", "matrix_display" DEVICE_POSTFIX "_grayscale");
+        cJSON_AddItemToObject(grayscale, "command_topic", cJSON_CreateString(SET_GRAYSCALE_TOPIC));
+        err += publish_object_as_device_entity(grayscale, device, client, "homeassistant/switch/matrix_display" DEVICE_POSTFIX "/config")
+            != ERR_OK ? 1 : 0;
+
+        cJSON *temp = create_base_object("Temperature", "matrix_display" DEVICE_POSTFIX "_temperature");
+        cJSON_AddItemToObject(temp, "state_topic", cJSON_CreateString(TEMPERATURE_TOPIC));
+        cJSON_AddItemToObject(temp, "unit_of_measurement", cJSON_CreateString("°C"));
+        err += publish_object_as_device_entity(temp, device, client, "homeassistant/sensor/matrix_display" DEVICE_POSTFIX "_temperature/config")
+            != ERR_OK ? 1 : 0;
+
+#if BME680_PRESENT
+        cJSON *pressure = create_base_object("Pressure", "matrix_display" DEVICE_POSTFIX "_pressure");
+        cJSON_AddItemToObject(pressure, "state_topic", cJSON_CreateString(PRESSURE_TOPIC));
+        cJSON_AddItemToObject(pressure, "unit_of_measurement", cJSON_CreateString("hPa"));
+        err += publish_object_as_device_entity(pressure, device, client, "homeassistant/sensor/matrix_display" DEVICE_POSTFIX "_pressure/config")
+                != ERR_OK ? 1 : 0;
+
+        cJSON *humidity = create_base_object("Humidity", "matrix_display" DEVICE_POSTFIX "_humidity");
+        cJSON_AddItemToObject(humidity, "state_topic", cJSON_CreateString(HUMIDITY_TOPIC));
+        cJSON_AddItemToObject(humidity, "unit_of_measurement", cJSON_CreateString("%"));
+        err += publish_object_as_device_entity(humidity, device, client, "homeassistant/sensor/matrix_display" DEVICE_POSTFIX "_humidity/config")
+                != ERR_OK ? 1 : 0;
+
+#endif
+        cJSON *snowflakes = create_base_object("Snowflake Count", "matrix_display" DEVICE_POSTFIX "_snowflake_count");
+        cJSON_AddItemToObject(snowflakes, "command_topic", cJSON_CreateString("matrix_display" DEVICE_POSTFIX "/configuration/snowflake_count"));
+        cJSON_AddNumberToObject(snowflakes, "min", 0.0);
+        cJSON_AddNumberToObject(snowflakes, "max", 255.0);
+        err += publish_object_as_device_entity(snowflakes, device, client, "homeassistant/number/matrix_display" DEVICE_POSTFIX "/config")
+                != ERR_OK ? 1 : 0;
+
+        cJSON_free(device);
+
+        err += mqtt_publish(client, "homeassistant/light/matrix_display" DEVICE_POSTFIX "/config", "", 0,
+            0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
+        err += mqtt_publish(client, "homeassistant/switch/matrix_display" DEVICE_POSTFIX "/config", "", 0,
+            0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
+        err += mqtt_publish(client, "homeassistant/sensor/matrix_display" DEVICE_POSTFIX "/config", "", 0,
+            0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
+        err += mqtt_publish(client, "homeassistant/number/matrix_display" DEVICE_POSTFIX "/config", "", 0,
+            0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
+
     }
-    DEBUG_printf("--------------\n");
 }
 
 cJSON *create_base_object(const char *name, const char *unique_id)
@@ -1065,6 +1096,7 @@ int publish_object_as_device_entity(cJSON *obj, cJSON *device, mqtt_client_t *cl
     cyw43_arch_lwip_begin();
 #endif
     int err = mqtt_publish(client, topic, json_chars, strlen(json_chars), 0, 1, mqtt_pub_request_cb, NULL);
+
     free(json_chars);
 
 #if PICO_SDK
@@ -1131,84 +1163,6 @@ static void publish_loop_body(mqtt_client_t *client)
                     panic("Invalid message type (%d)", message_mqtt.message_type);
                     break;
             }
-        }
-
-        if (send_autodiscover) {
-            int err = 0;
-            if (autodisover_enable) {
-                cJSON *device = cJSON_CreateObject();
-                cJSON_AddItemToObject(device, "name", cJSON_CreateString("Matrix Display"));
-                cJSON_AddItemToObject(device, "identifiers", cJSON_CreateString("matrix_display"));
-                cJSON_AddItemToObject(device, "manufacturer", cJSON_CreateString("lawrence@aslak.net"));
-                cJSON_AddItemToObject(device, "model", cJSON_CreateString("Matrix Display 64x32"));
-
-                cJSON *light = create_base_object("Panel", "matrix_display_brightness");
-                cJSON_AddItemToObject(light, "command_topic", cJSON_CreateString(LIGHT_COMMAND_TOPIC));
-                cJSON_AddItemToObject(light, "payload_off", cJSON_CreateString("OFF"));
-                cJSON_AddItemToObject(light, "brightness_command_topic", cJSON_CreateString(LIGHT_BRIGHTNESS_COMMAND_TOPIC));
-                cJSON_AddItemToObject(light, "on_command_type", cJSON_CreateString("brightness"));
-                err += publish_object_as_device_entity(light, device, client, "homeassistant/light/matrix_display/config")
-                    != ERR_OK ? 1 : 0;
-
-                cJSON *grayscale = create_base_object("Grayscale", "matrix_display_grayscale");
-                cJSON_AddItemToObject(grayscale, "command_topic", cJSON_CreateString(SET_GRAYSCALE_TOPIC));
-                err += publish_object_as_device_entity(grayscale, device, client, "homeassistant/switch/matrix_display/config")
-                    != ERR_OK ? 1 : 0;
-
-                cJSON *temp = create_base_object("Temperature", "matrix_display_temperature");
-                cJSON_AddItemToObject(temp, "state_topic", cJSON_CreateString(TEMPERATURE_TOPIC));
-                cJSON_AddItemToObject(temp, "unit_of_measurement", cJSON_CreateString("°C"));
-                err += publish_object_as_device_entity(temp, device, client, "homeassistant/sensor/matrix_display_temperature/config")
-                    != ERR_OK ? 1 : 0;
-
-#if BME680_PRESENT
-                cJSON *pressure = create_base_object("Pressure", "matrix_display_pressure");
-                cJSON_AddItemToObject(pressure, "state_topic", cJSON_CreateString(PRESSURE_TOPIC));
-                cJSON_AddItemToObject(pressure, "unit_of_measurement", cJSON_CreateString("hPa"));
-                err += publish_object_as_device_entity(pressure, device, client, "homeassistant/sensor/matrix_display_pressure/config")
-                     != ERR_OK ? 1 : 0;
-
-                cJSON *humidity = create_base_object("Humidity", "matrix_display_humidity");
-                cJSON_AddItemToObject(humidity, "state_topic", cJSON_CreateString(HUMIDITY_TOPIC));
-                cJSON_AddItemToObject(humidity, "unit_of_measurement", cJSON_CreateString("%"));
-                err += publish_object_as_device_entity(humidity, device, client, "homeassistant/sensor/matrix_display_humidity/config")
-                     != ERR_OK ? 1 : 0;
-
-#endif
-                cJSON *snowflakes = create_base_object("Snowflake Count", "matrix_display_snowflake_count");
-                cJSON_AddItemToObject(snowflakes, "command_topic", cJSON_CreateString("matrix_display/configuration/snowflake_count"));
-                cJSON_AddNumberToObject(snowflakes, "min", 0.0);
-                cJSON_AddNumberToObject(snowflakes, "max", 255.0);
-                err += publish_object_as_device_entity(snowflakes, device, client, "homeassistant/number/matrix_display/config")
-                     != ERR_OK ? 1 : 0;
-
-                cJSON_free(device);
-            }
-            else {
-#if PICO_SDK
-                cyw43_arch_lwip_begin();
-#endif
-
-                err += mqtt_publish(client, "homeassistant/light/matrix_display/config", "", 0,
-                    0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
-                err += mqtt_publish(client, "homeassistant/switch/matrix_display/config", "", 0,
-                    0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
-                err += mqtt_publish(client, "homeassistant/sensor/matrix_display/config", "", 0,
-                    0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
-                err += mqtt_publish(client, "homeassistant/number/matrix_display/config", "", 0,
-                    0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
-
-#if PICO_SDK
-                cyw43_arch_lwip_end();
-#endif
-
-            }
-
-            if (err > 0) {
-                DEBUG_printf("mqtt_publish returned %d errors\n", err);
-            }
-
-            send_autodiscover = false;
         }
 
         vTaskDelay(10 / portTICK_PERIOD_MS);
