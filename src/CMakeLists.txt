@@ -140,7 +140,7 @@ else()
 
     idf_component_register(
         SRCS ${ALL_SOURCE} ${MQTT_SOURCE} ${CLIMATE_SOURCE} ${BUZZER_SOURCE}
-        REQUIRES esp_wifi esp_driver_gpio nvs_flash
+        REQUIRES esp_wifi esp_driver_gpio driver nvs_flash
     )
 
     target_include_directories(${COMPONENT_LIB} PUBLIC ${CMAKE_CURRENT_LIST_DIR})

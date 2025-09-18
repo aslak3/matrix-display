@@ -1,17 +1,22 @@
 #include <stdio.h>
+#include <string.h>
 
-#include <pico/stdlib.h>
-#include <pico/cyw43_arch.h>
-
+#if PICO_SDK
 #include <FreeRTOS.h>
 #include <task.h>
 #include <queue.h>
 
-#include "matrix_display.h"
-
-#include "messages.h"
+#include <pico/stdlib.h>
+#elif ESP32_SDK
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+#endif
 
 #include "i2c.h"
+
+#include "matrix_display.h"
+#include "messages.h"
 
 #define CLIMATE_SEND_INTERVAL 60    // Send climate data every 60 seconds
 

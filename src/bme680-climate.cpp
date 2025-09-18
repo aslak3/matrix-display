@@ -98,9 +98,7 @@ int configure_bme680(void)
         BME680_CTRL_MEAS, 0b01010100,
     };
 
-    if (i2c_write(BME680_I2C_ADDR, config_buffer, sizeof(config_buffer),
-        false) != sizeof(config_buffer))
-    {
+    if (!i2c_write(BME680_I2C_ADDR, config_buffer, sizeof(config_buffer))) {
         return 0;
     }
 
@@ -112,12 +110,7 @@ int receive_data(void)
 {
     const uint8_t base_reg_addr = 0;
 
-    if (i2c_write(BME680_I2C_ADDR, &base_reg_addr, 1, true) != 1) {
-        return 1;
-    }
-    if (i2c_read(BME680_I2C_ADDR, current_state, sizeof(current_state),
-        false) != sizeof(current_state))
-    {
+    if (!i2c_write_read(BME680_I2C_ADDR, &base_reg_addr, 1, current_state, sizeof(current_state))) {
         return 0;
     }
 
@@ -131,7 +124,7 @@ int receive_data(void)
 int request_run(void)
 {
     uint8_t run_buffer[] = { BME680_CTRL_MEAS, 0b01010101 };
-    if (i2c_write(BME680_I2C_ADDR, run_buffer, sizeof(run_buffer), false) != sizeof(run_buffer)) {
+    if (!i2c_write(BME680_I2C_ADDR, run_buffer, sizeof(run_buffer))) {
         return 0;
     }
 

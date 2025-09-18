@@ -21,6 +21,7 @@
 #include "nvs_flash.h"
 #include "esp_event.h"
 #include "esp_sntp.h"
+#include "lwip/tcpip.h"
 #endif
 
 #include "lwip/apps/mqtt.h"
@@ -240,10 +241,11 @@ void time_sync_notification_cb(struct timeval *tv)
 
     message_time.message_type = MESSAGE_TIME_TIMESYNC;
 
-    DEBUG_printf("Obtained from SNTP; notified time task.\n");
-
     if (xQueueSend(time_queue, &message_time, 10) != pdTRUE) {
-        DEBUG_printf("Could not send ds3231 data; dropping\n");
+        DEBUG_printf("Could not send timesync data; dropping\n");
+    }
+    else {
+        DEBUG_printf("Obtained time from SNTP; notified time task.\n");
     }
 }
 
@@ -251,8 +253,9 @@ void start_sntp_client(void)
 {
 #if PICO_SDK
     cyw43_arch_lwip_begin();
+#elif ESP32_SDK
+    LOCK_TCPIP_CORE();
 #endif
-
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
 #if ESP32_SDK
     sntp_set_time_sync_notification_cb(time_sync_notification_cb);
@@ -262,6 +265,8 @@ void start_sntp_client(void)
 
 #if PICO_SDK
     cyw43_arch_lwip_end();
+#elif ESP32_SDK
+    UNLOCK_TCPIP_CORE();
 #endif
 }
 
@@ -281,10 +286,12 @@ static int do_mqtt_connect(mqtt_client_t *client)
     ci.keep_alive = 60;
 
     ip_addr_t broker_addr;
-    ipaddr_aton("10.52.0.2", &broker_addr);
+    ipaddr_aton(MQTT_BROKER_IP, &broker_addr);
 
 #if PICO_SDK
     cyw43_arch_lwip_begin();
+#elif ESP32_SDK
+    LOCK_TCPIP_CORE();
 #endif
 
     int err = mqtt_client_connect(client, &broker_addr, MQTT_BROKER_PORT,
@@ -294,6 +301,8 @@ static int do_mqtt_connect(mqtt_client_t *client)
 
 #if PICO_SDK
     cyw43_arch_lwip_end();
+#elif ESP32_SDK
+    UNLOCK_TCPIP_CORE();
 #endif
 
     return err;
@@ -1002,14 +1011,10 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
     }
 }
 
-bool autodisover_enable = false;
-bool send_autodiscover = false;
 static void handle_autodiscover_control_data(char *data_as_chars)
 {
-    autodisover_enable = strcmp(data_as_chars, "ON") == 0 ? true : false;
+    bool autodisover_enable = strcmp(data_as_chars, "ON") == 0 ? true : false;
     
-    send_autodiscover = true;
-
     DEBUG_printf("AutoDiscover control, sending: %d\n", autodisover_enable);
 
     int err = 0;
@@ -1070,7 +1075,9 @@ static void handle_autodiscover_control_data(char *data_as_chars)
             0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
         err += mqtt_publish(client, "homeassistant/number/matrix_display" DEVICE_POSTFIX "/config", "", 0,
             0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
-
+    }
+    else {
+        DEBUG_printf("Ignoring non ON data\n");
     }
 }
 
@@ -1094,6 +1101,8 @@ int publish_object_as_device_entity(cJSON *obj, cJSON *device, mqtt_client_t *cl
 
 #if PICO_SDK
     cyw43_arch_lwip_begin();
+#elif ESP32_SDK
+    LOCK_TCPIP_CORE();
 #endif
     int err = mqtt_publish(client, topic, json_chars, strlen(json_chars), 0, 1, mqtt_pub_request_cb, NULL);
 
@@ -1101,6 +1110,8 @@ int publish_object_as_device_entity(cJSON *obj, cJSON *device, mqtt_client_t *cl
 
 #if PICO_SDK
     cyw43_arch_lwip_end();
+#elif ESP32_SDK
+    UNLOCK_TCPIP_CORE();
 #endif
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
@@ -1119,7 +1130,6 @@ static void publish_loop_body(mqtt_client_t *client)
                 char pressure_buffer[10];
                 char humidity_buffer[10];
 #endif
-                int err;
                 case MESSAGE_MQTT_CLIMATE:
                     snprintf(temperature_buffer, sizeof(temperature_buffer), "%.2f", message_mqtt.climate.temperature);
                     DEBUG_printf("Got temperature: %s\n", temperature_buffer);
@@ -1133,15 +1143,22 @@ static void publish_loop_body(mqtt_client_t *client)
 
 #if PICO_SDK
                     cyw43_arch_lwip_begin();
+#elif ESP32_SDK
+                    LOCK_TCPIP_CORE();
 #endif
 
+// TODO: Get this working on ESP32!
+#if PICO_SDK
+
+                    int err;
+#if DS3231_PRESENT
                     err = mqtt_publish(client, TEMPERATURE_TOPIC, temperature_buffer, strlen(temperature_buffer), 0, 1,
                         mqtt_pub_request_cb, NULL);
                     if (err != ERR_OK) {
                         DEBUG_printf("mqtt_publish on %s return: %d\n", TEMPERATURE_TOPIC, err);
                     }
 
-#if BME680_PRESENT
+#elif BME680_PRESENT
                     err = mqtt_publish(client, PRESSURE_TOPIC, pressure_buffer, strlen(pressure_buffer), 0, 1,
                         mqtt_pub_request_cb, NULL);
                     if (err != ERR_OK) {
@@ -1153,9 +1170,12 @@ static void publish_loop_body(mqtt_client_t *client)
                         DEBUG_printf("mqtt_publish on %s return: %d\n", HUMIDITY_TOPIC, err);
                     }
 #endif
+#endif
 
 #if PICO_SDK
                     cyw43_arch_lwip_end();
+#elif ESP32_SDK
+                    UNLOCK_TCPIP_CORE();
 #endif
                     break;
 
