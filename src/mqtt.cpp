@@ -1086,28 +1086,45 @@ static void handle_autodiscover_control_data(mqtt_client_t *client, char *data_a
     }
 }
 
-char temperature_buffer[10];
-#if BME680_PRESENT
-char pressure_buffer[10];
-char humidity_buffer[10];
-#endif
+climate_t last_climate_data;
+bool got_climate_data = false;
 
 void handle_publish_trigger(mqtt_client_t *client)
 {
     int err;
-#if DS3231_PRESENT
+
+    if (!got_climate_data) {
+        DEBUG_printf("Not got any data yet, so skipping publish\n");
+        return;
+    }
+
+#if DS3231_PRESENT || BME680_PRESENT
+    char temperature_buffer[16];
+
+    snprintf(temperature_buffer, sizeof(temperature_buffer), "%.2f", last_climate_data.temperature);
+    DEBUG_printf("Got temperature: %s\n", temperature_buffer);
+
     err = mqtt_publish(client, TEMPERATURE_TOPIC, temperature_buffer, strlen(temperature_buffer), 0, 1,
         mqtt_pub_request_cb, NULL);
     if (err != ERR_OK) {
         DEBUG_printf("mqtt_publish on %s return: %d\n", TEMPERATURE_TOPIC, err);
     }
+#endif
 
-#elif BME680_PRESENT
+#if BME680_PRESENT
+    char pressure_buffer[16];
+    char humidity_buffer[16];
+
+    snprintf(pressure_buffer, sizeof(pressure_buffer), "%.2f", last_climate_data.pressure);
+    DEBUG_printf("Got pressure: %s\n", pressure_buffer);
     err = mqtt_publish(client, PRESSURE_TOPIC, pressure_buffer, strlen(pressure_buffer), 0, 1,
         mqtt_pub_request_cb, NULL);
     if (err != ERR_OK) {
         DEBUG_printf("mqtt_publish on %s return: %d\n", PRESSURE_TOPIC, err);
     }
+
+    snprintf(humidity_buffer, sizeof(humidity_buffer), "%.2f", last_climate_data.humidity);
+    DEBUG_printf("Got humidity: %s\n", humidity_buffer);
     err = mqtt_publish(client, HUMIDITY_TOPIC, humidity_buffer, strlen(humidity_buffer), 0, 1,
         mqtt_pub_request_cb, NULL);
     if (err != ERR_OK) {
@@ -1159,16 +1176,8 @@ static void sensor_message_poll(void)
     if (xQueueReceive(mqtt_queue, &message_mqtt, 0) == pdTRUE) {
         switch (message_mqtt.message_type) {
             case MESSAGE_MQTT_CLIMATE:
-                snprintf(temperature_buffer, sizeof(temperature_buffer), "%.2f", message_mqtt.climate.temperature);
-                DEBUG_printf("Got temperature: %s\n", temperature_buffer);
-
-#if BME680_PRESENT
-                snprintf(pressure_buffer, sizeof(pressure_buffer), "%.2f", message_mqtt.climate.pressure);
-                DEBUG_printf("Got pressure: %s\n", pressure_buffer);
-                snprintf(humidity_buffer, sizeof(humidity_buffer), "%.2f", message_mqtt.climate.humidity);
-                DEBUG_printf("Got humidity: %s\n", humidity_buffer);
-#endif
-
+                last_climate_data = message_mqtt.climate;
+                got_climate_data = true;
                 break;
 
             default:
