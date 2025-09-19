@@ -18,7 +18,7 @@
 #include "matrix_display.h"
 #include "messages.h"
 
-#define CLIMATE_SEND_INTERVAL 60    // Send climate data every 60 seconds
+#define CLIMATE_SEND_INTERVAL 60    // Send climate data every 60 seconds (approx)
 
 #if BME680_PRESENT
 extern int configure_bme680(void);
@@ -62,7 +62,7 @@ void sensor_task(void *dummy)
 #if BME680_PRESENT
             if (requested_run) {
                 if (!(receive_data())) {
-                    DEBUG_printf("BME680: Failed to recieve data\n");
+                    DEBUG_printf("BME680: Failed to receive data\n");
                 }
                 got_data = true;
             }
@@ -87,7 +87,6 @@ void sensor_task(void *dummy)
             if (xQueueSend(mqtt_queue, &message_mqtt, 10) != pdTRUE) {
                 DEBUG_printf("Could not send climate data; dropping\n");
             }
-
 #endif
 
             climate_count = 0;

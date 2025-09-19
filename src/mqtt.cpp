@@ -69,12 +69,13 @@ static void handle_light_command_data(char *data_as_chars);
 static void handle_light_brightness_command_data(char *data_as_chars);
 static void handle_set_grayscale_data(char *data_as_chars);
 static void handle_configuration_data(char *attribute, char *data_as_chars);
-static void handle_autodiscover_control_data(char *data_as_chars);
+static void handle_autodiscover_control_data(mqtt_client_t *client, char *data_as_chars);
+static void handle_publish_trigger(mqtt_client_t *client);
 static void dump_weather_data(weather_data_t *weather_data);
 
 cJSON *create_base_object(const char *name, const char *unique_id);
 int publish_object_as_device_entity(cJSON *obj, cJSON *device, mqtt_client_t *client, const char *topic);
-static void publish_loop_body(mqtt_client_t *client);
+static void sensor_message_poll(void);
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags);
 
 static uint8_t bcd_digit_to_byte(char c);
@@ -107,7 +108,6 @@ void led_task(void *dummy)
     }
 }
 
-mqtt_client_t *client;
 void mqtt_task(void *dummy)
 {
     vTaskCoreAffinitySet(NULL, 1 << 0);
@@ -124,10 +124,10 @@ void mqtt_task(void *dummy)
 
     start_sntp_client();
 
-    client = mqtt_client_new();
+    mqtt_client_t *client = mqtt_client_new();
 
     // Setup callback for incoming publish requests
-    mqtt_set_inpub_callback(client, mqtt_incoming_publish_cb, mqtt_incoming_data_cb, NULL);
+    mqtt_set_inpub_callback(client, mqtt_incoming_publish_cb, mqtt_incoming_data_cb, client);
 
     int err = do_mqtt_connect(client);
 
@@ -137,8 +137,15 @@ void mqtt_task(void *dummy)
     }
 
     while (1) {
-        publish_loop_body(client);
+        sensor_message_poll();
+
+        if (mqtt_client_is_connected(client) == 0) {
+            DEBUG_printf("MQTT not connected; reconnecting\n");
+            do_mqtt_connect(client);
+        }
+
         vTaskDelay(1000 / portTICK_PERIOD_MS);
+
     }
 }
 
@@ -253,8 +260,6 @@ void start_sntp_client(void)
 {
 #if PICO_SDK
     cyw43_arch_lwip_begin();
-#elif ESP32_SDK
-    LOCK_TCPIP_CORE();
 #endif
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
 #if ESP32_SDK
@@ -265,8 +270,6 @@ void start_sntp_client(void)
 
 #if PICO_SDK
     cyw43_arch_lwip_end();
-#elif ESP32_SDK
-    UNLOCK_TCPIP_CORE();
 #endif
 }
 
@@ -290,8 +293,6 @@ static int do_mqtt_connect(mqtt_client_t *client)
 
 #if PICO_SDK
     cyw43_arch_lwip_begin();
-#elif ESP32_SDK
-    LOCK_TCPIP_CORE();
 #endif
 
     int err = mqtt_client_connect(client, &broker_addr, MQTT_BROKER_PORT,
@@ -301,8 +302,6 @@ static int do_mqtt_connect(mqtt_client_t *client)
 
 #if PICO_SDK
     cyw43_arch_lwip_end();
-#elif ESP32_SDK
-    UNLOCK_TCPIP_CORE();
 #endif
 
     return err;
@@ -328,6 +327,7 @@ static int do_mqtt_connect(mqtt_client_t *client)
 #define CONFIGURATION_TOPIC "matrix_display" DEVICE_POSTFIX "/configuration/"
 #define AUTODISCOVER_CONTROL_TOPIC "matrix_display" DEVICE_POSTFIX "/autodiscover"
 #define MEDIA_PLAYER_TOPIC "matrix_display" DEVICE_POSTFIX "/media_player"
+#define PUBLISH_TRIGGER_TOPIC "matrix_display" DEVICE_POSTFIX "/publish_trigger"
 
 static void do_mqtt_subscribe(mqtt_client_t *client)
 {
@@ -386,6 +386,8 @@ static char data_as_chars[4096];
 
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags)
 {
+    mqtt_client_t *client = (mqtt_client_t *) arg;
+
     static u16_t running_len = 0;
 
     DEBUG_printf("Start of mqtt_incoming_data_cb(len: %u, flags: %u)\n", len, flags);
@@ -453,7 +455,10 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
             handle_configuration_data(current_topic + strlen(CONFIGURATION_TOPIC), data_as_chars);
         }
         else if (strcmp(current_topic, AUTODISCOVER_CONTROL_TOPIC) == 0) {
-            handle_autodiscover_control_data(data_as_chars);
+            handle_autodiscover_control_data(client, data_as_chars);
+        }
+        else if (strcmp(current_topic, PUBLISH_TRIGGER_TOPIC) == 0) {
+            handle_publish_trigger(client);
         }
         else {
             DEBUG_printf("Unknown topic %s\n", current_topic);
@@ -1011,7 +1016,7 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
     }
 }
 
-static void handle_autodiscover_control_data(char *data_as_chars)
+static void handle_autodiscover_control_data(mqtt_client_t *client, char *data_as_chars)
 {
     bool autodisover_enable = strcmp(data_as_chars, "ON") == 0 ? true : false;
     
@@ -1081,6 +1086,38 @@ static void handle_autodiscover_control_data(char *data_as_chars)
     }
 }
 
+char temperature_buffer[10];
+#if BME680_PRESENT
+char pressure_buffer[10];
+char humidity_buffer[10];
+#endif
+
+void handle_publish_trigger(mqtt_client_t *client)
+{
+    int err;
+#if DS3231_PRESENT
+    err = mqtt_publish(client, TEMPERATURE_TOPIC, temperature_buffer, strlen(temperature_buffer), 0, 1,
+        mqtt_pub_request_cb, NULL);
+    if (err != ERR_OK) {
+        DEBUG_printf("mqtt_publish on %s return: %d\n", TEMPERATURE_TOPIC, err);
+    }
+
+#elif BME680_PRESENT
+    err = mqtt_publish(client, PRESSURE_TOPIC, pressure_buffer, strlen(pressure_buffer), 0, 1,
+        mqtt_pub_request_cb, NULL);
+    if (err != ERR_OK) {
+        DEBUG_printf("mqtt_publish on %s return: %d\n", PRESSURE_TOPIC, err);
+    }
+    err = mqtt_publish(client, HUMIDITY_TOPIC, humidity_buffer, strlen(humidity_buffer), 0, 1,
+        mqtt_pub_request_cb, NULL);
+    if (err != ERR_OK) {
+        DEBUG_printf("mqtt_publish on %s return: %d\n", HUMIDITY_TOPIC, err);
+    }
+#endif
+
+    DEBUG_printf("Sent current sensor data\n");
+}
+
 cJSON *create_base_object(const char *name, const char *unique_id)
 {
     cJSON *obj = cJSON_CreateObject();
@@ -1101,8 +1138,6 @@ int publish_object_as_device_entity(cJSON *obj, cJSON *device, mqtt_client_t *cl
 
 #if PICO_SDK
     cyw43_arch_lwip_begin();
-#elif ESP32_SDK
-    LOCK_TCPIP_CORE();
 #endif
     int err = mqtt_publish(client, topic, json_chars, strlen(json_chars), 0, 1, mqtt_pub_request_cb, NULL);
 
@@ -1110,89 +1145,36 @@ int publish_object_as_device_entity(cJSON *obj, cJSON *device, mqtt_client_t *cl
 
 #if PICO_SDK
     cyw43_arch_lwip_end();
-#elif ESP32_SDK
-    UNLOCK_TCPIP_CORE();
 #endif
+
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
     return err;
 }
 
-static void publish_loop_body(mqtt_client_t *client)
+static void sensor_message_poll(void)
 {
     static message_mqtt_t message_mqtt;
 
-    if (mqtt_client_is_connected(client)) {
-        if (xQueueReceive(mqtt_queue, &message_mqtt, 0) == pdTRUE) {
-            switch (message_mqtt.message_type) {
-                char temperature_buffer[10];
-#if BME680_PRESENT
-                char pressure_buffer[10];
-                char humidity_buffer[10];
-#endif
-                case MESSAGE_MQTT_CLIMATE:
-                    snprintf(temperature_buffer, sizeof(temperature_buffer), "%.2f", message_mqtt.climate.temperature);
-                    DEBUG_printf("Got temperature: %s\n", temperature_buffer);
+    if (xQueueReceive(mqtt_queue, &message_mqtt, 0) == pdTRUE) {
+        switch (message_mqtt.message_type) {
+            case MESSAGE_MQTT_CLIMATE:
+                snprintf(temperature_buffer, sizeof(temperature_buffer), "%.2f", message_mqtt.climate.temperature);
+                DEBUG_printf("Got temperature: %s\n", temperature_buffer);
 
 #if BME680_PRESENT
-                    snprintf(pressure_buffer, sizeof(pressure_buffer), "%.2f", message_mqtt.climate.pressure);
-                    DEBUG_printf("Got pressure: %s\n", pressure_buffer);
-                    snprintf(humidity_buffer, sizeof(humidity_buffer), "%.2f", message_mqtt.climate.humidity);
-                    DEBUG_printf("Got humidity: %s\n", humidity_buffer);
+                snprintf(pressure_buffer, sizeof(pressure_buffer), "%.2f", message_mqtt.climate.pressure);
+                DEBUG_printf("Got pressure: %s\n", pressure_buffer);
+                snprintf(humidity_buffer, sizeof(humidity_buffer), "%.2f", message_mqtt.climate.humidity);
+                DEBUG_printf("Got humidity: %s\n", humidity_buffer);
 #endif
 
-#if PICO_SDK
-                    cyw43_arch_lwip_begin();
-#elif ESP32_SDK
-                    LOCK_TCPIP_CORE();
-#endif
+                break;
 
-// TODO: Get this working on ESP32!
-#if PICO_SDK
-
-                    int err;
-#if DS3231_PRESENT
-                    err = mqtt_publish(client, TEMPERATURE_TOPIC, temperature_buffer, strlen(temperature_buffer), 0, 1,
-                        mqtt_pub_request_cb, NULL);
-                    if (err != ERR_OK) {
-                        DEBUG_printf("mqtt_publish on %s return: %d\n", TEMPERATURE_TOPIC, err);
-                    }
-
-#elif BME680_PRESENT
-                    err = mqtt_publish(client, PRESSURE_TOPIC, pressure_buffer, strlen(pressure_buffer), 0, 1,
-                        mqtt_pub_request_cb, NULL);
-                    if (err != ERR_OK) {
-                        DEBUG_printf("mqtt_publish on %s return: %d\n", PRESSURE_TOPIC, err);
-                    }
-                    err = mqtt_publish(client, HUMIDITY_TOPIC, humidity_buffer, strlen(humidity_buffer), 0, 1,
-                        mqtt_pub_request_cb, NULL);
-                    if (err != ERR_OK) {
-                        DEBUG_printf("mqtt_publish on %s return: %d\n", HUMIDITY_TOPIC, err);
-                    }
-#endif
-#endif
-
-#if PICO_SDK
-                    cyw43_arch_lwip_end();
-#elif ESP32_SDK
-                    UNLOCK_TCPIP_CORE();
-#endif
-                    break;
-
-                default:
-                    panic("Invalid message type (%d)", message_mqtt.message_type);
-                    break;
-            }
+            default:
+                panic("Invalid message type (%d)", message_mqtt.message_type);
+                break;
         }
-
-        vTaskDelay(10 / portTICK_PERIOD_MS);
-    }
-    else {
-        if (mqtt_client_is_connected(client) == 0) {
-            DEBUG_printf("MQTT not connected; reconnecting\n");
-            do_mqtt_connect(client);
-        }
-        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
 
