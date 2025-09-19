@@ -258,7 +258,7 @@ void animate_task(void *dummy)
 #if ESP32_SDK
         vTaskDelay(1);
 #elif PICO_SDK
-        vTaskDelay(20);
+        vTaskDelay(10);
 #endif
     }
 }

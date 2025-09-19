@@ -54,8 +54,9 @@ static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection
 static void mqtt_sub_request_cb(void *arg, err_t result);
 static void mqtt_pub_request_cb(void *arg, err_t result);
 static void mqtt_incoming_publish_cb(void *arg, const char *topic, u32_t tot_len);
-static cJSON *json_parser(char *data_as_chars);
+static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags);
 
+static cJSON *json_parser(char *data_as_chars);
 static void handle_weather_json_data(char *data_as_chars);
 static void handle_media_player_json_data(char *data_as_chars);
 static void handle_calendar_data(char *data_as_chars);
@@ -71,16 +72,31 @@ static void handle_set_grayscale_data(char *data_as_chars);
 static void handle_configuration_data(char *attribute, char *data_as_chars);
 static void handle_autodiscover_control_data(mqtt_client_t *client, char *data_as_chars);
 static void handle_publish_trigger(mqtt_client_t *client);
-static void dump_weather_data(weather_data_t *weather_data);
 
-cJSON *create_base_object(const char *name, const char *unique_id);
-int publish_object_as_device_entity(cJSON *obj, cJSON *device, mqtt_client_t *client, const char *topic);
+static cJSON *create_base_object(const char *name, const char *unique_id);
+static int publish_object_as_device_entity(cJSON *obj, cJSON *device, mqtt_client_t *client, const char *topic);
 static void sensor_message_poll(void);
-static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags);
 
-static uint8_t bcd_digit_to_byte(char c);
-static char *bcd_two_digits_to_byte(char *in, uint8_t *out);
-static void bcd_string_to_bytes(char *in, uint8_t *buffer, uint8_t len);
+#define WEATHER_TOPIC "matrix_display/weather"
+#define CALENDAR_TOPIC "matrix_display/calendar"
+#define SCROLLER_TOPIC "matrix_display/scroller"
+#define TRANSPORT_TOPIC "matrix_display/transport"
+#define PORCH_SENSOR_TOPIC "matrix_display/porch"
+
+#define TEMPERATURE_TOPIC DEVICE_NAME "/temperature"
+#if BME680_PRESENT
+#define PRESSURE_TOPIC DEVICE_NAME "/pressure"
+#define HUMIDITY_TOPIC DEVICE_NAME "/humidity"
+#endif
+#define NOTIFICATION_TOPIC DEVICE_NAME "/notification"
+#define BUZZER_PLAY_RTTTL_TOPIC DEVICE_NAME "/buzzer_play_rtttl"
+#define LIGHT_COMMAND_TOPIC DEVICE_NAME "/panel/switch"
+#define LIGHT_BRIGHTNESS_COMMAND_TOPIC DEVICE_NAME "/panel/brightness/set"
+#define SET_GRAYSCALE_TOPIC DEVICE_NAME "/greyscale/switch"
+#define CONFIGURATION_TOPIC DEVICE_NAME "/configuration/"
+#define AUTODISCOVER_CONTROL_TOPIC DEVICE_NAME "/autodiscover"
+#define MEDIA_PLAYER_TOPIC DEVICE_NAME "/media_player"
+#define PUBLISH_TRIGGER_TOPIC DEVICE_NAME "/publish_trigger"
 
 void led_task(void *dummy)
 {
@@ -307,28 +323,6 @@ static int do_mqtt_connect(mqtt_client_t *client)
     return err;
 }
 
-#define WEATHER_TOPIC "matrix_display/weather"
-#define CALENDAR_TOPIC "matrix_display/calendar"
-#define SCROLLER_TOPIC "matrix_display/scroller"
-#define TRANSPORT_TOPIC "matrix_display/transport"
-#define PORCH_SENSOR_TOPIC "matrix_display/porch"
-
-#define TEMPERATURE_TOPIC DEVICE_NAME "/temperature"
-#if BME680_PRESENT
-#define PRESSURE_TOPIC DEVICE_NAME "/pressure"
-#define HUMIDITY_TOPIC DEVICE_NAME "/humidity"
-#endif
-#define NOTIFICATION_TOPIC DEVICE_NAME "/notification"
-#define SET_RTC_TIME_TOPIC DEVICE_NAME "/set_time"
-#define BUZZER_PLAY_RTTTL_TOPIC DEVICE_NAME "/buzzer_play_rtttl"
-#define LIGHT_COMMAND_TOPIC DEVICE_NAME "/panel/switch"
-#define LIGHT_BRIGHTNESS_COMMAND_TOPIC DEVICE_NAME "/panel/brightness/set"
-#define SET_GRAYSCALE_TOPIC DEVICE_NAME "/greyscale/switch"
-#define CONFIGURATION_TOPIC DEVICE_NAME "/configuration/"
-#define AUTODISCOVER_CONTROL_TOPIC DEVICE_NAME "/autodiscover"
-#define MEDIA_PLAYER_TOPIC DEVICE_NAME "/media_player"
-#define PUBLISH_TRIGGER_TOPIC DEVICE_NAME "/publish_trigger"
-
 static void do_mqtt_subscribe(mqtt_client_t *client)
 {
     const char *subscriptions[] = {
@@ -436,9 +430,6 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         else if (strcmp(current_topic, NOTIFICATION_TOPIC) == 0) {
             handle_notificaiton_data(data_as_chars);
         }
-        else if (strcmp(current_topic, SET_RTC_TIME_TOPIC) == 0) {
-            handle_set_time_data(data_as_chars);
-        }
         else if (strcmp(current_topic, BUZZER_PLAY_RTTTL_TOPIC) == 0) {
             handle_buzzer_play_rtttl_data(data_as_chars);
         }
@@ -465,6 +456,11 @@ static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t f
         }
     }
     DEBUG_printf("Done incoming_data_cb()\n");
+}
+
+static void mqtt_pub_request_cb(void *arg, err_t result)
+{
+    DEBUG_printf("Publish result: %d\n", result);
 }
 
 static cJSON *json_parser(char *data_as_chars)
@@ -858,17 +854,6 @@ static void handle_notificaiton_data(char *data_as_chars)
     cJSON_Delete(json);
 }
 
-static void handle_set_time_data(char *data_as_chars)
-{
-    DEBUG_printf("handle_set_time_data()\n");
-
-#if 0
-    if (xQueueSend(i2c_queue, &ds3231, 10) != pdTRUE) {
-        DEBUG_printf("Could not send ds3231 data; dropping\n");
-    }
-#endif
-}
-
 static void handle_buzzer_play_rtttl_data(char *data_as_chars)
 {
     DEBUG_printf("handle_buzzer_play_rtttl_data()\n");
@@ -1072,16 +1057,7 @@ static void handle_autodiscover_control_data(mqtt_client_t *client, char *data_a
         err += publish_object_as_device_entity(snowflakes, device, client, "homeassistant/number/" DEVICE_NAME "/config")
                 != ERR_OK ? 1 : 0;
 
-        cJSON_free(device);
-
-        // err += mqtt_publish(client, "homeassistant/light/" DEVICE_NAME "/config", "", 0,
-        //     0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
-        // err += mqtt_publish(client, "homeassistant/switch/" DEVICE_NAME "/config", "", 0,
-        //     0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
-        // err += mqtt_publish(client, "homeassistant/sensor/" DEVICE_NAME "/config", "", 0,
-        //     0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
-        // err += mqtt_publish(client, "homeassistant/number/" DEVICE_NAME "/config", "", 0,
-        //     0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
+        cJSON_free(device);        
     }
     else {
         DEBUG_printf("Ignoring non ON data\n");
@@ -1091,7 +1067,7 @@ static void handle_autodiscover_control_data(mqtt_client_t *client, char *data_a
 climate_t last_climate_data;
 bool got_climate_data = false;
 
-void handle_publish_trigger(mqtt_client_t *client)
+static void handle_publish_trigger(mqtt_client_t *client)
 {
     int err;
 
@@ -1137,7 +1113,7 @@ void handle_publish_trigger(mqtt_client_t *client)
     DEBUG_printf("Sent current sensor data\n");
 }
 
-cJSON *create_base_object(const char *name, const char *unique_id)
+static cJSON *create_base_object(const char *name, const char *unique_id)
 {
     cJSON *obj = cJSON_CreateObject();
     cJSON_AddItemToObject(obj, "name", cJSON_CreateString(name));
@@ -1149,7 +1125,7 @@ cJSON *create_base_object(const char *name, const char *unique_id)
 
 // Add the device, print the object into a string, free the object, and then publish it at the given topic, before
 // freeing the serialised string. Return the error code from the publishing.
-int publish_object_as_device_entity(cJSON *obj, cJSON *device, mqtt_client_t *client, const char *topic)
+static int publish_object_as_device_entity(cJSON *obj, cJSON *device, mqtt_client_t *client, const char *topic)
 {
     DEBUG_printf("Publishing object %s\n", topic);
     cJSON_AddItemReferenceToObject(obj, "device", device);
@@ -1188,65 +1164,5 @@ static void sensor_message_poll(void)
                 panic("Invalid message type (%d)", message_mqtt.message_type);
                 break;
         }
-    }
-}
-
-static void mqtt_pub_request_cb(void *arg, err_t result)
-{
-    DEBUG_printf("Publish result: %d\n", result);
-}
-
-static uint8_t bcd_digit_to_byte(char c)
-{
-    if (c >= '0' && c <= '9') {
-        return c - '0';
-    } else if (c >= 'a' && c <= 'f') {
-        return c - 'a';
-    }
-    return 0;
-}
-
-static char *bcd_two_digits_to_byte(char *in, uint8_t *out)
-{
-    char *c = in;
-    uint8_t result = 0;
-
-    if (*c) {
-        result |= bcd_digit_to_byte(*c);
-        c++;
-        if (*c) {
-            result <<= 4;
-            result |= bcd_digit_to_byte(*c);
-            c++;
-        }
-        else {
-            return NULL;
-        }
-    }
-    else {
-        return NULL;
-    }
-
-    *out = result;
-
-    return c;
-}
-
-static void bcd_string_to_bytes(char *in, uint8_t *buffer, uint8_t len)
-{
-    uint8_t one_byte = 0;
-    uint8_t *out = buffer;
-
-    char *c = in;
-    while (*c) {
-        c = bcd_two_digits_to_byte(c, &one_byte);
-        if (!c) {
-            break;
-        }
-        if (out - buffer > len) {
-            break;
-        }
-        *out = one_byte;
-        out++;
     }
 }
