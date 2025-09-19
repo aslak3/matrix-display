@@ -2,6 +2,7 @@
 
 #if PICO_SDK
 #include <hardware/i2c.h>
+#include <hardware/gpio.h>
 #elif ESP32_SDK
 #include "driver/i2c.h"
 #endif
@@ -31,10 +32,10 @@ bool i2c_write(uint8_t address, const uint8_t *buffer, size_t len)
     return (i2c_write_blocking(i2c_default, address, buffer, len, true) == len);
 }
 
-bool i2c_write_read(uint8_t address, uint8_t *write_buffer, size_t write_len, uint8_t *read_buffer, size_t read_len)
+bool i2c_write_read(uint8_t address, const uint8_t *write_buffer, size_t write_len, uint8_t *read_buffer, size_t read_len)
 {
     if (i2c_write_blocking(i2c_default, address, write_buffer, write_len, false) == write_len) {
-        return (i2c_read_blocking(i2c_default, address, read_buffer, read_len, true) == len)
+        return (i2c_read_blocking(i2c_default, address, read_buffer, read_len, true) == read_len);
     }
     else {
         return false;

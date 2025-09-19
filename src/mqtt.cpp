@@ -311,30 +311,30 @@ static int do_mqtt_connect(mqtt_client_t *client)
 #define CALENDAR_TOPIC "matrix_display/calendar"
 #define SCROLLER_TOPIC "matrix_display/scroller"
 #define TRANSPORT_TOPIC "matrix_display/transport"
+#define PORCH_SENSOR_TOPIC "matrix_display/porch"
 
-#define TEMPERATURE_TOPIC "matrix_display" DEVICE_POSTFIX "/temperature"
+#define TEMPERATURE_TOPIC DEVICE_NAME "/temperature"
 #if BME680_PRESENT
-#define PRESSURE_TOPIC "matrix_display" DEVICE_POSTFIX "/pressure"
-#define HUMIDITY_TOPIC "matrix_display" DEVICE_POSTFIX "/humidity"
+#define PRESSURE_TOPIC DEVICE_NAME "/pressure"
+#define HUMIDITY_TOPIC DEVICE_NAME "/humidity"
 #endif
-#define PORCH_SENSOR_TOPIC "matrix_display" DEVICE_POSTFIX "/porch"
-#define NOTIFICATION_TOPIC "matrix_display" DEVICE_POSTFIX "/notification"
-#define SET_RTC_TIME_TOPIC "matrix_display" DEVICE_POSTFIX "/set_time"
-#define BUZZER_PLAY_RTTTL_TOPIC "matrix_display" DEVICE_POSTFIX "/buzzer_play_rtttl"
-#define LIGHT_COMMAND_TOPIC "matrix_display" DEVICE_POSTFIX "/panel/switch"
-#define LIGHT_BRIGHTNESS_COMMAND_TOPIC "matrix_display" DEVICE_POSTFIX "/panel/brightness/set"
-#define SET_GRAYSCALE_TOPIC "matrix_display" DEVICE_POSTFIX "/greyscale/switch"
-#define CONFIGURATION_TOPIC "matrix_display" DEVICE_POSTFIX "/configuration/"
-#define AUTODISCOVER_CONTROL_TOPIC "matrix_display" DEVICE_POSTFIX "/autodiscover"
-#define MEDIA_PLAYER_TOPIC "matrix_display" DEVICE_POSTFIX "/media_player"
-#define PUBLISH_TRIGGER_TOPIC "matrix_display" DEVICE_POSTFIX "/publish_trigger"
+#define NOTIFICATION_TOPIC DEVICE_NAME "/notification"
+#define SET_RTC_TIME_TOPIC DEVICE_NAME "/set_time"
+#define BUZZER_PLAY_RTTTL_TOPIC DEVICE_NAME "/buzzer_play_rtttl"
+#define LIGHT_COMMAND_TOPIC DEVICE_NAME "/panel/switch"
+#define LIGHT_BRIGHTNESS_COMMAND_TOPIC DEVICE_NAME "/panel/brightness/set"
+#define SET_GRAYSCALE_TOPIC DEVICE_NAME "/greyscale/switch"
+#define CONFIGURATION_TOPIC DEVICE_NAME "/configuration/"
+#define AUTODISCOVER_CONTROL_TOPIC DEVICE_NAME "/autodiscover"
+#define MEDIA_PLAYER_TOPIC DEVICE_NAME "/media_player"
+#define PUBLISH_TRIGGER_TOPIC DEVICE_NAME "/publish_trigger"
 
 static void do_mqtt_subscribe(mqtt_client_t *client)
 {
     const char *subscriptions[] = {
         "matrix_display/#",
-        "matrix_display" DEVICE_POSTFIX "/#",
-        "matrix_display" DEVICE_POSTFIX "/configuration/#",
+        DEVICE_NAME "/#",
+        DEVICE_NAME "/configuration/#",
         NULL,
     };
 
@@ -938,7 +938,7 @@ static void handle_set_grayscale_data(char *data_as_chars)
     }
 
     if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
-        DEBUG_printf("Could not send grayscale data; dropping");
+        DEBUG_printf("Could not send grayscale data; dropping\n");
     }
 }
 
@@ -1026,60 +1026,62 @@ static void handle_autodiscover_control_data(mqtt_client_t *client, char *data_a
     if (autodisover_enable) {
         cJSON *device = cJSON_CreateObject();
         cJSON_AddItemToObject(device, "name", cJSON_CreateString(DEVICE_PRETTY_NAME));
-        cJSON_AddItemToObject(device, "identifiers", cJSON_CreateString("matrix_display" DEVICE_POSTFIX));
+        cJSON_AddItemToObject(device, "identifiers", cJSON_CreateString(DEVICE_NAME));
         cJSON_AddItemToObject(device, "manufacturer", cJSON_CreateString("lawrence@aslak.net"));
         cJSON_AddItemToObject(device, "model", cJSON_CreateString("Matrix Display 64x32"));
 
-        cJSON *light = create_base_object("Panel", "matrix_display" DEVICE_POSTFIX "_brightness");
+        cJSON *light = create_base_object("Panel", DEVICE_NAME "_brightness");
         cJSON_AddItemToObject(light, "command_topic", cJSON_CreateString(LIGHT_COMMAND_TOPIC));
         cJSON_AddItemToObject(light, "payload_off", cJSON_CreateString("OFF"));
         cJSON_AddItemToObject(light, "brightness_command_topic", cJSON_CreateString(LIGHT_BRIGHTNESS_COMMAND_TOPIC));
         cJSON_AddItemToObject(light, "on_command_type", cJSON_CreateString("brightness"));
-        err += publish_object_as_device_entity(light, device, client, "homeassistant/light/matrix_display" DEVICE_POSTFIX "/config")
+        err += publish_object_as_device_entity(light, device, client, "homeassistant/light/" DEVICE_NAME "/config")
             != ERR_OK ? 1 : 0;
 
-        cJSON *grayscale = create_base_object("Grayscale", "matrix_display" DEVICE_POSTFIX "_grayscale");
+        cJSON *grayscale = create_base_object("Grayscale", DEVICE_NAME "_grayscale");
         cJSON_AddItemToObject(grayscale, "command_topic", cJSON_CreateString(SET_GRAYSCALE_TOPIC));
-        err += publish_object_as_device_entity(grayscale, device, client, "homeassistant/switch/matrix_display" DEVICE_POSTFIX "/config")
+        err += publish_object_as_device_entity(grayscale, device, client, "homeassistant/switch/" DEVICE_NAME "/config")
             != ERR_OK ? 1 : 0;
 
-        cJSON *temp = create_base_object("Temperature", "matrix_display" DEVICE_POSTFIX "_temperature");
+#if DS3231_PRESENT || BME680_PRESENT
+        cJSON *temp = create_base_object("Temperature", DEVICE_NAME "_temperature");
         cJSON_AddItemToObject(temp, "state_topic", cJSON_CreateString(TEMPERATURE_TOPIC));
         cJSON_AddItemToObject(temp, "unit_of_measurement", cJSON_CreateString("°C"));
-        err += publish_object_as_device_entity(temp, device, client, "homeassistant/sensor/matrix_display" DEVICE_POSTFIX "_temperature/config")
+        err += publish_object_as_device_entity(temp, device, client, "homeassistant/sensor/" DEVICE_NAME "_temperature/config")
             != ERR_OK ? 1 : 0;
+#endif
 
 #if BME680_PRESENT
-        cJSON *pressure = create_base_object("Pressure", "matrix_display" DEVICE_POSTFIX "_pressure");
+        cJSON *pressure = create_base_object("Pressure", DEVICE_NAME "_pressure");
         cJSON_AddItemToObject(pressure, "state_topic", cJSON_CreateString(PRESSURE_TOPIC));
         cJSON_AddItemToObject(pressure, "unit_of_measurement", cJSON_CreateString("hPa"));
-        err += publish_object_as_device_entity(pressure, device, client, "homeassistant/sensor/matrix_display" DEVICE_POSTFIX "_pressure/config")
+        err += publish_object_as_device_entity(pressure, device, client, "homeassistant/sensor/" DEVICE_NAME "_pressure/config")
                 != ERR_OK ? 1 : 0;
 
-        cJSON *humidity = create_base_object("Humidity", "matrix_display" DEVICE_POSTFIX "_humidity");
+        cJSON *humidity = create_base_object("Humidity", DEVICE_NAME "_humidity");
         cJSON_AddItemToObject(humidity, "state_topic", cJSON_CreateString(HUMIDITY_TOPIC));
         cJSON_AddItemToObject(humidity, "unit_of_measurement", cJSON_CreateString("%"));
-        err += publish_object_as_device_entity(humidity, device, client, "homeassistant/sensor/matrix_display" DEVICE_POSTFIX "_humidity/config")
+        err += publish_object_as_device_entity(humidity, device, client, "homeassistant/sensor/" DEVICE_NAME "_humidity/config")
                 != ERR_OK ? 1 : 0;
-
 #endif
-        cJSON *snowflakes = create_base_object("Snowflake Count", "matrix_display" DEVICE_POSTFIX "_snowflake_count");
-        cJSON_AddItemToObject(snowflakes, "command_topic", cJSON_CreateString("matrix_display" DEVICE_POSTFIX "/configuration/snowflake_count"));
+
+        cJSON *snowflakes = create_base_object("Snowflake Count", DEVICE_NAME "_snowflake_count");
+        cJSON_AddItemToObject(snowflakes, "command_topic", cJSON_CreateString(DEVICE_NAME "/configuration/snowflake_count"));
         cJSON_AddNumberToObject(snowflakes, "min", 0.0);
         cJSON_AddNumberToObject(snowflakes, "max", 255.0);
-        err += publish_object_as_device_entity(snowflakes, device, client, "homeassistant/number/matrix_display" DEVICE_POSTFIX "/config")
+        err += publish_object_as_device_entity(snowflakes, device, client, "homeassistant/number/" DEVICE_NAME "/config")
                 != ERR_OK ? 1 : 0;
 
         cJSON_free(device);
 
-        err += mqtt_publish(client, "homeassistant/light/matrix_display" DEVICE_POSTFIX "/config", "", 0,
-            0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
-        err += mqtt_publish(client, "homeassistant/switch/matrix_display" DEVICE_POSTFIX "/config", "", 0,
-            0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
-        err += mqtt_publish(client, "homeassistant/sensor/matrix_display" DEVICE_POSTFIX "/config", "", 0,
-            0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
-        err += mqtt_publish(client, "homeassistant/number/matrix_display" DEVICE_POSTFIX "/config", "", 0,
-            0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
+        // err += mqtt_publish(client, "homeassistant/light/" DEVICE_NAME "/config", "", 0,
+        //     0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
+        // err += mqtt_publish(client, "homeassistant/switch/" DEVICE_NAME "/config", "", 0,
+        //     0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
+        // err += mqtt_publish(client, "homeassistant/sensor/" DEVICE_NAME "/config", "", 0,
+        //     0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
+        // err += mqtt_publish(client, "homeassistant/number/" DEVICE_NAME "/config", "", 0,
+        //     0, 1, mqtt_pub_request_cb, NULL) != ERR_OK ? 1 : 0;
     }
     else {
         DEBUG_printf("Ignoring non ON data\n");
@@ -1149,6 +1151,7 @@ cJSON *create_base_object(const char *name, const char *unique_id)
 // freeing the serialised string. Return the error code from the publishing.
 int publish_object_as_device_entity(cJSON *obj, cJSON *device, mqtt_client_t *client, const char *topic)
 {
+    DEBUG_printf("Publishing object %s\n", topic);
     cJSON_AddItemReferenceToObject(obj, "device", device);
     char *json_chars = cJSON_PrintUnformatted(obj);
     cJSON_free(obj);
@@ -1157,6 +1160,7 @@ int publish_object_as_device_entity(cJSON *obj, cJSON *device, mqtt_client_t *cl
     cyw43_arch_lwip_begin();
 #endif
     int err = mqtt_publish(client, topic, json_chars, strlen(json_chars), 0, 1, mqtt_pub_request_cb, NULL);
+    DEBUG_printf("Published %d\n", err);
 
     free(json_chars);
 
