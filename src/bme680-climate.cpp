@@ -88,8 +88,6 @@ static uint8_t calib[25 + 16];
 // Returns 0 on success
 int configure_bme680(void)
 {
-    int bytes_written = 0;
-
     uint8_t config_buffer[] =   {
         // 1. Set humidity oversampling to 1x by writing 0b001 to osrs_h<2:0>
         // 2. Set temperature oversampling to 2x by writing 0b010 to osrs_t<2:0>
@@ -194,8 +192,8 @@ float get_humidity(void)
     int8_t par_h5 = calib[CALIB_PAR_H5];
     int8_t par_h4 = calib[CALIB_PAR_H4];
     int8_t par_h3 = calib[CALIB_PAR_H3];
-    uint16_t par_h2 = (calib[CALIB_PAR_H2_MSB] << 4) | calib[CALIB_PAR_H2_LSB] & 0x0f;
-    uint16_t par_h1 = (calib[CALIB_PAR_H1_MSB] << 4) | calib[CALIB_PAR_H1_LSB] >> 4;
+    uint16_t par_h2 = (calib[CALIB_PAR_H2_MSB] << 4) | (calib[CALIB_PAR_H2_LSB] & 0x0f);
+    uint16_t par_h1 = (calib[CALIB_PAR_H1_MSB] << 4) | (calib[CALIB_PAR_H1_LSB] >> 4);
 
     uint32_t hum_adc = (current_state[0x25] << 8) | current_state[0x26];
 

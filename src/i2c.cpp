@@ -72,7 +72,7 @@ bool i2c_write(uint8_t address, const uint8_t *buffer, size_t len)
     return (i2c_master_write_to_device(I2C_NUM_0, address, buffer, len, 1000 / portTICK_PERIOD_MS) == ESP_OK);
 }
 
-bool i2c_write_read(uint8_t address, uint8_t *write_buffer, size_t write_len, uint8_t *read_buffer, size_t read_len)
+bool i2c_write_read(uint8_t address, const uint8_t *write_buffer, size_t write_len, uint8_t *read_buffer, size_t read_len)
 {
     return (
         i2c_master_write_read_device(I2C_NUM_0, address, write_buffer, write_len,
