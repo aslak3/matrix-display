@@ -83,9 +83,9 @@
 #define CALIB_PAR_H6 (31)
 #define CALIB_PAR_H7 (32)
 
-Sensor *BME680Sensor::create(void)
+Sensor *BME680Sensor::create(const char *name)
 {
-    return new BME680Sensor;
+    return new BME680Sensor(name);
 }
 
 TemperatureSensor *BME680Sensor::temperature_sensor(void)

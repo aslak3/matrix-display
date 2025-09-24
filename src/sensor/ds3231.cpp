@@ -4,9 +4,9 @@
 
 #define DS3231_I2C_ADDR 0x68
 
-Sensor *DS3231Sensor::create(void)
+Sensor *DS3231Sensor::create(const char *name)
 {
-    return new DS3231Sensor;
+    return new DS3231Sensor(name);
 }
 
 TemperatureSensor *DS3231Sensor::temperature_sensor(void)

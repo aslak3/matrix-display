@@ -28,13 +28,19 @@ class IlluminanceSensor
 class Sensor
 {
 	public:
-		virtual bool configure(void) { return false; }
-		virtual bool request_run(void) { return false; }
-		virtual bool receive_data(void) { return false; }
+		Sensor(const char *name) { this->name = name; }
+		// Assume success so sensing loop does not flag unimpl methods as errors
+		virtual bool configure(void) { return true; }
+		virtual bool request_run(void) { return true; }
+		virtual bool receive_data(void) { return true; }
 		virtual TemperatureSensor *temperature_sensor(void) { return NULL; }
 		virtual HumiditySensor *humidity_sensor(void) { return NULL; }
 		virtual PressureSensor *pressure_sensor(void) { return NULL; }
-		virtual IlluminanceSensor *illuminance_sensor(void) { return NULL; }		
+		virtual IlluminanceSensor *illuminance_sensor(void) { return NULL; }
+		const char *get_name(void) { return name; }
+
+	private:
+		const char *name = NULL;
 };
 
 #define DS3231_TEMPERATURE_LEN 2
@@ -42,7 +48,8 @@ class Sensor
 class DS3231Sensor: public Sensor, public TemperatureSensor
 {
 	public:
-        static Sensor *create(void);
+		DS3231Sensor(const char *name) : Sensor(name) {}
+        static Sensor *create(const char *name);
 		bool receive_data(void) override;
 		TemperatureSensor *temperature_sensor(void) override;
 		float get_temperature(void) override;
@@ -54,7 +61,8 @@ class DS3231Sensor: public Sensor, public TemperatureSensor
 class BME680Sensor: public Sensor, public TemperatureSensor, public HumiditySensor, public PressureSensor
 {
 	public:
-        static Sensor *create(void);
+		BME680Sensor(const char *name) : Sensor(name) {}
+        static Sensor *create(const char *name);
 		bool configure(void) override;
 		bool request_run(void) override;
 		bool receive_data(void) override;
@@ -76,7 +84,8 @@ class BME680Sensor: public Sensor, public TemperatureSensor, public HumiditySens
 class BH1750Sensor: public Sensor, public IlluminanceSensor
 {
 	public:
-        static Sensor *create(void);
+		BH1750Sensor(const char *name) : Sensor(name) {}
+        static Sensor *create(const char *name);
 		bool request_run(void) override;
 		bool receive_data(void) override;
 		IlluminanceSensor *illuminance_sensor(void) override;

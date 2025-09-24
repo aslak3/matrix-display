@@ -26,13 +26,13 @@ extern QueueHandle_t mqtt_queue;
 
 Sensor *avail_sensors[] = {
 #if DS3231_PRESENT
-    DS3231Sensor::create(),
+    DS3231Sensor::create("DS3231"),
 #endif
 #if BME680_PRESENT
-    BME680Sensor::create(),
+    BME680Sensor::create("BME680"),
 #endif
 #if BH1750_PRESENT
-    BH1750Sensor::create(),
+    BH1750Sensor::create("BH1750"),
 #endif
 NULL,
 };
@@ -49,7 +49,12 @@ void sensor_task(void *dummy)
     };
 
     for (int sensor_count = 0; avail_sensors[sensor_count]; sensor_count++) {
-        avail_sensors[sensor_count]->configure();
+        if (!avail_sensors[sensor_count]->configure()) {
+            DEBUG_printf(
+                "Could not configure sensor %s\n",
+                avail_sensors[sensor_count]->get_name()
+            );
+        }
     }
 
     static int period_count = 0;
@@ -57,36 +62,54 @@ void sensor_task(void *dummy)
     while (1) {
         if (period_count == SENSOR_SEND_INTERVAL - 1) {
             for (int sensor_count = 0; avail_sensors[sensor_count]; sensor_count++) {
-                avail_sensors[sensor_count]->request_run();
+                if (!avail_sensors[sensor_count]->request_run()) {
+                    DEBUG_printf(
+                        "Could not request a run on sensor %s\n",
+                        avail_sensors[sensor_count]->get_name()
+                    );
+                }
             }
         }
 
         if (period_count == SENSOR_SEND_INTERVAL) {
             for (int sensor_count = 0; avail_sensors[sensor_count]; sensor_count++) {
-                avail_sensors[sensor_count]->receive_data();
+                Sensor *sensor = avail_sensors[sensor_count];
 
-                if (avail_sensors[sensor_count]->temperature_sensor()) {
-                    message_mqtt.sensor.temperature =
-                        avail_sensors[sensor_count]->temperature_sensor()->get_temperature();
-                    DEBUG_printf("Got temperature: %f\n", message_mqtt.sensor.temperature);
+                if (!sensor->receive_data()) {
+                    DEBUG_printf("Could not receive data on sensor %s\n", sensor->get_name());
+                    continue;
                 }
 
-                if (avail_sensors[sensor_count]->humidity_sensor()) {
-                    message_mqtt.sensor.humidity =
-                        avail_sensors[sensor_count]->humidity_sensor()->get_humidity();
-                    DEBUG_printf("Got humidity: %f\n", message_mqtt.sensor.humidity);
+                if (sensor->temperature_sensor()) {
+                    message_mqtt.sensor.temperature = sensor->temperature_sensor()->get_temperature();
+                    DEBUG_printf(
+                        "Got temperature %f from sensor %s\n",
+                        message_mqtt.sensor.temperature, sensor->get_name()
+                    );
                 }
 
-                if (avail_sensors[sensor_count]->pressure_sensor()) {
-                    message_mqtt.sensor.pressure =
-                        avail_sensors[sensor_count]->pressure_sensor()->get_pressure();
-                    DEBUG_printf("Got pressure: %f\n", message_mqtt.sensor.pressure);
+                if (sensor->humidity_sensor()) {
+                    message_mqtt.sensor.humidity = sensor->humidity_sensor()->get_humidity();
+                    DEBUG_printf(
+                        "Got humidity %f from sensor %s\n",
+                        message_mqtt.sensor.humidity, sensor->get_name()
+                    );
                 }
 
-                if (avail_sensors[sensor_count]->illuminance_sensor()) {
-                    message_mqtt.sensor.illuminance =
-                        avail_sensors[sensor_count]->illuminance_sensor()->get_illuminance();
-                    DEBUG_printf("Got illuminance: %u\n", message_mqtt.sensor.illuminance);
+                if (sensor->pressure_sensor()) {
+                    message_mqtt.sensor.pressure = sensor->pressure_sensor()->get_pressure();
+                    DEBUG_printf(
+                        "Got pressure %f from sensor %s\n",
+                        message_mqtt.sensor.pressure, sensor->get_name()
+                    );
+                }
+
+                if (sensor->illuminance_sensor()) {
+                    message_mqtt.sensor.illuminance = sensor->illuminance_sensor()->get_illuminance();
+                    DEBUG_printf(
+                        "Got illuminance %u from sensor %s\n",
+                        message_mqtt.sensor.illuminance, sensor->get_name()
+                    );
                 }
             }
 

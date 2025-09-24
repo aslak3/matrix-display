@@ -4,9 +4,9 @@
 
 #define BH1750_I2C_ADDR 0x23
 
-Sensor *BH1750Sensor::create(void)
+Sensor *BH1750Sensor::create(const char *name)
 {
-    return new BH1750Sensor;
+    return new BH1750Sensor(name);
 }
 
 IlluminanceSensor *BH1750Sensor::illuminance_sensor(void)
