@@ -88,6 +88,9 @@ static void sensor_message_poll(void);
 #define PRESSURE_TOPIC DEVICE_NAME "/pressure"
 #define HUMIDITY_TOPIC DEVICE_NAME "/humidity"
 #endif
+#if BH1750_PRESENT
+#define ILLUMINANCE_TOPIC DEVICE_NAME "/illuminance"
+#endif
 #define NOTIFICATION_TOPIC DEVICE_NAME "/notification"
 #define BUZZER_PLAY_RTTTL_TOPIC DEVICE_NAME "/buzzer_play_rtttl"
 #define LIGHT_COMMAND_TOPIC DEVICE_NAME "/panel/switch"
@@ -1050,6 +1053,14 @@ static void handle_autodiscover_control_data(mqtt_client_t *client, char *data_a
                 != ERR_OK ? 1 : 0;
 #endif
 
+#if BH1750_PRESENT
+        cJSON *illuminance = create_base_object("Illuminance", DEVICE_NAME "_illuminance");
+        cJSON_AddItemToObject(illuminance, "state_topic", cJSON_CreateString(ILLUMINANCE_TOPIC));
+        cJSON_AddItemToObject(illuminance, "unit_of_measurement", cJSON_CreateString("lx"));
+        err += publish_object_as_device_entity(illuminance, device, client, "homeassistant/sensor/" DEVICE_NAME "_illuminance/config")
+            != ERR_OK ? 1 : 0;
+#endif
+
         cJSON *snowflakes = create_base_object("Snowflake Count", DEVICE_NAME "_snowflake_count");
         cJSON_AddItemToObject(snowflakes, "command_topic", cJSON_CreateString(DEVICE_NAME "/configuration/snowflake_count"));
         cJSON_AddNumberToObject(snowflakes, "min", 0.0);
@@ -1064,14 +1075,14 @@ static void handle_autodiscover_control_data(mqtt_client_t *client, char *data_a
     }
 }
 
-climate_t last_climate_data;
-bool got_climate_data = false;
+sensor_t last_sensor_data;
+bool got_sensor_data = false;
 
 static void handle_publish_trigger(mqtt_client_t *client)
 {
     int err;
 
-    if (!got_climate_data) {
+    if (!got_sensor_data) {
         DEBUG_printf("Not got any data yet, so skipping publish\n");
         return;
     }
@@ -1079,7 +1090,7 @@ static void handle_publish_trigger(mqtt_client_t *client)
 #if DS3231_PRESENT || BME680_PRESENT
     char temperature_buffer[16];
 
-    snprintf(temperature_buffer, sizeof(temperature_buffer), "%.2f", last_climate_data.temperature);
+    snprintf(temperature_buffer, sizeof(temperature_buffer), "%.2f", last_sensor_data.temperature);
     DEBUG_printf("Got temperature: %s\n", temperature_buffer);
 
     err = mqtt_publish(client, TEMPERATURE_TOPIC, temperature_buffer, strlen(temperature_buffer), 0, 1,
@@ -1093,7 +1104,7 @@ static void handle_publish_trigger(mqtt_client_t *client)
     char pressure_buffer[16];
     char humidity_buffer[16];
 
-    snprintf(pressure_buffer, sizeof(pressure_buffer), "%.2f", last_climate_data.pressure);
+    snprintf(pressure_buffer, sizeof(pressure_buffer), "%.2f", last_sensor_data.pressure);
     DEBUG_printf("Got pressure: %s\n", pressure_buffer);
     err = mqtt_publish(client, PRESSURE_TOPIC, pressure_buffer, strlen(pressure_buffer), 0, 1,
         mqtt_pub_request_cb, NULL);
@@ -1101,7 +1112,7 @@ static void handle_publish_trigger(mqtt_client_t *client)
         DEBUG_printf("mqtt_publish on %s return: %d\n", PRESSURE_TOPIC, err);
     }
 
-    snprintf(humidity_buffer, sizeof(humidity_buffer), "%.2f", last_climate_data.humidity);
+    snprintf(humidity_buffer, sizeof(humidity_buffer), "%.2f", last_sensor_data.humidity);
     DEBUG_printf("Got humidity: %s\n", humidity_buffer);
     err = mqtt_publish(client, HUMIDITY_TOPIC, humidity_buffer, strlen(humidity_buffer), 0, 1,
         mqtt_pub_request_cb, NULL);
@@ -1109,6 +1120,20 @@ static void handle_publish_trigger(mqtt_client_t *client)
         DEBUG_printf("mqtt_publish on %s return: %d\n", HUMIDITY_TOPIC, err);
     }
 #endif
+
+#if BH1750_PRESENT
+    char illuminance_buffer[16];
+
+    snprintf(illuminance_buffer, sizeof(illuminance_buffer), "%u", last_sensor_data.illuminance);
+    DEBUG_printf("Got illuminance: %s\n", illuminance_buffer);
+
+    err = mqtt_publish(client, ILLUMINANCE_TOPIC, illuminance_buffer, strlen(illuminance_buffer), 0, 1,
+        mqtt_pub_request_cb, NULL);
+    if (err != ERR_OK) {
+        DEBUG_printf("mqtt_publish on %s return: %d\n", ILLUMINANCE_TOPIC, err);
+    }
+#endif
+
 
     DEBUG_printf("Sent current sensor data\n");
 }
@@ -1155,9 +1180,9 @@ static void sensor_message_poll(void)
 
     if (xQueueReceive(mqtt_queue, &message_mqtt, 0) == pdTRUE) {
         switch (message_mqtt.message_type) {
-            case MESSAGE_MQTT_CLIMATE:
-                last_climate_data = message_mqtt.climate;
-                got_climate_data = true;
+            case MESSAGE_MQTT_SENSOR:
+                last_sensor_data = message_mqtt.sensor;
+                got_sensor_data = true;
                 break;
 
             default:

@@ -91,14 +91,12 @@ typedef struct {
     char text[256];
 } notification_t;
 
-
 typedef struct {
     float temperature;
-#if BME680_PRESENT
     float pressure;
     float humidity;
-#endif
-} climate_t;
+    uint16_t illuminance;
+} sensor_t;
 
 typedef struct {
     int clock_colon_flash;
@@ -175,11 +173,11 @@ typedef struct {
 // Messages destined at MQTT task
 
 #define MESSAGE_MQTT_NULL 0
-#define MESSAGE_MQTT_CLIMATE 1
+#define MESSAGE_MQTT_SENSOR 1
 
 typedef struct {
     uint8_t message_type;
     union {
-        climate_t climate;
+        sensor_t sensor;
     };
 } message_mqtt_t;

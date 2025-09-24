@@ -17,82 +17,87 @@
 
 #include "matrix_display.h"
 #include "messages.h"
+#include "sensor.h"
 
-#define CLIMATE_SEND_INTERVAL 60    // Send climate data every 60 seconds (approx)
-
-#if BME680_PRESENT
-extern int configure_bme680(void);
-extern int receive_data(void);
-extern int request_run(void);
-
-extern float get_temperature(void);
-extern float get_pressure(void);
-extern float get_humidity(void);
-#elif DS3231_PRESENT
-extern float get_temperature(void);
-#endif
+#define SENSOR_SEND_INTERVAL 60    // Send sensor data every 60 seconds (approx)
 
 extern QueueHandle_t sensor_queue; // For listening
 extern QueueHandle_t mqtt_queue;
+
+Sensor *avail_sensors[] = {
+#if DS3231_PRESENT
+    DS3231Sensor::create(),
+#endif
+#if BME680_PRESENT
+    BME680Sensor::create(),
+#endif
+#if BH1750_PRESENT
+    BH1750Sensor::create(),
+#endif
+NULL,
+};
 
 void sensor_task(void *dummy)
 {
     vTaskCoreAffinitySet(NULL, 1 << 0);
     DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), GET_CORE_NUMBER());
-    
+
     setup_i2c();
-    
+
     static message_mqtt_t message_mqtt = {
-            message_type: MESSAGE_MQTT_CLIMATE,
+            message_type: MESSAGE_MQTT_SENSOR,
     };
-    
-#if BME680_PRESENT
-    bool got_data = false;
-    bool requested_run = false;
 
-    if (!(configure_bme680())) {
-        DEBUG_printf("BME680: Configure failed\n");
+    for (int sensor_count = 0; avail_sensors[sensor_count]; sensor_count++) {
+        avail_sensors[sensor_count]->configure();
     }
-#endif
 
-    static int climate_count = 0;
+    static int period_count = 0;
 
     while (1) {
-        if (climate_count == CLIMATE_SEND_INTERVAL) {
-#if BME680_PRESENT
-            if (requested_run) {
-                if (!(receive_data())) {
-                    DEBUG_printf("BME680: Failed to receive data\n");
-                }
-                got_data = true;
+        if (period_count == SENSOR_SEND_INTERVAL - 1) {
+            for (int sensor_count = 0; avail_sensors[sensor_count]; sensor_count++) {
+                avail_sensors[sensor_count]->request_run();
             }
-            if (!(request_run())) {
-                DEBUG_printf("BME680: Failed to request run\n");
-            }
-            requested_run = true;
-
-            if (got_data) {
-                message_mqtt.climate.temperature = get_temperature();
-                message_mqtt.climate.pressure = get_pressure();
-                message_mqtt.climate.humidity = get_humidity();
-
-                if (xQueueSend(mqtt_queue, &message_mqtt, 10) != pdTRUE) {
-                    DEBUG_printf("Could not send climate data; dropping\n");
-                }
-            }
-#elif DS3231_PRESENT
-            message_mqtt.climate.temperature = get_temperature();
-            DEBUG_printf("Got temp from DS3231: %f\n", message_mqtt.climate.temperature);
-
-            if (xQueueSend(mqtt_queue, &message_mqtt, 10) != pdTRUE) {
-                DEBUG_printf("Could not send climate data; dropping\n");
-            }
-#endif
-
-            climate_count = 0;
         }
 
-        climate_count++;
+        if (period_count == SENSOR_SEND_INTERVAL) {
+            for (int sensor_count = 0; avail_sensors[sensor_count]; sensor_count++) {
+                avail_sensors[sensor_count]->receive_data();
+
+                if (avail_sensors[sensor_count]->temperature_sensor()) {
+                    message_mqtt.sensor.temperature =
+                        avail_sensors[sensor_count]->temperature_sensor()->get_temperature();
+                    DEBUG_printf("Got temperature: %f\n", message_mqtt.sensor.temperature);
+                }
+
+                if (avail_sensors[sensor_count]->humidity_sensor()) {
+                    message_mqtt.sensor.humidity =
+                        avail_sensors[sensor_count]->humidity_sensor()->get_humidity();
+                    DEBUG_printf("Got humidity: %f\n", message_mqtt.sensor.humidity);
+                }
+
+                if (avail_sensors[sensor_count]->pressure_sensor()) {
+                    message_mqtt.sensor.pressure =
+                        avail_sensors[sensor_count]->pressure_sensor()->get_pressure();
+                    DEBUG_printf("Got pressure: %f\n", message_mqtt.sensor.pressure);
+                }
+
+                if (avail_sensors[sensor_count]->illuminance_sensor()) {
+                    message_mqtt.sensor.illuminance =
+                        avail_sensors[sensor_count]->illuminance_sensor()->get_illuminance();
+                    DEBUG_printf("Got illuminance: %u\n", message_mqtt.sensor.illuminance);
+                }
+            }
+
+            if (xQueueSend(mqtt_queue, &message_mqtt, 10) != pdTRUE) {
+                DEBUG_printf("Could not send sensor data; dropping\n");
+            }
+
+            period_count = 0;
+        }
+
+        period_count++;
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }

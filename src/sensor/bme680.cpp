@@ -43,6 +43,8 @@
 
 #include "i2c.h"
 
+#include "sensor.h"
+
 #define BME680_I2C_ADDR 0x76
 
 #define BME680_CTRL_HUM 0x72        // osrs_h>2:0>
@@ -81,12 +83,27 @@
 #define CALIB_PAR_H6 (31)
 #define CALIB_PAR_H7 (32)
 
-static float t_fine = 0.0;
-static uint8_t current_state[256];
-static uint8_t calib[25 + 16];
+Sensor *BME680Sensor::create(void)
+{
+    return new BME680Sensor;
+}
 
-// Returns 0 on success
-int configure_bme680(void)
+TemperatureSensor *BME680Sensor::temperature_sensor(void)
+{
+    return this;
+}
+
+HumiditySensor *BME680Sensor::humidity_sensor(void)
+{
+    return this;
+}
+
+PressureSensor *BME680Sensor::pressure_sensor(void)
+{
+    return this;
+}
+
+bool BME680Sensor::configure(void)
 {
     uint8_t config_buffer[] =   {
         // 1. Set humidity oversampling to 1x by writing 0b001 to osrs_h<2:0>
@@ -96,40 +113,31 @@ int configure_bme680(void)
         BME680_CTRL_MEAS, 0b01010100,
     };
 
-    if (!i2c_write(BME680_I2C_ADDR, config_buffer, sizeof(config_buffer))) {
-        return 0;
-    }
-
-    return 1;
+    return i2c_write(BME680_I2C_ADDR, config_buffer, sizeof(config_buffer));
 }
 
-// Returns 1 on success
-int receive_data(void)
+bool BME680Sensor::request_run(void)
+{
+    uint8_t run_buffer[] = { BME680_CTRL_MEAS, 0b01010101 };
+
+    return i2c_write(BME680_I2C_ADDR, run_buffer, sizeof(run_buffer));
+}
+
+bool BME680Sensor::receive_data(void)
 {
     const uint8_t base_reg_addr = 0;
 
     if (!i2c_write_read(BME680_I2C_ADDR, &base_reg_addr, 1, current_state, sizeof(current_state))) {
-        return 0;
+        return false;
     }
 
     memcpy(&calib[0], &current_state[0x89], 25);
     memcpy(&calib[25], &current_state[0xe1], 16);
 
-    return 1;
+    return true;
 }
 
-// Returns 1 on success
-int request_run(void)
-{
-    uint8_t run_buffer[] = { BME680_CTRL_MEAS, 0b01010101 };
-    if (!i2c_write(BME680_I2C_ADDR, run_buffer, sizeof(run_buffer))) {
-        return 0;
-    }
-
-    return 1;
-}
-
-float get_temperature(void)
+float BME680Sensor::get_temperature(void)
 {
     uint32_t temp_adc = (current_state[0x22] << 12) | (current_state[0x23] << 4) | (current_state[0x24] >> 4);
 
@@ -147,7 +155,41 @@ float get_temperature(void)
     return (t_fine) / 5120.0f;
 }
 
-float get_pressure(void)
+float BME680Sensor::get_humidity(void)
+{
+    int8_t par_h7 = calib[CALIB_PAR_H7];
+    uint8_t par_h6 = calib[CALIB_PAR_H6];
+    int8_t par_h5 = calib[CALIB_PAR_H5];
+    int8_t par_h4 = calib[CALIB_PAR_H4];
+    int8_t par_h3 = calib[CALIB_PAR_H3];
+    uint16_t par_h2 = (calib[CALIB_PAR_H2_MSB] << 4) | (calib[CALIB_PAR_H2_LSB] & 0x0f);
+    uint16_t par_h1 = (calib[CALIB_PAR_H1_MSB] << 4) | (calib[CALIB_PAR_H1_LSB] >> 4);
+
+    uint32_t hum_adc = (current_state[0x25] << 8) | current_state[0x26];
+
+    /* Compensated temperature data */
+    float temp_comp = ((t_fine) / 5120.0f);
+    float var1 = (float)((float)hum_adc) -
+           (((float)par_h1 * 16.0f) + (((float)par_h3 / 2.0f) * temp_comp));
+    float var2 = var1 * ((float)(((float)par_h2 / 262144.0f) *
+            (1.0f + (((float)par_h4 / 16384.0f) * temp_comp) +
+            (((float)par_h5 / 1048576.0f) * temp_comp * temp_comp))));
+    float var3 = (float)par_h6 / 16384.0f;
+    float var4 = (float)par_h7 / 2097152.0f;
+    float calc_hum = var2 + ((var3 + (var4 * temp_comp)) * var2 * var2);
+
+    /* Clamp between 0% and 100% */
+    if (calc_hum > 100.0f) {
+        calc_hum = 100.0f;
+    }
+    else if (calc_hum < 0.0f) {
+        calc_hum = 0.0f;
+    }
+
+    return calc_hum;
+}
+
+float BME680Sensor::get_pressure(void)
 {
     uint8_t par_p10 = calib[CALIB_PAR_P10];
     int16_t par_p9 = (calib[CALIB_PAR_P9_MSB] << 8) | calib[CALIB_PAR_P9_LSB];
@@ -183,38 +225,4 @@ float get_pressure(void)
     }
 
     return calc_pres / 100.0;
-}
-
-float get_humidity(void)
-{
-    int8_t par_h7 = calib[CALIB_PAR_H7];
-    uint8_t par_h6 = calib[CALIB_PAR_H6];
-    int8_t par_h5 = calib[CALIB_PAR_H5];
-    int8_t par_h4 = calib[CALIB_PAR_H4];
-    int8_t par_h3 = calib[CALIB_PAR_H3];
-    uint16_t par_h2 = (calib[CALIB_PAR_H2_MSB] << 4) | (calib[CALIB_PAR_H2_LSB] & 0x0f);
-    uint16_t par_h1 = (calib[CALIB_PAR_H1_MSB] << 4) | (calib[CALIB_PAR_H1_LSB] >> 4);
-
-    uint32_t hum_adc = (current_state[0x25] << 8) | current_state[0x26];
-
-    /* Compensated temperature data */
-    float temp_comp = ((t_fine) / 5120.0f);
-    float var1 = (float)((float)hum_adc) -
-           (((float)par_h1 * 16.0f) + (((float)par_h3 / 2.0f) * temp_comp));
-    float var2 = var1 * ((float)(((float)par_h2 / 262144.0f) *
-            (1.0f + (((float)par_h4 / 16384.0f) * temp_comp) +
-            (((float)par_h5 / 1048576.0f) * temp_comp * temp_comp))));
-    float var3 = (float)par_h6 / 16384.0f;
-    float var4 = (float)par_h7 / 2097152.0f;
-    float calc_hum = var2 + ((var3 + (var4 * temp_comp)) * var2 * var2);
-
-    /* Clamp between 0% and 100% */
-    if (calc_hum > 100.0f) {
-        calc_hum = 100.0f;
-    }
-    else if (calc_hum < 0.0f) {
-        calc_hum = 0.0f;
-    }
-
-    return calc_hum;
 }

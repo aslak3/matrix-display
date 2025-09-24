@@ -52,12 +52,16 @@ set(MQTT_BROKER_PASSWORD "" CACHE STRING "MQTT broker password")
 include(${SRC_DIR}/../private.cmake)
 
 if(BME680_PRESENT)
-    set(CLIMATE_SOURCE bme680-climate.cpp)
-elseif(DS3231_PRESENT)
-    set(CLIMATE_SOURCE ds3231-climate.cpp)
-else()
-    set(CLIMAGE_SOURCE)
+    set(BH680_SOURCE sensor/bme680.cpp)
 endif()
+if(DS3231_PRESENT)
+    set(DS3231_SOURCE sensor/ds3231.cpp)
+endif()
+if(BH1750_PRESENT)
+    set(BH170_SOURCE sensor/bh1750.cpp)
+endif()
+
+set(SENSOR_SOURCE ${BH680_SOURCE} ${DS3231_SOURCE} ${BH170_SOURCE})
 
 if(BUZZER_PRESENT)
     set(BUZZER_SOURCE buzzer.cpp)
@@ -88,6 +92,7 @@ set(COMPILE_DEFS
     SPI_TO_FPGA=${SPI_TO_FPGA}
     BME680_PRESENT=${BME680_PRESENT}
     DS3231_PRESENT=${DS3231_PRESENT}
+    BH1750_PRESENT=${BH1750_PRESENT}
     MQTT_BROKER_IP="${MQTT_BROKER_IP}"
     MQTT_BROKER_PORT=${MQTT_BROKER_PORT}
     MQTT_BROKER_USERNAME="${MQTT_BROKER_USERNAME}"
@@ -106,7 +111,7 @@ if($ENV{MATRIX_DISPLAY_SDK} STREQUAL "PICO")
     add_executable(
         ${PROJECT}
         ${ALL_SOURCE}
-        ${CLIMATE_SOURCE}
+        ${SENSOR_SOURCE}
         ${BUZZER_SOURCE}
     )
 
@@ -140,7 +145,7 @@ else()
     set(MQTT_SOURCE "$ENV{IDF_PATH}/components/lwip/lwip/src/apps/mqtt/mqtt.c")
 
     idf_component_register(
-        SRCS ${ALL_SOURCE} ${MQTT_SOURCE} ${CLIMATE_SOURCE} ${BUZZER_SOURCE}
+        SRCS ${ALL_SOURCE} ${MQTT_SOURCE} ${SENSOR_SOURCE} ${BUZZER_SOURCE}
         REQUIRES esp_wifi esp_driver_gpio driver nvs_flash
     )
 
