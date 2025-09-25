@@ -9,17 +9,14 @@
 
 #if PICO_SDK
 
-#define PICO_I2C_SDA_PIN 20
-#define PICO_I2C_SCL_PIN 21
-
 void setup_i2c(void)
 {
     // This example will use I2C0 on the default SDA and SCL pins (4, 5 on a Pico)
     i2c_init(i2c_default, 100 * 1000);
-    gpio_set_function(PICO_I2C_SDA_PIN, GPIO_FUNC_I2C);
-    gpio_set_function(PICO_I2C_SCL_PIN, GPIO_FUNC_I2C);
-    gpio_pull_up(PICO_I2C_SDA_PIN);
-    gpio_pull_up(PICO_I2C_SCL_PIN);
+    gpio_set_function(I2C_SDA_PIN, GPIO_FUNC_I2C);
+    gpio_set_function(I2C_SCL_PIN, GPIO_FUNC_I2C);
+    gpio_pull_up(I2C_SDA_PIN);
+    gpio_pull_up(I2C_SCL_PIN);
 }
 
 bool i2c_read(uint8_t address, uint8_t *buffer, size_t len)
@@ -48,8 +45,8 @@ void setup_i2c(void)
 {
     i2c_config_t conf = {
         .mode = I2C_MODE_MASTER,
-        .sda_io_num = 10,
-        .scl_io_num = 9,
+        .sda_io_num = (gpio_num_t) I2C_SDA_PIN,
+        .scl_io_num = (gpio_num_t) I2C_SCL_PIN,
         .sda_pullup_en = GPIO_PULLUP_ENABLE,
         .scl_pullup_en = GPIO_PULLUP_ENABLE,
         .master = {

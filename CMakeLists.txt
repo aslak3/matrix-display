@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.25)
 
-if($ENV{MATRIX_DISPLAY_SDK} STREQUAL "PICO")
+include(local.cmake)
+include(boards/${MATRIX_DISPLAY_BOARD}.cmake)
+
+if(${MATRIX_DISPLAY_SDK} STREQUAL "PICO")
     add_subdirectory(src)
 else()
     set(IDF_TARGET esp32s3)

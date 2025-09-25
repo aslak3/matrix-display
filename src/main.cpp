@@ -40,43 +40,33 @@
 
 #if PICO_SDK
 #if SPI_TO_FPGA
-#define FPGA_RESET_PIN 26
 #else
-// #define DATA_BASE_PIN 2
-// #define DATA_N_PINS 6
-// #define ROWSEL_BASE_PIN 8
-// #define ROWSEL_N_PINS 4
-
-// #define CLK_PIN 13
-// #define STROBE_PIN 14
-// #define OEN_PIN 15
-
-#define DATA_BASE_PIN 0
+#define DATA_BASE_PIN       HUB75_RED1_PIN
 #define DATA_N_PINS 6
-#define ROWSEL_BASE_PIN 6
+#define ROWSEL_BASE_PIN     HUB75_ROWSEL_A_PIN
 #define ROWSEL_N_PINS 4
 
-#define CLK_PIN 11
-#define STROBE_PIN 12
-#define OEN_PIN 13
+#define CLK_PIN             HUB75_CLK_PIN
+#define STROBE_PIN          HUB75_STROBE_PIN
+#define OEN_PIN             HUB75_OE_PIN
 #endif
 #elif ESP32_SDK
-#define RED1_PIN GPIO_NUM_42
-#define GREEN1_PIN GPIO_NUM_41
-#define BLUE1_PIN GPIO_NUM_40
-#define RED2_PIN GPIO_NUM_38
-#define GREEN2_PIN GPIO_NUM_39
-#define BLUE2_PIN GPIO_NUM_37
+#define RED1_PIN            ((gpio_num_t) HUB75_RED1_PIN)
+#define GREEN1_PIN          ((gpio_num_t) HUB75_GREEN1_PIN)
+#define BLUE1_PIN           ((gpio_num_t) HUB75_BLUE1_PIN)
+#define RED2_PIN            ((gpio_num_t) HUB75_RED2_PIN)
+#define GREEN2_PIN          ((gpio_num_t) HUB75_GREEN2_PIN)
+#define BLUE2_PIN           ((gpio_num_t) HUB75_BLUE2_PIN)
 
-#define ROWSEL_A_PIN GPIO_NUM_45
-#define ROWSEL_B_PIN GPIO_NUM_36
-#define ROWSEL_C_PIN GPIO_NUM_48
-#define ROWSEL_D_PIN GPIO_NUM_35
-#define ROWSEL_E_PIN GPIO_NUM_21
+#define ROWSEL_A_PIN        ((gpio_num_t) HUB75_ROWSEL_A_PIN)
+#define ROWSEL_B_PIN        ((gpio_num_t) HUB75_ROWSEL_B_PIN)
+#define ROWSEL_C_PIN        ((gpio_num_t) HUB75_ROWSEL_C_PIN)
+#define ROWSEL_D_PIN        ((gpio_num_t) HUB75_ROWSEL_D_PIN)
+#define ROWSEL_E_PIN        ((gpio_num_t) HUB75_ROWSEL_E_PIN)
 
-#define CLK_PIN GPIO_NUM_2
-#define STROBE_PIN GPIO_NUM_47
-#define OEN_PIN GPIO_NUM_14
+#define CLK_PIN             ((gpio_num_t) HUB75_CLK_PIN)
+#define STROBE_PIN          ((gpio_num_t) HUB75_STROBE_PIN)
+#define OEN_PIN             ((gpio_num_t) HUB75_OEN_PIN)
 #endif
 
 void animate_task(void *dummy);
@@ -125,7 +115,7 @@ extern "C" void app_main(void)
 
     matrix_queue = xQueueCreate(1, sizeof(fb_t));
 
-    xTaskCreate(&animate_task, "Animate Task", 4096, NULL, 0, NULL);
+    xTaskCreate(&animate_task, "Animate Task", 4096, NULL, 10, NULL);
     xTaskCreate(&mqtt_task, "MQTT Task", 8196, NULL, 0, NULL);
     xTaskCreate(&time_task, "Time Task", 4096, NULL, 0, NULL);
     xTaskCreate(&sensor_task, "Sensor Task", 4096, NULL, 0, NULL);
@@ -255,11 +245,7 @@ void animate_task(void *dummy)
 
         fb.atomic_back_to_fore_copy();
 
-#if ESP32_SDK
-        vTaskDelay(1);
-#elif PICO_SDK
-        vTaskDelay(10);
-#endif
+        vTaskDelay(FRAME_DELAY_MS / portTICK_PERIOD_MS);
     }
 }
 

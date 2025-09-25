@@ -1,7 +1,0 @@
-set(WIFI_SSID               wifi-ssid)
-set(WIFI_PASSWORD           wifi-password)
-set(SPI_TO_FPGA             1)
-set(MQTT_BROKER_IP          10.0.0.1)
-set(MQTT_BROKER_USERNAME    user)
-set(MQTT_BROKER_PASSWORD    password)
-set(BME680_PRESENT          1)

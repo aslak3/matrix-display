@@ -1,16 +1,21 @@
+set(MQTT_BROKER_PORT 1883)
+include(../local.cmake)
+
+set(SPI_TO_FPGA 0)
+include(../boards/${MATRIX_DISPLAY_BOARD}.cmake)
+
+include(../sensors.cmake)
+
 set(PROJECT matrix-display)
 
-if($ENV{MATRIX_DISPLAY_SDK} STREQUAL "PICO")
-    set(PICO_SDK_PATH $ENV{PICO_SDK_PATH})
-    set(PICO_BOARD pico2_w)
-
-    include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
+if(${MATRIX_DISPLAY_SDK} STREQUAL "PICO")
+    include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
     project(matrix-display CXX C ASM)
 
     pico_sdk_init()
 
     set(SRC_DIR ${PROJECT_SOURCE_DIR})
-else()
+elseif(${MATRIX_DISPLAY_SDK} STREQUAL "ESP32")
     set(SRC_DIR ${PROJECT_DIR}/src)
 endif()
 
@@ -38,19 +43,6 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffile-prefix-map=${PROJECT_SOURCE_DIR}/=")
 
-set(DEVICE_PRETTY_NAME "Matrix Display" CACHE STRING "The name given this device via autodiscovery")
-set(DEVICE_NAME "matrix_display" CACHE STRING "Optional string to include in topics and entities after matrix_display")
-option(SPI_TO_FPGA "Use the iCE40 FPGA for the display" 1)
-option(BME680_PRESENT "Use a BME680 for temperature, humidity and air preasure" 0)
-set(WIFI_SSID "" CACHE STRING "Wi-Fi SSD network name")
-set(WIFI_PASSWORD "" CACHE STRING "Wi-Fi password")
-set(MQTT_BROKER_IP "" CACHE STRING "MQTT broker IP address")
-set(MQTT_BROKER_PORT "1883" CACHE STRING "MQTT broker port number")
-set(MQTT_BROKER_USERNAME "" CACHE STRING "MQTT broker username")
-set(MQTT_BROKER_PASSWORD "" CACHE STRING "MQTT broker password")
-
-include(${SRC_DIR}/../private.cmake)
-
 if(BME680_PRESENT)
     set(BH680_SOURCE sensor/bme680.cpp)
 endif()
@@ -65,6 +57,13 @@ set(SENSOR_SOURCE ${BH680_SOURCE} ${DS3231_SOURCE} ${BH170_SOURCE})
 
 if(BUZZER_PRESENT)
     set(BUZZER_SOURCE buzzer.cpp)
+endif()
+
+if(DEVICE_PRETTY_NAME STREQUAL "")
+    message(FATAL_ERROR "DEVICE_PRETTY_NAME must be set")
+endif()
+if(DEVICE_NAME STREQUAL "")
+    message(FATAL_ERROR "DEVICE_NAME must be set")
 endif()
 
 if(WIFI_SSID STREQUAL "")
@@ -100,9 +99,29 @@ set(COMPILE_DEFS
     # Override mqtt_opts.h setting
     MQTT_OUTPUT_RINGBUF_SIZE=2048
     MQTT_REQ_MAX_IN_FLIGHT=8
+    # HUB75 pins (some may be not needed and missing, eg SPI to FPGA mode)
+    HUB75_RED1_PIN=${HUB75_RED1_PIN}
+    HUB75_GREEN1_PIN=${HUB75_GREEN1_PIN}
+    HUB75_BLUE1_PIN=${HUB75_BLUE1_PIN}
+    HUB75_RED2_PIN=${HUB75_RED2_PIN}
+    HUB75_GREEN2_PIN=${HUB75_GREEN2_PIN}
+    HUB75_BLUE2_PIN=${HUB75_BLUE2_PIN}
+    HUB75_ROWSEL_A_PIN=${HUB75_ROWSEL_A_PIN}
+    HUB75_ROWSEL_B_PIN=${HUB75_ROWSEL_B_PIN}
+    HUB75_ROWSEL_C_PIN=${HUB75_ROWSEL_C_PIN}
+    HUB75_ROWSEL_D_PIN=${HUB75_ROWSEL_D_PIN}
+    HUB75_ROWSEL_E_PIN=${HUB75_ROWSEL_E_PIN}
+    HUB75_CLK_PIN=${HUB75_CLK_PIN}
+    HUB75_STROBE_PIN=${HUB75_STROBE_PIN}
+    HUB75_OEN_PIN=${HUB75_OEN_PIN}
+    # Other HUB75 things
+    FRAME_DELAY_MS=${FRAME_DELAY_MS}
+    # I2C pins
+    I2C_SDA_PIN=${I2C_SDA_PIN}
+    I2C_SCL_PIN=${I2C_SCL_PIN}
 )
 
-if($ENV{MATRIX_DISPLAY_SDK} STREQUAL "PICO")
+if(${MATRIX_DISPLAY_SDK} STREQUAL "PICO")
     set(PICO_SDK 1)
     set(ESP32_SDK 0)
 
@@ -138,7 +157,7 @@ if($ENV{MATRIX_DISPLAY_SDK} STREQUAL "PICO")
     pico_generate_pio_header(${PROJECT} ${CMAKE_CURRENT_LIST_DIR}/hub75.pio)
 
     pico_add_extra_outputs(${PROJECT})
-else()
+elseif(${MATRIX_DISPLAY_SDK} STREQUAL "ESP32")
     set(PICO_SDK 0)
     set(ESP32_SDK 1)
 
