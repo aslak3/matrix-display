@@ -10,6 +10,12 @@
 // Incoming data from MQTT
 
 typedef struct {
+    waiting_t data;
+    int framestamp;
+    int pixel_length;
+} waiting_state_t;
+
+typedef struct {
     weather_data_t data;
     int framestamp;
 } weather_state_t;
@@ -99,6 +105,7 @@ class animation {
         void render_page(void);
         void render_notification(void);
 
+        void new_waiting(waiting_t *waiting);
         void new_weather_data(weather_data_t *weather_data);
         void new_media_player_data(media_player_data_t *media_player_data);
         void new_calendar_data(calendar_data_t *calendar_data);
@@ -124,6 +131,7 @@ class animation {
         // When a page was started, which some pages use
         int page_framestamp;
 
+        waiting_state_t waiting_state;
         weather_state_t weather_state;
         media_player_state_t media_player_state;
         calendar_state_t calendar_state;

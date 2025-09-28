@@ -169,6 +169,10 @@ void animate_task(void *dummy)
 #endif
 
             switch (message.message_type) {
+                case MESSAGE_ANIM_WAITING:
+                    anim.new_waiting(&message.waiting);
+                    break;
+
                 case MESSAGE_ANIM_WEATHER:
                     anim.new_weather_data(&message.weather_data);
                     break;

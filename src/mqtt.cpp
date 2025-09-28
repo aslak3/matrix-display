@@ -48,6 +48,8 @@ static void connect_wifi(void);
 
 static void start_sntp_client(void);
 
+static void send_waiting(waiting_t waiting);
+
 static int do_mqtt_connect(mqtt_client_t *client);
 static void do_mqtt_subscribe(mqtt_client_t *client);
 static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection_status_t status);
@@ -127,21 +129,31 @@ void led_task(void *dummy)
     }
 }
 
+bool mqtt_connected = false;
+
 void mqtt_task(void *dummy)
 {
     vTaskCoreAffinitySet(NULL, 1 << 0);
     DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), GET_CORE_NUMBER());
 
-    DEBUG_printf("ssid %s password %s\n", WIFI_SSID, WIFI_PASSWORD);
+    send_waiting(waiting_t { text: "Starting up", sequence_number: 0 } );
+
+    DEBUG_printf("SSID %s\n", WIFI_PASSWORD);
 
     xTaskCreate(&led_task, "LED Task", 4096, NULL, 0, NULL);
 
+    send_waiting(waiting_t { text: "Starting Wi-FI connection", sequence_number: 1 } );
+
     connect_wifi();
+
+    send_waiting(waiting_t { text: "Wi-Fi connected!", sequence_number: 2 } );
 
     const ip_addr_t *dns0 = dns_getserver(0);
     DEBUG_printf("Using DNS server: %s\n", ipaddr_ntoa(dns0));
 
     start_sntp_client();
+
+    send_waiting(waiting_t { text: "SNTP client created", sequence_number: 3 } );
 
     mqtt_client_t *client = mqtt_client_new();
 
@@ -155,16 +167,18 @@ void mqtt_task(void *dummy)
         DEBUG_printf("do_mqtt_connect() return %d\n", err);
     }
 
+    bool old_mqtt_connected = false;
+
     while (1) {
+        if (old_mqtt_connected == false && mqtt_connected == true) {
+            // -1 as the sequence number will wake up the animation task and start the clock
+            send_waiting(waiting_t { text: "MQTT up; awaiting time", sequence_number: -1 } );
+        }
+        old_mqtt_connected = mqtt_connected;
+
         sensor_message_poll();
 
-        if (mqtt_client_is_connected(client) == 0) {
-            DEBUG_printf("MQTT not connected; reconnecting\n");
-            do_mqtt_connect(client);
-        }
-
         vTaskDelay(1000 / portTICK_PERIOD_MS);
-
     }
 }
 
@@ -292,6 +306,24 @@ void start_sntp_client(void)
 #endif
 }
 
+static void send_waiting(waiting_t waiting)
+{
+    DEBUG_printf("Sending waiting progress; text: %s sequence_number: %d\n",
+        waiting.text, waiting.sequence_number);
+
+    message_anim_t message_anim =
+    {
+        message_type: MESSAGE_ANIM_WAITING,
+        waiting: waiting,
+    };
+
+    if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
+        DEBUG_printf("Could not send waiting; dropping\n");
+    }
+
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+}
+
 static int do_mqtt_connect(mqtt_client_t *client)
 {
     struct mqtt_connect_client_info_t ci;
@@ -358,10 +390,12 @@ static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection
     if (status == MQTT_CONNECT_ACCEPTED) {
         DEBUG_printf("MQTT Connected\n");
         do_mqtt_subscribe(client);
+        mqtt_connected = true;
     }
     else {
         DEBUG_printf("Disconnected: %d\n", status);
         vTaskDelay(1000 / portTICK_PERIOD_MS);
+        mqtt_connected = false;
     }
 }
 
@@ -873,11 +907,26 @@ static void handle_buzzer_play_rtttl_data(char *data_as_chars)
     }
 }
 
+uint8_t brightness = 255;
 static void handle_light_command_data(char *data_as_chars)
 {
+    DEBUG_printf("Light set: %s\n", data_as_chars);
+
+    uint8_t new_brightness = 0;
+
+    if (strcmp(data_as_chars, "ON") == 0) {
+        new_brightness = brightness;
+    }
+    else if (strcmp(data_as_chars, "OFF") == 0) {
+        new_brightness = 0;
+    }
+    else {
+        return;
+    }
+
     message_anim = {
         message_type: MESSAGE_ANIM_BRIGHTNESS,
-        brightness: 0,
+        brightness: new_brightness,
     };
 
     if (xQueueSend(animate_queue, &message_anim, 10) != pdTRUE) {
@@ -890,7 +939,7 @@ static void handle_light_brightness_command_data(char *data_as_chars)
     DEBUG_printf("Brightness set: %s\n", data_as_chars);
 
     char *end = NULL;
-    int brightness = strtol(data_as_chars, &end, 10);
+    brightness = strtol(data_as_chars, &end, 10);
 
     if (!end || brightness < 0 || brightness > 255) {
         DEBUG_printf("Brightness out of range or invalid");
@@ -1020,9 +1069,8 @@ static void handle_autodiscover_control_data(mqtt_client_t *client, char *data_a
 
         cJSON *light = create_base_object("Panel", DEVICE_NAME "_brightness");
         cJSON_AddItemToObject(light, "command_topic", cJSON_CreateString(LIGHT_COMMAND_TOPIC));
-        cJSON_AddItemToObject(light, "payload_off", cJSON_CreateString("OFF"));
         cJSON_AddItemToObject(light, "brightness_command_topic", cJSON_CreateString(LIGHT_BRIGHTNESS_COMMAND_TOPIC));
-        cJSON_AddItemToObject(light, "on_command_type", cJSON_CreateString("brightness"));
+        cJSON_AddItemToObject(light, "on_command_type", cJSON_CreateString("last"));
         err += publish_object_as_device_entity(light, device, client, "homeassistant/light/" DEVICE_NAME "/config")
             != ERR_OK ? 1 : 0;
 

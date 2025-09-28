@@ -36,6 +36,8 @@ animation::animation(framebuffer& f) : fb(f)
     configuration.scroller_speed = 2;
     configuration.snowflake_count = 0;
 
+    waiting_state.framestamp = 0;
+
     time_state.colon_counter = 0;
     time_state.hide_colons = 0;
     time_state.framestamp = 0;
@@ -95,7 +97,8 @@ void animation::render_page(void)
 
     switch (page) {
         case PAGE_WAITING:
-            if (render_waiting_page() || time_state.framestamp) {
+            // Only come out of waiting if we have time from SNTP *and* MQTT is connected
+            if (render_waiting_page()) {
                 set_next_page(PAGE_RTC);
             }
             break;
@@ -219,6 +222,13 @@ void animation::render_notification(void)
             notification_state.framestamp = frame;
         }
     }
+}
+
+void animation::new_waiting(waiting_t *waiting)
+{
+    waiting_state.data = *waiting;
+    waiting_state.framestamp = frame;
+    waiting_state.pixel_length = fb.string_length(medium_font, waiting->text);
 }
 
 void animation::new_weather_data(weather_data_t *weather_data)
@@ -407,9 +417,46 @@ void animation::change_page(page_t new_page)
 
 bool animation::render_waiting_page(void)
 {
-    fb.print_string(big_font, 6, 4, "Wait...", white);
+    rgb_t colours[] = {
+        blue, red, magenta, green, cyan, yellow, white
+    };
 
-    return false;
+    // If we haven't got a waiting progress message from the MQTT task yet then just do nothing
+    if (!waiting_state.framestamp) {
+        return false;
+    }
+
+    // Start scrolling 25 frames later
+    int waiting_offset = 2 * (frame - (waiting_state.framestamp + 25));
+    if (waiting_offset < 0) {
+        waiting_offset = 0;
+    }
+    // When we get to the end of scrolling hold the start of the message on the screen
+    if (waiting_offset > waiting_state.pixel_length + FB_WIDTH) {
+        waiting_offset = 0;
+    }
+
+    rgb_t colour = white;
+
+    // The last message is always white
+    if (waiting_state.data.sequence_number >= 0) {
+        colour = colours[waiting_state.data.sequence_number % (sizeof(colours) / sizeof(rgb_t))];
+    }
+
+    fb.print_string(medium_font, 0 - waiting_offset, 8, waiting_state.data.text, colour);
+
+    // Conditions for leaving waiting: we have the time, we have the last waiting message
+    // from the MQTT task, and at least 100 frames have passed since then
+    if (
+        time_state.framestamp &&
+        (waiting_state.data.sequence_number < 0) &&
+        (frame - waiting_state.framestamp > 100)
+    ) {
+        return true;
+    }
+    else {
+        return false;
+    }
 }
 
 bool animation::render_clock_page(void)

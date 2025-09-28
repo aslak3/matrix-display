@@ -7,6 +7,11 @@
 // Messages destined at the animation task
 
 typedef struct {
+    char text[64];
+    int sequence_number;
+} waiting_t;
+
+typedef struct {
     char time[6];
     char condition[32];
     double temperature;
@@ -113,21 +118,23 @@ typedef struct {
 } configuration_t;
 
 #define MESSAGE_ANIM_NULL 0
-#define MESSAGE_ANIM_WEATHER 1
-#define MESSAGE_ANIM_MEDIA_PLAYER 2
-#define MESSAGE_ANIM_CALENDAR 3
-#define MESSAGE_ANIM_SCROLLER 4
-#define MESSAGE_ANIM_NOTIFICATION 5
-#define MESSAGE_ANIM_TRANSPORT 6
-#define MESSAGE_ANIM_PORCH 7
-#define MESSAGE_ANIM_TIMEINFO 8
-#define MESSAGE_ANIM_BRIGHTNESS 9
-#define MESSAGE_ANIM_GRAYSCALE 10
+#define MESSAGE_ANIM_WAITING 1
+#define MESSAGE_ANIM_WEATHER 2
+#define MESSAGE_ANIM_MEDIA_PLAYER 3
+#define MESSAGE_ANIM_CALENDAR 4
+#define MESSAGE_ANIM_SCROLLER 5
+#define MESSAGE_ANIM_NOTIFICATION 6
+#define MESSAGE_ANIM_TRANSPORT 7
+#define MESSAGE_ANIM_PORCH 8
+#define MESSAGE_ANIM_TIMEINFO 9
+#define MESSAGE_ANIM_BRIGHTNESS 10
+#define MESSAGE_ANIM_GRAYSCALE 11
 #define MESSAGE_ANIM_CONFIGURATION 100
 
 typedef struct {
     uint8_t message_type;
     union {
+        waiting_t waiting;
         weather_data_t weather_data;
         media_player_data_t media_player_data;
         calendar_data_t calendar_data;
