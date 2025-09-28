@@ -1,61 +1,95 @@
 alias: Publish info on MQTT for Matrix Display
 description: ""
-trigger:
-  - platform: time_pattern
-    minutes: /5
-    id: weather
-  - platform: state
-    entity_id:
-      - media_player.squeezebox
-    id: media_player_content_id
-    attribute: media_content_id
-  - platform: device
-    type: changed_states
-    device_id: UUID
-    entity_id: UUID
-    domain: media_player
-    id: media_player_pause
-  - platform: device
-    type: changed_states
-    device_id: UUID
-    entity_id: UUID
-    domain: media_player
-    id: media_player_play
-  - platform: state
-    entity_id:
+triggers:
+  - minutes: /5
+    id: five_mins
+    trigger: time_pattern
+  - entity_id:
       - sensor.ical_our_house_event_0
     id: cal_0
-  - platform: state
-    entity_id:
+    trigger: state
+  - entity_id:
       - sensor.ical_our_house_event_1
     id: cal_1
-  - platform: state
-    entity_id:
+    trigger: state
+  - entity_id:
       - sensor.ical_our_house_event_2
     id: cal_2
-  - platform: state
-    entity_id:
+    trigger: state
+  - entity_id:
       - binary_sensor.porch_motion_sensor_iaszone
     id: porch
-condition: []
-action:
+    enabled: true
+    trigger: state
+  - entity_id:
+      - sensor.go_south_coast_bluestar_1900ha080334
+    attribute: summary
+    id: hythe_bus
+    trigger: state
+  - entity_id:
+      - sensor.go_south_coast_bluestar_1900ha080333
+    attribute: summary
+    id: southampton_bus
+    trigger: state
+  - trigger: state
+    entity_id:
+      - media_player.living_room_squeezebox
+    id: media_player
+    from: null
+    to: null
+  - trigger: state
+    entity_id:
+      - media_player.living_room_squeezebox
+    id: media_player
+    enabled: true
+    attribute: artist
+  - trigger: state
+    entity_id:
+      - media_player.living_room_squeezebox
+    id: media_player
+    enabled: true
+    attribute: album
+  - trigger: state
+    entity_id:
+      - media_player.living_room_squeezebox
+    attribute: media_title
+    id: media_player
+conditions: []
+actions:
   - choose:
       - conditions:
           - condition: trigger
             id:
-              - weather
+              - five_mins
         sequence:
-          - service: mqtt.publish
+          - action: mqtt.publish
+            metadata: {}
+            data:
+              qos: 0
+              retain: true
+              topic: matrix_display/scroller
+              payload: |-
+                {{ [
+                states('sensor.stock_scroller'),
+                states('sensor.weather_scroller'),
+                  "Electricity used today: " + states("sensor.today_s_electricity_usage") +
+                  " kWh; Electricity cost today: " + states("sensor.today_s_electricity_cost") +
+                  " GBP; Solar production today: " + states("sensor.today_s_solar_production") +
+                  " kWh; Solar income today: " + states("sensor.today_s_solar_income") +
+                  " GBP;"
+                ] | to_json }}
+          - action: mqtt.publish
+            enabled: true
             data:
               qos: 0
               retain: true
               topic: matrix_display/weather
-              payload_template: >
+              payload: >
                 {% set temperature_sensors = {
-                  'Hallway': state_attr('climate.hallway', 'current_temperature') | float,
-                  'Kitchen': states('sensor.kitchen_climate_sensor_temperature') | float,
-                  'Device': states('sensor.matrix_display_temperature') | float,
-                  'Porch': states('sensor.porch_temperature_sensor_temperature') | float,
+                  'Hallway': state_attr('climate.hallway', 'current_temperature') | float(default=0),
+                  'Lounge': states('sensor.sonoff_snzb_02d_temperature') | float(default=0),
+                  'Kitchen': states('sensor.kitchen_climate_sensor_temperature_2') | float(default=0),
+                  'Porch': states('sensor.porch_climate_sensor_temperature') | float(default=0),
                 } %}
 
 
@@ -77,57 +111,57 @@ action:
 
                 {% for i in range(3) %}
 
-                {% set old_forecast = state_attr("weather.openweathermap",
-                "forecast")[i] %}
+                {% set old_forecast = state_attr("sensor.weather",
+                "forecast")[1+(i*2)] %}
 
                 {% set new_forecast = {
                   'datetime': old_forecast.datetime,
                   'condition': old_forecast.condition,
-                  'temperature': old_forecast.temperature,
-                  'precipitation_probability': old_forecast.precipitation_probability,
-                  'humidity': old_forecast.humidity,
-                  'wind_speed': old_forecast.wind_speed,
-                  'wind_bearing': old_forecast.wind_bearing,
-                  'pressure': old_forecast.pressure,
+                  'temperature': old_forecast.temperature|float(0),
+                  'precipitation_probability': old_forecast.precipitation_probability|float(0),
+                  'wind_speed': old_forecast.wind_speed|float(0),
+                  'wind_bearing': old_forecast.wind_bearing|float(0),
                 } %}
 
                 {% set forecasts.list = forecasts.list + [new_forecast] %}
 
                 {% endfor %}
 
+
                 {% set result = {
-                  'condition': states("weather.openweathermap"),
-                  'temperature': state_attr("weather.openweathermap", "temperature"),
-                  'humidity': state_attr("weather.openweathermap", "humidity"),
-                  'wind_speed': state_attr("weather.openweathermap", "wind_speed"),
-                  'wind_bearing': state_attr("weather.openweathermap", "wind_bearing"),
-                  'pressure': state_attr("weather.openweathermap", "pressure"),
+                  'condition': state_attr('sensor.weather', 'condition'),
+                  'precipitation_probability': state_attr('sensor.weather', 'precipitation_probability')|float(0),
+                  'temperature': 
+                state_attr('sensor.weather', 'temperature')|float(0),
+                  'humidity': state_attr('sensor.weather', 'humidity')|float(0),
+                  'wind_speed': state_attr('sensor.weather', 'wind_speed')|float(0),
+                  'wind_bearing': state_attr('sensor.weather', 'wind_bearing')|float(0),
+                  'pressure': float(0),
                   'forecasts': forecasts.list,
                   'inside_temperatures': inside_temperatures.list,
                 } %}
+
 
                 {{ result | to_json }}
       - conditions:
           - condition: trigger
             id:
-              - media_player_pause
-              - media_player_play
-              - media_player_content_id
+              - media_player
         sequence:
-          - service: mqtt.publish
-            data:
+          - data:
               qos: 0
               retain: false
-              topic: matrix_display/media_player
-              payload_template: |
+              topic: living_room_matrix_display/media_player
+              payload: |
                 {% set result = {
-                  'state': states("media_player.squeezebox"),
-                  'artist': state_attr("media_player.squeezebox", "media_artist"),
-                  'album': state_attr("media_player.squeezebox", "media_album_name"),
-                  'title': state_attr("media_player.squeezebox", "media_title"),
+                  'state': states("media_player.living_room_squeezebox"),
+                  'artist': state_attr("media_player.living_room_squeezebox", "media_artist"),
+                  'album': state_attr("media_player.living_room_squeezebox", "media_album_name"),
+                  'title': state_attr("media_player.living_room_squeezebox", "media_title"),
                 } %}
 
                 {{ result | to_json }}
+            action: mqtt.publish
       - conditions:
           - condition: trigger
             id:
@@ -135,10 +169,9 @@ action:
               - cal_1
               - cal_2
         sequence:
-          - service: mqtt.publish
-            data:
+          - data:
               topic: matrix_display/calendar
-              payload_template: |
+              payload: |
                 {% set result = namespace(list=[]) %}
 
                 {% set cals = [
@@ -157,16 +190,45 @@ action:
                 {{ result.list | to_json }}
               retain: true
               qos: 0
+            action: mqtt.publish
       - conditions:
           - condition: trigger
             id:
               - porch
         sequence:
-          - service: mqtt.publish
-            data:
+          - data:
               qos: 0
               retain: false
               topic: matrix_display/porch
-              payload_template: |
+              payload: |
                 {{ states("binary_sensor.porch_motion_sensor_iaszone") }}
+            enabled: true
+            action: mqtt.publish
+      - conditions:
+          - condition: trigger
+            id:
+              - hythe_bus
+              - southampton_bus
+        sequence:
+          - action: mqtt.publish
+            metadata: {}
+            data:
+              qos: 0
+              retain: false
+              topic: matrix_display/transport
+              payload: |-
+                {% set result = namespace(list=[]) %}
+
+                {% set result.list = [
+                {
+                  "Towards": "To: Hythe",
+                  "DeparturesSummary": state_attr("sensor.go_south_coast_bluestar_1900ha080334", "summary")
+                },
+                {
+                  "Towards": "To: So'ton",
+                  "DeparturesSummary": state_attr("sensor.go_south_coast_bluestar_1900ha080333", "summary")
+                }
+                ] %}
+
+                {{ result.list | to_json }}
 mode: single
