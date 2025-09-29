@@ -1,7 +1,3 @@
-#if PICO_SDK
-#include <pico/stdlib.h>
-#endif
-
 #include "framebuffer.h"
 #include "messages.h"
 
@@ -10,56 +6,56 @@
 // Incoming data from MQTT
 
 typedef struct {
-    waiting_t data;
+    Waiting_t data;
     int framestamp;
     int pixel_length;
-} waiting_state_t;
+} WaitingState_t;
 
 typedef struct {
-    weather_data_t data;
+    WeatherData_t data;
     int framestamp;
-} weather_state_t;
+} WeatherState_t;
 
 typedef struct {
-    media_player_data_t data;
+    MediaPlayerData_t data;
     int framestamp;
     char message[512];
     int message_pixel_length;
-} media_player_state_t;
+} MediaPlayerState;
 
 typedef struct {
-    calendar_data_t data;
+    CalendarData_t data;
     int framestamp;
     int message_pixel_height;
-} calendar_state_t;
+} CalendarState_t;
 
 typedef struct {
-    scroller_data_t data;
+    ScrollerData_t data;
     int current_index;
     char message[256];
     int message_pixel_length;
     int message_offset;
     int framestamp;
     int off_countdown;
-} scroller_state_t;
+} ScropllerState_t;
 
 typedef struct {
-    transport_data_t data;
+    TransportData_t data;
     int framestamp;
-} transport_state_t;
+} TransportState_t;
 
 typedef struct {
-    notification_t data;
+    Notification_t data;
     int framestamp;
     rgb_t rgb;
     int pixel_length;
     int repeats;
-} notification_state_t;
+} NotificationState_t;
 
 typedef struct {
-    porch_t data;
+    Porch_t data;
     int framestamp;
-} porch_state_t;
+} PorchState_t;
 
 typedef struct {
     struct tm data;
@@ -70,7 +66,7 @@ typedef struct {
     char time_colons[10];
     char time_no_colons[10];
     char date[20];
-} time_state_t;
+} TimeState_t;
 
 typedef enum {
     PAGE_NULL,
@@ -82,69 +78,69 @@ typedef enum {
     PAGE_MEDIA_PLAYER,
     PAGE_CALENDAR,
     PAGE_TRANSPORT,
-} page_t;
+} Page_t;
 
 typedef enum {
     FADE_STATE_IDLE,
     FADE_STATE_OUT,
     FADE_STATE_IN,
-} fade_state_t;
+} FadeState_t;
 
 #define NO_SNOWFLAKES 255
 
 typedef struct {
     int16_t x, y;
     int16_t weight;
-} snowflake_t;
+} Snowflake_t;
 
-class animation {
+class Animation {
     public:
-        animation(framebuffer& f);
+        Animation(FrameBuffer& f);
 
         void prepare_screen(void);
         void render_page(void);
         void render_notification(void);
 
-        void new_waiting(waiting_t *waiting);
-        void new_weather_data(weather_data_t *weather_data);
-        void new_media_player_data(media_player_data_t *media_player_data);
-        void new_calendar_data(calendar_data_t *calendar_data);
-        void new_scroller_data(scroller_data_t *scroller_data);
-        void new_transport_data(transport_data_t *transport_data);
-        void new_notification(notification_t *notification);
+        void new_waiting(Waiting_t *waiting);
+        void new_weather_data(WeatherData_t *weather_data);
+        void new_media_player_data(MediaPlayerData_t *media_player_data);
+        void new_calendar_data(CalendarData_t *calendar_data);
+        void new_scroller_data(ScrollerData_t *scroller_data);
+        void new_transport_data(TransportData_t *transport_data);
+        void new_notification(Notification_t *notification);
         void clear_notification(void);
-        void new_porch(porch_t *porch);
+        void new_porch(Porch_t *porch);
         void new_time(struct tm *timeinfo);
-        void update_configuration(configuration_t *config);
+        void update_configuration(Configuration_t *config);
 
     private:
-        framebuffer& fb;
+        FrameBuffer& fb;
 
-        page_t page;
+        Page_t page;
         int frames_left_on_page;
-        page_t next_page;
+        Page_t next_page;
         int fade_countdown;
-        fade_state_t fade_state;
+        FadeState_t fade_state;
         uint8_t fade_brightness;
 
         int frame;
         // When a page was started, which some pages use
         int page_framestamp;
 
-        waiting_state_t waiting_state;
-        weather_state_t weather_state;
-        media_player_state_t media_player_state;
-        calendar_state_t calendar_state;
-        scroller_state_t scroller_state;
-        transport_state_t transport_state;
-        notification_state_t notification_state;
-        porch_state_t porch_state;
-        time_state_t time_state;
+        WaitingState_t waiting_state;
+        WeatherState_t weather_state;
+        MediaPlayerState media_player_state;
+        CalendarState_t calendar_state;
+        ScropllerState_t scroller_state;
+        TransportState_t transport_state;
+        NotificationState_t notification_state;
+        PorchState_t porch_state;
+        TimeState_t time_state;
 
-        snowflake_t snowflakes[NO_SNOWFLAKES];
+        Snowflake_t snowflakes[NO_SNOWFLAKES];
         int16_t snowflake_wind_vector;
 
-        configuration_t configuration;
+        Configuration_t configuration;
 
         const rgb_t black = { red: 0, green: 0, blue: 0, flags: 0 };
         const rgb_t white = { red: 0xff, green: 0xff, blue: 0xff, flags: 0 };
@@ -169,8 +165,8 @@ class animation {
         font_t *ibm_font;
         font_t *tiny_font;
 
-        void set_next_page(page_t new_page);
-        void change_page(page_t new_page);
+        void set_next_page(Page_t new_page);
+        void change_page(Page_t new_page);
 
         bool render_waiting_page(void);
         bool render_clock_page(void);

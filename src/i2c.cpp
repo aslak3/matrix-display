@@ -1,5 +1,3 @@
-#include <stdlib.h>
-
 #if PICO_SDK
 #include <hardware/i2c.h>
 #include <hardware/gpio.h>

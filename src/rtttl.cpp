@@ -3,8 +3,8 @@
 #include <ctype.h>
 #include <stdio.h>
 
-#include "matrix_display.h"
 #include "rtttl.h"
+#include "matrix_display.h"
 
 /* RTTTL format:
  *
@@ -31,13 +31,13 @@
  * Lastly the octave, from 4 to 7. If missing the default is used.
  **/
 
-rtttl::rtttl(void)
+RTTTL::RTTTL(void)
 {
     memset(&header, 0, sizeof(header));
 }
 
 // Copy the tune in and parses the RTTTL header
-bool rtttl::parse_header(char *buffer)
+bool RTTTL::parse_header(char *buffer)
 {
     int c = 0;
 
@@ -104,7 +104,7 @@ bool rtttl::parse_header(char *buffer)
     return true;
 }
 
-bool rtttl::get_next_note(rtttl_note_t *note)
+bool RTTTL::get_next_note(RTTTLNote_t *note)
 {
     int c;
 

@@ -1,10 +1,4 @@
-#include <stdio.h>
-#include <math.h>
-#include <inttypes.h>
-#include <string.h>
-
 #if PICO_SDK
-
 #include "pico/stdlib.h"
 #include <hardware/gpio.h>
 #include <hardware/spi.h>
@@ -18,9 +12,7 @@
 #include <semphr.h>
 
 #include "hub75.pio.h"
-
 #elif ESP32_SDK
-
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/queue.h>
@@ -31,12 +23,10 @@
 #include "driver/dedic_gpio.h"
 #include "rom/ets_sys.h"
 #include "esp_task_wdt.h"
-
 #endif
 
-#include "matrix_display.h"
-
 #include "animation.h"
+#include "matrix_display.h"
 
 #if PICO_SDK
 #if SPI_TO_FPGA
@@ -100,18 +90,17 @@ extern "C" void app_main(void)
 
     srand(0);
 
-    // Good for UK only at the moment
-    setenv("TZ", "GMT0BST,M3.5.0/1,M10.5.0", 1);
+    setenv("TZ", TZ, 1);
     tzset();
 
 #if ESP32_SDK
     ESP_ERROR_CHECK(nvs_flash_init());
 #endif
 
-    animate_queue = xQueueCreate(3, sizeof(message_anim_t));
-    mqtt_queue = xQueueCreate(3, sizeof(message_mqtt_t));
-    time_queue = xQueueCreate(3, sizeof(message_time_t));
-    buzzer_queue = xQueueCreate(3, sizeof(message_buzzer_t));
+    animate_queue = xQueueCreate(3, sizeof(MessageAnim_t));
+    mqtt_queue = xQueueCreate(3, sizeof(MessageMQTT_t));
+    time_queue = xQueueCreate(3, sizeof(MessageTime_t));
+    buzzer_queue = xQueueCreate(3, sizeof(MessageBuzzer_t));
 
     matrix_queue = xQueueCreate(1, sizeof(fb_t));
 
@@ -119,8 +108,7 @@ extern "C" void app_main(void)
     xTaskCreate(&mqtt_task, "MQTT Task", 8196, NULL, 0, NULL);
     xTaskCreate(&time_task, "Time Task", 4096, NULL, 0, NULL);
     xTaskCreate(&sensor_task, "Sensor Task", 4096, NULL, 0, NULL);
-    // xTaskCreate(&buzzer_task, "Buzzer Task", 4096, NULL, 0, NULL);
-
+    xTaskCreate(&buzzer_task, "Buzzer Task", 4096, NULL, 0, NULL);
     xTaskCreate(&matrix_task, "Matrix Task", 4096, NULL, 10, NULL);
 
 #if PICO_SDK
@@ -129,7 +117,6 @@ extern "C" void app_main(void)
 
     while (1) {
         vTaskDelay(1000 / portTICK_PERIOD_MS);
-        DEBUG_printf("Hello there... bottom of app_main()\n");
     }
 
 #if PICO_SDK
@@ -137,9 +124,9 @@ extern "C" void app_main(void)
 #endif
 }
 
-framebuffer fb;
-animation anim(fb);
-message_anim_t message;
+FrameBuffer fb;
+Animation anim(fb);
+MessageAnim_t message;
 
 void animate_task(void *dummy)
 {
@@ -379,7 +366,7 @@ void matrix_task(void *dummy)
         .gpio_array = data_pins,
         .array_size = sizeof(data_pins) / sizeof(int),
         .flags = {
-            .out_en = 1,
+            .in_en = 0, .in_invert = 0,.out_en = 1, .out_invert = 0,
         }
     };
 

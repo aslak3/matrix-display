@@ -1,10 +1,4 @@
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
-
 #if PICO_SDK
-
-#include <pico/stdlib.h>
 
 #include <FreeRTOS.h>
 #include <task.h>
@@ -20,13 +14,13 @@
 
 #include "framebuffer.h"
 
-framebuffer::framebuffer()
+FrameBuffer::FrameBuffer()
 {
     brightness = 128;
     grayscale = false;
 }
 
-void framebuffer::clear(rgb_t rgb) {
+void FrameBuffer::clear(rgb_t rgb) {
     for (int r = 0; r < FB_HEIGHT; r++) {
         for (int c = 0; c < FB_WIDTH; c++) {
             set_pixel(c, r, rgb);
@@ -34,14 +28,14 @@ void framebuffer::clear(rgb_t rgb) {
     }
 }
 
-void framebuffer::set_pixel(int x, int y, rgb_t rgb)
+void FrameBuffer::set_pixel(int x, int y, rgb_t rgb)
 {
     if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
         draw_fb.rgb[y][x] = rgb;
     }
 }
 
-void framebuffer::set_pixel(int x, int y, rgb_t rgb, uint8_t gamma)
+void FrameBuffer::set_pixel(int x, int y, rgb_t rgb, uint8_t gamma)
 {
     rgb_t adjusted_rgb = {
         red: (uint8_t)((uint32_t)(rgb.red * gamma) / 255),
@@ -54,7 +48,7 @@ void framebuffer::set_pixel(int x, int y, rgb_t rgb, uint8_t gamma)
     }
 }
 
-void framebuffer::hollow_box(int x, int y, int width, int height, rgb_t rgb)
+void FrameBuffer::hollow_box(int x, int y, int width, int height, rgb_t rgb)
 {
     for (int i = 0; i < width; i++) {
         set_pixel(x + i, y, rgb);
@@ -66,7 +60,7 @@ void framebuffer::hollow_box(int x, int y, int width, int height, rgb_t rgb)
     }
 }
 
-void framebuffer::filled_box(int x, int y, int width, int height, rgb_t rgb)
+void FrameBuffer::filled_box(int x, int y, int width, int height, rgb_t rgb)
 {
     for (int r = y; r < y + height; r++) {
         for (int c = x; c < x + width; c++) {
@@ -75,7 +69,7 @@ void framebuffer::filled_box(int x, int y, int width, int height, rgb_t rgb)
     }
 }
 
-void framebuffer::shadow_box(int x, int y, int width, int height, uint8_t gamma)
+void FrameBuffer::shadow_box(int x, int y, int width, int height, uint8_t gamma)
 {
     for (int r = y; r < y + height; r++) {
         for (int c = x; c < x + width; c++) {
@@ -85,7 +79,7 @@ void framebuffer::shadow_box(int x, int y, int width, int height, uint8_t gamma)
     }
 }
 
-void framebuffer::hollow_circle(int x, int y, int radius, rgb_t rgb)
+void FrameBuffer::hollow_circle(int x, int y, int radius, rgb_t rgb)
 {
     int radius_sq = radius * radius;
 
@@ -99,7 +93,7 @@ void framebuffer::hollow_circle(int x, int y, int radius, rgb_t rgb)
     }
 }
 
-void framebuffer::filled_circle(int x, int y, int radius, rgb_t rgb)
+void FrameBuffer::filled_circle(int x, int y, int radius, rgb_t rgb)
 {
     int radius_sq = radius * radius;
 
@@ -113,7 +107,7 @@ void framebuffer::filled_circle(int x, int y, int radius, rgb_t rgb)
     }
 }
 
-void framebuffer::line(int x1, int y1, int x2, int y2, rgb_t rgb)
+void FrameBuffer::line(int x1, int y1, int x2, int y2, rgb_t rgb)
 {
     int dx = abs(x2 - x1);
     int dy = abs(y2 - y1);
@@ -159,11 +153,11 @@ void framebuffer::line(int x1, int y1, int x2, int y2, rgb_t rgb)
     }
 }
 
-int framebuffer::print_char(font_t *font, int x, int y, char c, rgb_t rgb, bool length_only)
+int FrameBuffer::print_char(font_t *font, int x, int y, char c, rgb_t rgb, bool length_only)
 {
     // Basic sanity please
     if (!((c >= 0x20 && c <= 0x7f) || c == CHAR_UP_ARROW || c == CHAR_DOWN_ARROW)) {
-        // DEBUG_printf("Bad character in framebuffer::printchar(): %02x\n", (int) c);
+        // DEBUG_printf("Bad character in FrameBuffer::printchar(): %02x\n", (int) c);
         return 0;
     }
 
@@ -237,7 +231,7 @@ int framebuffer::print_char(font_t *font, int x, int y, char c, rgb_t rgb, bool 
     return width_allocation;
 }
 
-void framebuffer::print_string(font_t *font, int x, int y, const char *s, rgb_t rgb)
+void FrameBuffer::print_string(font_t *font, int x, int y, const char *s, rgb_t rgb)
 {
     int running_x = x;
     for (; *s; s++) {
@@ -245,7 +239,7 @@ void framebuffer::print_string(font_t *font, int x, int y, const char *s, rgb_t 
     }
 }
 
-int framebuffer::string_length(font_t *font, const char *s)
+int FrameBuffer::string_length(font_t *font, const char *s)
 {
     int running_x = 0;
     for (; *s; s++) {
@@ -254,7 +248,7 @@ int framebuffer::string_length(font_t *font, const char *s)
     return running_x;
 }
 
-int framebuffer::print_wrapped_string(font_t *font, int y, const char *s, rgb_t rgb)
+int FrameBuffer::print_wrapped_string(font_t *font, int y, const char *s, rgb_t rgb)
 {
     int running_x = 0;
     int running_y = y;
@@ -298,12 +292,12 @@ int framebuffer::print_wrapped_string(font_t *font, int y, const char *s, rgb_t 
     return running_y;
 }
 
-void framebuffer::show_image(image_t *image, int x, int y)
+void FrameBuffer::show_image(image_t *image, int x, int y)
 {
     show_image(image, x, y, 255, true);
 }
 
-void framebuffer::show_image(image_t *image, int x, int y, uint8_t gamma, bool transparent)
+void FrameBuffer::show_image(image_t *image, int x, int y, uint8_t gamma, bool transparent)
 {
     const image_dsc_t *image_dsc = image->image_dsc;
     uint8_t *off = (uint8_t *) image_dsc->data;
@@ -325,19 +319,19 @@ void framebuffer::show_image(image_t *image, int x, int y, uint8_t gamma, bool t
     }
 }
 
-void framebuffer::set_brightness(uint8_t b)
+void FrameBuffer::set_brightness(uint8_t b)
 {
     brightness = b;
 }
 
-void framebuffer::set_grayscale(bool g)
+void FrameBuffer::set_grayscale(bool g)
 {
     grayscale = g;
 }
 
 extern QueueHandle_t matrix_queue;
 
-void framebuffer::atomic_back_to_fore_copy(void)
+void FrameBuffer::atomic_back_to_fore_copy(void)
 {
     static fb_t transfer_fb;
 
@@ -370,14 +364,14 @@ void framebuffer::atomic_back_to_fore_copy(void)
     xQueueOverwrite(matrix_queue, &transfer_fb);
 }
 
-void framebuffer::atomic_fore_copy_out(fb_t *out)
+void FrameBuffer::atomic_fore_copy_out(fb_t *out)
 {
     xQueuePeek(matrix_queue, out, 0);
 }
 
 ///
 
-rgb_t framebuffer::get_pixel(int x, int y)
+rgb_t FrameBuffer::get_pixel(int x, int y)
 {
     if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
         return draw_fb.rgb[y][x];

@@ -1,7 +1,3 @@
-#if PICO_SDK
-#include <pico/stdlib.h>
-#endif
-
 #include "fonts/fonts.h"
 #include "images/images.h"
 
@@ -25,9 +21,9 @@ typedef union {
 #define CHAR_UP_ARROW 0x80
 #define CHAR_DOWN_ARROW 0x81
 
-class framebuffer {
+class FrameBuffer {
     public:
-        framebuffer(void);
+        FrameBuffer(void);
         void clear(rgb_t rgb);
         void set_pixel(int x, int y, rgb_t rgb);
         void set_pixel(int x, int y, rgb_t rgb, uint8_t gamma);

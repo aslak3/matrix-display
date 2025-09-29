@@ -41,9 +41,8 @@
 
 #include <string.h>
 
-#include "i2c.h"
-
 #include "sensor.h"
+#include "i2c.h"
 
 #define BME680_I2C_ADDR 0x76
 

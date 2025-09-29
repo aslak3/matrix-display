@@ -1,7 +1,3 @@
-#include <stdio.h>
-#include <string.h>
-#include <time.h>
-
 #if PICO_SDK
 #include <FreeRTOS.h>
 #include <task.h>
@@ -48,7 +44,7 @@ static void connect_wifi(void);
 
 static void start_sntp_client(void);
 
-static void send_waiting(waiting_t waiting);
+static void send_waiting(Waiting_t waiting);
 
 static int do_mqtt_connect(mqtt_client_t *client);
 static void do_mqtt_subscribe(mqtt_client_t *client);
@@ -66,7 +62,6 @@ static void handle_scroller_json_data(char *data_as_chars);
 static void handle_transport_json_data(char *data_as_chars);
 static void handle_porch_sensor_data(char *data_as_chars);
 static void handle_notificaiton_data(char *data_as_chars);
-static void handle_set_time_data(char *data_as_chars);
 static void handle_buzzer_play_rtttl_data(char *data_as_chars);
 static void handle_light_command_data(char *data_as_chars);
 static void handle_light_brightness_command_data(char *data_as_chars);
@@ -136,24 +131,24 @@ void mqtt_task(void *dummy)
     vTaskCoreAffinitySet(NULL, 1 << 0);
     DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), GET_CORE_NUMBER());
 
-    send_waiting(waiting_t { text: "Starting up", sequence_number: 0 } );
+    send_waiting(Waiting_t { text: "Starting up", sequence_number: 0 } );
 
-    DEBUG_printf("SSID %s\n", WIFI_PASSWORD);
+    DEBUG_printf("Connecting on SSID %s\n", WIFI_SSID);
 
     xTaskCreate(&led_task, "LED Task", 4096, NULL, 0, NULL);
 
-    send_waiting(waiting_t { text: "Starting Wi-FI connection", sequence_number: 1 } );
+    send_waiting(Waiting_t { text: "Starting Wi-FI connection", sequence_number: 1 } );
 
     connect_wifi();
 
-    send_waiting(waiting_t { text: "Wi-Fi connected!", sequence_number: 2 } );
+    send_waiting(Waiting_t { text: "Wi-Fi connected!", sequence_number: 2 } );
 
     const ip_addr_t *dns0 = dns_getserver(0);
     DEBUG_printf("Using DNS server: %s\n", ipaddr_ntoa(dns0));
 
     start_sntp_client();
 
-    send_waiting(waiting_t { text: "SNTP client created", sequence_number: 3 } );
+    send_waiting(Waiting_t { text: "SNTP client created", sequence_number: 3 } );
 
     mqtt_client_t *client = mqtt_client_new();
 
@@ -168,17 +163,33 @@ void mqtt_task(void *dummy)
     }
 
     bool old_mqtt_connected = false;
+    int unconnected_count = 0;
 
     while (1) {
         if (old_mqtt_connected == false && mqtt_connected == true) {
             // -1 as the sequence number will wake up the animation task and start the clock
-            send_waiting(waiting_t { text: "MQTT up; awaiting time", sequence_number: -1 } );
+            send_waiting(Waiting_t { text: "MQTT up; awaiting time", sequence_number: -1 } );
         }
         old_mqtt_connected = mqtt_connected;
 
         sensor_message_poll();
 
         vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+#if ESP32_SDK
+        // This is a bit shocking, but for the ESP32 we force a restart if the MQTT still hasn't
+        // connected to the MQTT broker. Does not seem to be necessary for the Pico, touch wood
+        // etc. Of course we have the watchdog over in Pico land.
+        if (mqtt_connected == false) {
+            unconnected_count++;
+
+            if (unconnected_count >= 10) {
+                send_waiting(Waiting_t { text: "Rebooting as could not connect MQTT", sequence_number: 4 } );
+                vTaskDelay(5000 / portTICK_PERIOD_MS);
+                esp_restart();
+            }
+        }
+#endif
     }
 }
 
@@ -277,7 +288,7 @@ extern "C" void set_system_time(u32_t sec, u32_t frac)
 void time_sync_notification_cb(struct timeval *tv)
 {
 #endif
-    message_time_t message_time;
+    MessageTime_t message_time;
 
     message_time.message_type = MESSAGE_TIME_TIMESYNC;
 
@@ -293,25 +304,26 @@ void start_sntp_client(void)
 {
 #if PICO_SDK
     cyw43_arch_lwip_begin();
-#endif
+
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
-#if ESP32_SDK
-    sntp_set_time_sync_notification_cb(time_sync_notification_cb);
-#endif
     sntp_setservername(0, "pool.ntp.org");
     sntp_init();
 
-#if PICO_SDK
     cyw43_arch_lwip_end();
+#elif ESP32_SDK
+    esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
+    esp_sntp_set_time_sync_notification_cb(time_sync_notification_cb);
+    esp_sntp_setservername(0, "pool.ntp.org");
+    esp_sntp_init();
 #endif
 }
 
-static void send_waiting(waiting_t waiting)
+static void send_waiting(Waiting_t waiting)
 {
     DEBUG_printf("Sending waiting progress; text: %s sequence_number: %d\n",
         waiting.text, waiting.sequence_number);
 
-    message_anim_t message_anim =
+    MessageAnim_t message_anim =
     {
         message_type: MESSAGE_ANIM_WAITING,
         waiting: waiting,
@@ -516,13 +528,13 @@ static cJSON *json_parser(char *data_as_chars)
     return json;
 }
 
-static message_anim_t message_anim;
+static MessageAnim_t message_anim;
 
 static void handle_weather_json_data(char *data_as_chars)
 {
     DEBUG_printf("Weather update\n");
 
-    static weather_data_t weather_data;
+    static WeatherData_t weather_data;
 
     cJSON *json = json_parser(data_as_chars);
     if (json == NULL) {
@@ -616,14 +628,14 @@ static void handle_weather_json_data(char *data_as_chars)
         DEBUG_printf("Could not send weather data; dropping\n");
     }
 
-    memset(&weather_data, 0, sizeof(weather_data_t));
+    memset(&weather_data, 0, sizeof(WeatherData_t));
 }
 
 static void handle_media_player_json_data(char *data_as_chars)
 {
     DEBUG_printf("Media player update\n");
 
-    static media_player_data_t media_player_data;
+    static MediaPlayerData_t media_player_data;
 
     cJSON *json = json_parser(data_as_chars);
 
@@ -668,7 +680,7 @@ static void handle_calendar_data(char *data_as_chars)
 {
     DEBUG_printf("Calendar update\n");
 
-    static calendar_data_t calendar_data;
+    static CalendarData_t calendar_data;
 
     cJSON *json = json_parser(data_as_chars);
 
@@ -678,7 +690,7 @@ static void handle_calendar_data(char *data_as_chars)
 
     if (cJSON_IsArray(json)) {
         for (int i = 0; i < cJSON_GetArraySize(json) && i < NO_APPOINTMENTS; i++) {
-            appointment_t *app = &calendar_data.appointments[i];
+            Appointment_t *app = &calendar_data.appointments[i];
 
             cJSON *item = cJSON_GetArrayItem(json, i);
             cJSON *summary = cJSON_GetObjectItem(item, "summary");
@@ -723,7 +735,7 @@ static void handle_scroller_json_data(char *data_as_chars)
 {
     DEBUG_printf("Scroller update %s\n", data_as_chars);
 
-    static scroller_data_t scroller_data;
+    static ScrollerData_t scroller_data;
 
     cJSON *json = json_parser(data_as_chars);
 
@@ -744,7 +756,7 @@ static void handle_scroller_json_data(char *data_as_chars)
 
     cJSON_Delete(json);
 
-    message_anim_t message_anim = {
+    MessageAnim_t message_anim = {
         message_type: MESSAGE_ANIM_SCROLLER,
         scroller_data: scroller_data,
     };
@@ -758,7 +770,7 @@ static void handle_transport_json_data(char *data_as_chars)
 {
     DEBUG_printf("Transport update %s\n", data_as_chars);
 
-    static transport_data_t transport_data;
+    static TransportData_t transport_data;
 
     cJSON *json = json_parser(data_as_chars);
 
@@ -782,7 +794,7 @@ static void handle_transport_json_data(char *data_as_chars)
             strncpy(transport_data.journies[i].departures_summary, cJSON_GetStringValue(departures_summary), 64);
         }
 
-        message_anim_t message_anim = {
+        MessageAnim_t message_anim = {
             message_type: MESSAGE_ANIM_TRANSPORT,
             transport_data: transport_data,
         };
@@ -802,7 +814,7 @@ static void handle_porch_sensor_data(char *data_as_chars)
 {
     DEBUG_printf("Porch update: %s\n", data_as_chars);
 
-    porch_t porch = {
+    Porch_t porch = {
         occupied: (strcmp(data_as_chars, "on") == 0) ? true : false,
     };
 
@@ -815,7 +827,7 @@ static void handle_porch_sensor_data(char *data_as_chars)
     }
 
     if (porch.occupied) {
-        message_buzzer_t message_buzzer = {
+        MessageBuzzer_t message_buzzer = {
             message_type: MESSAGE_BUZZER_SIMPLE,
             simple_type: BUZZER_SIMPLE_PORCH,
         };
@@ -861,7 +873,7 @@ static void handle_notificaiton_data(char *data_as_chars)
             DEBUG_printf("Could not send anim notification data; dropping");
         }
 
-        message_buzzer_t message_buzzer;
+        MessageBuzzer_t message_buzzer;
 
         // Send the optional RTTTL tune, or play a pre-rolled tone sequence.
         if (rtttl_tune) {
@@ -895,7 +907,7 @@ static void handle_buzzer_play_rtttl_data(char *data_as_chars)
 {
     DEBUG_printf("handle_buzzer_play_rtttl_data()\n");
 
-    message_buzzer_t message_buzzer = {
+    MessageBuzzer_t message_buzzer = {
         .message_type = MESSAGE_BUZZER_RTTTL,
         .rtttl_tune = "",
     };
@@ -939,12 +951,13 @@ static void handle_light_brightness_command_data(char *data_as_chars)
     DEBUG_printf("Brightness set: %s\n", data_as_chars);
 
     char *end = NULL;
-    brightness = strtol(data_as_chars, &end, 10);
+    int new_brightness = strtol(data_as_chars, &end, 10);
 
-    if (!end || brightness < 0 || brightness > 255) {
+    if (!end || new_brightness < 0 || new_brightness > 255) {
         DEBUG_printf("Brightness out of range or invalid");
         return;
     }
+    brightness = (uint8_t) new_brightness;
 
     message_anim = {
         message_type: MESSAGE_ANIM_BRIGHTNESS,
@@ -983,7 +996,7 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
 {
     DEBUG_printf("Configuration update\n");
 
-    configuration_t configuration;
+    Configuration_t configuration;
 
     configuration.clock_colon_flash = -1;
     configuration.clock_duration = -1;
@@ -1123,7 +1136,7 @@ static void handle_autodiscover_control_data(mqtt_client_t *client, char *data_a
     }
 }
 
-sensor_t last_sensor_data;
+Sensor_t last_sensor_data;
 bool got_sensor_data = false;
 
 static void handle_publish_trigger(mqtt_client_t *client)
@@ -1224,7 +1237,7 @@ static int publish_object_as_device_entity(cJSON *obj, cJSON *device, mqtt_clien
 
 static void sensor_message_poll(void)
 {
-    static message_mqtt_t message_mqtt;
+    static MessageMQTT_t message_mqtt;
 
     if (xQueueReceive(mqtt_queue, &message_mqtt, 0) == pdTRUE) {
         switch (message_mqtt.message_type) {

@@ -1,6 +1,3 @@
-#include <stdio.h>
-#include <string.h>
-
 #if PICO_SDK
 #include <FreeRTOS.h>
 #include <task.h>
@@ -14,10 +11,9 @@
 #endif
 
 #include "i2c.h"
-
-#include "matrix_display.h"
 #include "messages.h"
 #include "sensor.h"
+#include "matrix_display.h"
 
 #define SENSOR_SEND_INTERVAL 60    // Send sensor data every 60 seconds (approx)
 
@@ -44,10 +40,6 @@ void sensor_task(void *dummy)
 
     setup_i2c();
 
-    static message_mqtt_t message_mqtt = {
-            message_type: MESSAGE_MQTT_SENSOR,
-    };
-
     for (int sensor_count = 0; avail_sensors[sensor_count]; sensor_count++) {
         if (!avail_sensors[sensor_count]->configure()) {
             DEBUG_printf(
@@ -70,6 +62,9 @@ void sensor_task(void *dummy)
                 }
             }
         }
+
+        static MessageMQTT_t message_mqtt;
+        message_mqtt.message_type = MESSAGE_MQTT_SENSOR;
 
         if (period_count == SENSOR_SEND_INTERVAL) {
             for (int sensor_count = 0; avail_sensors[sensor_count]; sensor_count++) {

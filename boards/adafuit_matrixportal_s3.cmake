@@ -6,6 +6,7 @@ set(I2C_INTERFACE               1)
 set(I2C_SDA_PIN                 16)
 set(I2C_SCL_PIN                 17)
 
+# This HUB75 panel is bitbanged; include every IO pin
 set(HUB75_RED1_PIN              42)
 set(HUB75_GREEN1_PIN            41)
 set(HUB75_BLUE1_PIN             40)

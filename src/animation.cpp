@@ -1,17 +1,11 @@
-#if PICO_SDK
-#include <pico/stdlib.h>
-#endif
-
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
 #include <time.h>
 
-#include "matrix_display.h"
-
 #include "animation.h"
 
-animation::animation(framebuffer& f) : fb(f)
+Animation::Animation(FrameBuffer& f) : fb(f)
 {
     big_font = get_font("Noto", 20);
     if (!big_font) panic("Could not find Noto/20");
@@ -65,14 +59,13 @@ animation::animation(framebuffer& f) : fb(f)
     init_snowflakes();
 }
 
-void animation::prepare_screen(void)
+void Animation::prepare_screen(void)
 {
     fb.clear(notification_state.rgb);
 }
 
-void animation::render_page(void)
+void Animation::render_page(void)
 {
-    // uint8_t brightness = (uint8_t)(((float)(fade_countdown) / (float)(FADE_DURATION)) * 255.0);
     uint8_t brightness = (uint8_t)((fade_countdown * 255) / FADE_DURATION);
 
     if (fade_state == FADE_STATE_IDLE) {
@@ -163,7 +156,7 @@ void animation::render_page(void)
     frame++;
 }
 
-void animation::set_next_page(page_t p)
+void Animation::set_next_page(Page_t p)
 {
     if (fade_state == FADE_STATE_IDLE) {
         DEBUG_printf("Setting the next page to %d\n", p);
@@ -173,7 +166,7 @@ void animation::set_next_page(page_t p)
     }
 }
 
-void animation::render_notification(void)
+void Animation::render_notification(void)
 {
     if (porch_state.framestamp) {
         if (porch_state.data.occupied == true && frame & 0x40) {
@@ -224,21 +217,21 @@ void animation::render_notification(void)
     }
 }
 
-void animation::new_waiting(waiting_t *waiting)
+void Animation::new_waiting(Waiting_t *waiting)
 {
     waiting_state.data = *waiting;
     waiting_state.framestamp = frame;
     waiting_state.pixel_length = fb.string_length(medium_font, waiting->text);
 }
 
-void animation::new_weather_data(weather_data_t *weather_data)
+void Animation::new_weather_data(WeatherData_t *weather_data)
 {
     DEBUG_printf("Got new weather data\n");
     weather_state.data = *weather_data;
     weather_state.framestamp = frame;
 }
 
-void animation::new_media_player_data(media_player_data_t *media_player_data)
+void Animation::new_media_player_data(MediaPlayerData_t *media_player_data)
 {
     DEBUG_printf("Got new media player data\n");
     snprintf(media_player_state.message, sizeof(media_player_state.message),
@@ -249,7 +242,7 @@ void animation::new_media_player_data(media_player_data_t *media_player_data)
     media_player_state.data = *media_player_data;
 }
 
-void animation::new_calendar_data(calendar_data_t *calendar_data)
+void Animation::new_calendar_data(CalendarData_t *calendar_data)
 {
     DEBUG_printf("Got new calendar data\n");
     calendar_state.data = *calendar_data;
@@ -257,7 +250,7 @@ void animation::new_calendar_data(calendar_data_t *calendar_data)
     calendar_state.framestamp = frame;
 }
 
-void animation::new_scroller_data(scroller_data_t *scroller_data)
+void Animation::new_scroller_data(ScrollerData_t *scroller_data)
 {
     DEBUG_printf("Got new scroller data\n");
     scroller_state.data = *scroller_data;
@@ -267,14 +260,14 @@ void animation::new_scroller_data(scroller_data_t *scroller_data)
     }
 }
 
-void animation::new_transport_data(transport_data_t *transport_data)
+void Animation::new_transport_data(TransportData_t *transport_data)
 {
     DEBUG_printf("Got new transport data\n");
     transport_state.data = *transport_data;
     transport_state.framestamp = frame;
 }
 
-void animation::new_notification(notification_t *notification)
+void Animation::new_notification(Notification_t *notification)
 {
     DEBUG_printf("Got new notification data\n");
     notification_state.data = *notification;
@@ -284,19 +277,19 @@ void animation::new_notification(notification_t *notification)
     notification_state.repeats = notification_state.data.critical ? 3 : 1;
 }
 
-void animation::clear_notification(void)
+void Animation::clear_notification(void)
 {
     notification_state.rgb = black;
     notification_state.framestamp = 0;
 }
 
-void animation::new_porch(porch_t *porch)
+void Animation::new_porch(Porch_t *porch)
 {
     porch_state.data = *porch;
     porch_state.framestamp = frame;
 }
 
-void animation::new_time(struct tm *timeinfo)
+void Animation::new_time(struct tm *timeinfo)
 {
     time_state.data = *timeinfo;
     time_state.frames_per_second = frame - time_state.framestamp;
@@ -329,7 +322,7 @@ void animation::new_time(struct tm *timeinfo)
     DEBUG_printf("New Time: %s Date: %s\n", time_state.time_colons, time_state.date);
 }
 
-void animation::update_configuration(configuration_t *config)
+void Animation::update_configuration(Configuration_t *config)
 {
     if (config->clock_colon_flash >= 0) {
         configuration.clock_colon_flash = config->clock_colon_flash;
@@ -368,7 +361,7 @@ void animation::update_configuration(configuration_t *config)
 
 ////
 
-void animation::change_page(page_t new_page)
+void Animation::change_page(Page_t new_page)
 {
     DEBUG_printf("Changing to page %d\n", new_page);
     page_framestamp = frame;
@@ -415,7 +408,7 @@ void animation::change_page(page_t new_page)
     }
 }
 
-bool animation::render_waiting_page(void)
+bool Animation::render_waiting_page(void)
 {
     rgb_t colours[] = {
         blue, red, magenta, green, cyan, yellow, white
@@ -459,7 +452,7 @@ bool animation::render_waiting_page(void)
     }
 }
 
-bool animation::render_clock_page(void)
+bool Animation::render_clock_page(void)
 {
     fb.print_string(ibm_font, 0, (FB_HEIGHT - 1) - 8 - 6,
         time_state.hide_colons ? time_state.time_no_colons : time_state.time_colons,
@@ -483,14 +476,14 @@ bool animation::render_clock_page(void)
     return false;
 }
 
-bool animation::render_inside_temperatures_page(void)
+bool Animation::render_inside_temperatures_page(void)
 {
     if (!(weather_state.framestamp && weather_state.data.inside_temperatures_count)) return true;
 
     int running_y = 0 - tiny_font->height + ((frame - page_framestamp) / configuration.inside_temperatures_scroll_speed);
 
     for (int c = 0; c < weather_state.data.inside_temperatures_count; c++) {
-        inside_temperature_t *inside_temp = &weather_state.data.inside_temperatures[c];
+        InsideTemperature_t *inside_temp = &weather_state.data.inside_temperatures[c];
 
         if (!strlen(inside_temp->name)) {
             continue;
@@ -513,7 +506,7 @@ bool animation::render_inside_temperatures_page(void)
     }
 }
 
-bool animation::render_current_weather_page(void)
+bool Animation::render_current_weather_page(void)
 {
     if (! weather_state.framestamp) return true;
 
@@ -537,13 +530,13 @@ bool animation::render_current_weather_page(void)
     return false;
 }
 
-bool animation::render_weather_forecast_page(void)
+bool Animation::render_weather_forecast_page(void)
 {
     if (! weather_state.framestamp) return true;
 
     int offset_x = 0;
     for (int c = 0; c < 3; c++) {
-        forecast_t& forecast = weather_state.data.forecasts[c];
+        Forecast_t& forecast = weather_state.data.forecasts[c];
 
         fb.print_string(tiny_font, offset_x + 11 - (fb.string_length(tiny_font, forecast.time) / 2),
             24, forecast.time, rgb_faded(white));
@@ -575,9 +568,9 @@ bool animation::render_weather_forecast_page(void)
 }
 
 // true = go to next page
-bool animation::render_media_player_page(void)
+bool Animation::render_media_player_page(void)
 {
-    media_player_data_t *mpd = &media_player_state.data;
+    MediaPlayerData_t *mpd = &media_player_state.data;
 
     if ((strcmp(mpd->state, "playing") != 0) && strcmp(mpd->state, "paused") != 0) {
         return true;
@@ -611,14 +604,14 @@ bool animation::render_media_player_page(void)
 }
 
 // true = go to next page
-bool animation::render_calendar_page(void)
+bool Animation::render_calendar_page(void)
 {
     if (!(calendar_state.framestamp)) return true;
 
     int running_y = 0 - tiny_font->height + ((frame - page_framestamp) / configuration.calendar_scroll_speed);
 
     for (int c = 0; c < NO_APPOINTMENTS; c++) {
-        appointment_t *app = &calendar_state.data.appointments[c];
+        Appointment_t *app = &calendar_state.data.appointments[c];
 
         if (!strlen(app->start) || !strlen(app->summary)) {
             continue;
@@ -638,7 +631,7 @@ bool animation::render_calendar_page(void)
     }
 }
 
-bool animation::render_transport_page(void)
+bool Animation::render_transport_page(void)
 {
     if (!(transport_state.framestamp)) return true;
 
@@ -667,7 +660,7 @@ bool animation::render_transport_page(void)
     return false;
 }
 
-void animation::update_scroller_message(void)
+void Animation::update_scroller_message(void)
 {
     strncpy(scroller_state.message, scroller_state.data.text[scroller_state.current_index], 256);
     scroller_state.message_pixel_length = fb.string_length(tiny_font,
@@ -685,7 +678,7 @@ void animation::update_scroller_message(void)
     }
 }
 
-void animation::render_scroller(void)
+void Animation::render_scroller(void)
 {
     if (scroller_state.data.array_size == 0) {
         return;
@@ -712,12 +705,12 @@ void animation::render_scroller(void)
     }
 }
 
-int16_t animation::random_snowflake_x(void)
+int16_t Animation::random_snowflake_x(void)
 {
     return rand() % (128 * 256) - (64 * 256);
 }
 
-void animation::init_snowflakes(void)
+void Animation::init_snowflakes(void)
 {
     snowflake_wind_vector = 0;
 
@@ -729,7 +722,7 @@ void animation::init_snowflakes(void)
 }
 
 #define MAX_WIND_SPEED 64
-void animation::update_snowflakes(void)
+void Animation::update_snowflakes(void)
 {
     snowflake_wind_vector += (rand() % 32) - 16;
     if (snowflake_wind_vector > MAX_WIND_SPEED) {
@@ -749,14 +742,14 @@ void animation::update_snowflakes(void)
     }
 }
 
-void animation::render_snowflakes(void)
+void Animation::render_snowflakes(void)
 {
     for (int c = 0; c < configuration.snowflake_count && c < NO_SNOWFLAKES; c++) {
         fb.set_pixel((snowflakes[c].x + (32 * 256)) / 256, snowflakes[c].y / 256, bright_white);
     }
 }
 
-rgb_t animation::rgb_grey(int grey_level)
+rgb_t Animation::rgb_grey(int grey_level)
 {
     if (grey_level < 0) {
         return black;
@@ -775,7 +768,7 @@ rgb_t animation::rgb_grey(int grey_level)
     }
 }
 
-rgb_t animation::rgb_faded(rgb_t rgb)
+rgb_t Animation::rgb_faded(rgb_t rgb)
 {
     return rgb_t {
         red: (uint8_t)((uint32_t)(rgb.red * fade_brightness) / 256),

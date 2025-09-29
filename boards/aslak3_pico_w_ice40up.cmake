@@ -9,6 +9,9 @@ set(I2C_SCL_PIN                 21)
 
 set(SPI_TO_FPGA                 1)
 
+# Supports building with the FPGA and building without, in wich case PIO
+# mode will be used
+
 if(SPI_TO_FPGA)
 set(FPGA_RESET_PIN              26)
 else()
@@ -19,3 +22,5 @@ set(HUB75_CLK_PIN               13)
 set(HUB75_STROBE_PIN            14)
 set(HUB75_OEN_PIN               15)
 endif()
+
+set(BUZZER_PIN                  27)

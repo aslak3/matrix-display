@@ -1,5 +1,4 @@
 #include "sensor.h"
-
 #include "i2c.h"
 
 #define BH1750_I2C_ADDR 0x23

@@ -1,7 +1,3 @@
-#if PICO_SDK
-#include <pico/stdlib.h>
-#endif
-
 #include <time.h>
 
 // Messages destined at the animation task
@@ -9,21 +5,21 @@
 typedef struct {
     char text[64];
     int sequence_number;
-} waiting_t;
+} Waiting_t;
 
 typedef struct {
     char time[6];
     char condition[32];
     double temperature;
     double precipitation_probability;
-} forecast_t;
+} Forecast_t;
 
 #define NO_FORECASTS 3
 
 typedef struct {
     char name[16];
     double temperature;
-} inside_temperature_t;
+} InsideTemperature_t;
 
 #define NO_INSIDE_TEMPERATURES 10
 
@@ -37,10 +33,10 @@ typedef struct {
     double pressure;
     double precipitation_probability;
     int forecasts_count;
-    forecast_t forecasts[NO_FORECASTS];
+    Forecast_t forecasts[NO_FORECASTS];
     int inside_temperatures_count;
-    inside_temperature_t inside_temperatures[NO_INSIDE_TEMPERATURES];
-} weather_data_t;
+    InsideTemperature_t inside_temperatures[NO_INSIDE_TEMPERATURES];
+} WeatherData_t;
 
 #define FIELD_MPD_STATE (1<<0)
 #define FIELD_MPD_MEDIA_TITLE (1<<2)
@@ -56,52 +52,52 @@ typedef struct {
     char media_title[64];
     char media_artist[64];
     char media_album_name[64];
-} media_player_data_t;
+} MediaPlayerData_t;
 
 typedef struct {
     char start[16];
     char summary[256];
-} appointment_t;
+} Appointment_t;
 
 #define NO_APPOINTMENTS 3
 
 typedef struct {
-    appointment_t appointments[NO_APPOINTMENTS];
-} calendar_data_t;
+    Appointment_t appointments[NO_APPOINTMENTS];
+} CalendarData_t;
 
 #define NO_SCROLLERS 4
 
 typedef struct {
     int array_size;
     char text[NO_SCROLLERS][256];
-} scroller_data_t;
+} ScrollerData_t;
 
 typedef struct {
     char towards[16];
     char departures_summary[64];
-} journey_t;
+} Journey_t;
 
 #define NO_TRANSPORT_JOURNIES 2
 
 typedef struct {
-    journey_t journies[NO_TRANSPORT_JOURNIES];
-} transport_data_t;
+    Journey_t journies[NO_TRANSPORT_JOURNIES];
+} TransportData_t;
 
 typedef struct {
     bool occupied;
-} porch_t;
+} Porch_t;
 
 typedef struct {
     bool critical;
     char text[256];
-} notification_t;
+} Notification_t;
 
 typedef struct {
     float temperature;
     float pressure;
     float humidity;
     uint16_t illuminance;
-} sensor_t;
+} Sensor_t;
 
 typedef struct {
     int clock_colon_flash;
@@ -115,7 +111,7 @@ typedef struct {
     int scroller_interval;
     int scroller_speed;
     int snowflake_count;
-} configuration_t;
+} Configuration_t;
 
 #define MESSAGE_ANIM_NULL 0
 #define MESSAGE_ANIM_WAITING 1
@@ -134,20 +130,20 @@ typedef struct {
 typedef struct {
     uint8_t message_type;
     union {
-        waiting_t waiting;
-        weather_data_t weather_data;
-        media_player_data_t media_player_data;
-        calendar_data_t calendar_data;
-        scroller_data_t scroller_data;
-        transport_data_t transport_data;
-        porch_t porch;
-        notification_t notification;
+        Waiting_t waiting;
+        WeatherData_t weather_data;
+        MediaPlayerData_t media_player_data;
+        CalendarData_t calendar_data;
+        ScrollerData_t scroller_data;
+        TransportData_t transport_data;
+        Porch_t porch;
+        Notification_t notification;
         struct tm timeinfo;
         uint8_t brightness;
         bool grayscale;
-        configuration_t configuration;
+        Configuration_t configuration;
     };
-} message_anim_t;
+} MessageAnim_t;
 
 // Messages destined at time task
 
@@ -156,7 +152,7 @@ typedef struct {
 
 typedef struct {
     uint8_t message_type;
-} message_time_t;
+} MessageTime_t;
 
 // Messages destined at buzzer task
 
@@ -175,7 +171,7 @@ typedef struct {
         uint8_t simple_type;
         char rtttl_tune[1024];
     };
-} message_buzzer_t;
+} MessageBuzzer_t;
 
 // Messages destined at MQTT task
 
@@ -185,6 +181,6 @@ typedef struct {
 typedef struct {
     uint8_t message_type;
     union {
-        sensor_t sensor;
+        Sensor_t sensor;
     };
-} message_mqtt_t;
+} MessageMQTT_t;

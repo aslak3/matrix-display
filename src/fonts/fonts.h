@@ -1,4 +1,4 @@
-#include "../matrix_display.h"
+#include "matrix_display.h"
 
 #ifdef __cplusplus
 extern "C"

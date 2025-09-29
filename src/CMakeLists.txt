@@ -30,6 +30,7 @@ set(ALL_SOURCE
     i2c.cpp
     framebuffer.cpp
     animation.cpp
+    buzzer.cpp
     rtttl.cpp
     fonts/fonts.c
     images/images.c
@@ -59,33 +60,37 @@ if(BUZZER_PRESENT)
     set(BUZZER_SOURCE buzzer.cpp)
 endif()
 
-if(DEVICE_PRETTY_NAME STREQUAL "")
+if("${DEVICE_PRETTY_NAME}" STREQUAL "")
     message(FATAL_ERROR "DEVICE_PRETTY_NAME must be set")
 endif()
-if(DEVICE_NAME STREQUAL "")
+if("${DEVICE_NAME}" STREQUAL "")
     message(FATAL_ERROR "DEVICE_NAME must be set")
 endif()
+if("${TZ}" STREQUAL "")
+    message(FATAL_ERROR "TZ must be set")
+endif()
 
-if(WIFI_SSID STREQUAL "")
+if("${WIFI_SSID}" STREQUAL "")
     message(FATAL_ERROR "WIFI_SSID must be set")
 endif()
-if(WIFI_PASSWORD STREQUAL "")
+if("${WIFI_PASSWORD}" STREQUAL "")
     message(FATAL_ERROR "WIFI_PASSWORD must be set")
 endif()
 
-if(MQTT_BROKER_IP STREQUAL "")
+if("{MQTT_BROKER_IP}" STREQUAL "")
     message(FATAL_ERROR "MQTT_BROKER_IP must be set[${WIFI_PASSWORD}]")
 endif()
-if(MQTT_BROKER_USERNAME STREQUAL "")
+if("${MQTT_BROKER_USERNAME}" STREQUAL "")
     message(FATAL_ERROR "MQTT_BROKER_USERNAME must be set[${WIFI_PASSWORD}]")
 endif()
-if(MQTT_BROKER_PASSWORD STREQUAL "")
+if("${MQTT_BROKER_PASSWORD}" STREQUAL "")
     message(FATAL_ERROR "MQTT_BROKER_PASSWORD must be set[${WIFI_PASSWORD}]")
 endif()
 
 set(COMPILE_DEFS
     DEVICE_PRETTY_NAME="${DEVICE_PRETTY_NAME}"
     DEVICE_NAME="${DEVICE_NAME}"
+    TZ="${TZ}"
     WIFI_SSID="${WIFI_SSID}"
     WIFI_PASSWORD="${WIFI_PASSWORD}"
     SPI_TO_FPGA=${SPI_TO_FPGA}
@@ -120,6 +125,8 @@ set(COMPILE_DEFS
     # I2C pins
     I2C_SDA_PIN=${I2C_SDA_PIN}
     I2C_SCL_PIN=${I2C_SCL_PIN}
+    # Special pins
+    BUZZER_PIN=${BUZZER_PIN}
 )
 
 if(${MATRIX_DISPLAY_SDK} STREQUAL "PICO")
@@ -132,7 +139,6 @@ if(${MATRIX_DISPLAY_SDK} STREQUAL "PICO")
         ${PROJECT}
         ${ALL_SOURCE}
         ${SENSOR_SOURCE}
-        ${BUZZER_SOURCE}
     )
 
     include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
@@ -165,7 +171,7 @@ elseif(${MATRIX_DISPLAY_SDK} STREQUAL "ESP32")
     set(MQTT_SOURCE "$ENV{IDF_PATH}/components/lwip/lwip/src/apps/mqtt/mqtt.c")
 
     idf_component_register(
-        SRCS ${ALL_SOURCE} ${MQTT_SOURCE} ${SENSOR_SOURCE} ${BUZZER_SOURCE}
+        SRCS ${ALL_SOURCE} ${MQTT_SOURCE} ${SENSOR_SOURCE}
         REQUIRES esp_wifi esp_driver_gpio driver nvs_flash
     )
 

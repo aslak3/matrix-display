@@ -1,5 +1,8 @@
 #include <stdio.h>
 #include <stdarg.h>
+#include <math.h>
+#include <inttypes.h>
+#include <string.h>
 
 #if PICO_SDK
 #include "pico/stdlib.h"

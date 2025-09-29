@@ -1,5 +1,4 @@
 #include "sensor.h"
-
 #include "i2c.h"
 
 #define DS3231_I2C_ADDR 0x68

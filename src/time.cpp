@@ -18,9 +18,8 @@
 #include "esp_sntp.h"
 #endif
 
-#include "matrix_display.h"
-
 #include "messages.h"
+#include "matrix_display.h"
 
 extern QueueHandle_t time_queue; // For listening
 extern QueueHandle_t animate_queue;
@@ -31,12 +30,10 @@ void time_task(void *dummy)
     vTaskCoreAffinitySet(NULL, 1 << 0);
     DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), GET_CORE_NUMBER());
 
-    static message_anim_t message_anim = {
-        message_type: MESSAGE_ANIM_TIMEINFO,
-    };
-
     int old_tm_sec = -1;
     bool time_sync = false;
+    static MessageAnim_t message_anim;
+    message_anim.message_type = MESSAGE_ANIM_TIMEINFO;
 
     while (1) {
         struct tm timeinfo;
@@ -54,7 +51,7 @@ void time_task(void *dummy)
 
         old_tm_sec = timeinfo.tm_sec;
 
-        message_time_t message_time;
+        MessageTime_t message_time;
 
         if (xQueueReceive(time_queue, &message_time, 0) == pdTRUE) {
             switch (message_time.message_type)
