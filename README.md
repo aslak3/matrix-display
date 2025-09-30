@@ -347,9 +347,9 @@ cmake ..
 make
 ```
 
-For the Pico based boards the resultant `src/matrix-build.uf2` should then be copied to the Pi Pico either via the USB filesystem or via `picotool`.
+For the Pico based boards the resultant `src/matrix-build.uf2` should then be copied to the Pi Pico either via the USB filesystem or via `picotool`. The script in this repo at `flasher-pico.sh` is crude but an effective wrapper around `picotool`.
 
-For ESP-IDF builds I prefer to use the above `cmake` invocation instead of using `idf.py`, but either works.
+For ESP-IDF builds I prefer to use the above `cmake` invocation instead of using `idf.py`, but either works. There is another script called `flasher-esp32.sh` which wraps `esptool.py`.
 
 ## Tracing and Boot Progress
 
