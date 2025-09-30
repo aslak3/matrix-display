@@ -1,3 +1,5 @@
+# https://github.com/aslak3/MDFPGA
+
 set(MATRIX_DISPLAY_SDK          PICO)
 set(PICO_BOARD                  pico_w)
 
@@ -23,4 +25,5 @@ set(HUB75_STROBE_PIN            14)
 set(HUB75_OEN_PIN               15)
 endif()
 
+set(BUZZER_PRESENT              1)
 set(BUZZER_PIN                  27)

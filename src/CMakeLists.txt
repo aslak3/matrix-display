@@ -2,6 +2,7 @@ set(MQTT_BROKER_PORT 1883)
 include(../local.cmake)
 
 set(SPI_TO_FPGA 0)
+set(BUZZER_PRESENT 0)
 include(../boards/${MATRIX_DISPLAY_BOARD}.cmake)
 
 include(../sensors.cmake)
@@ -51,14 +52,10 @@ if(DS3231_PRESENT)
     set(DS3231_SOURCE sensor/ds3231.cpp)
 endif()
 if(BH1750_PRESENT)
-    set(BH170_SOURCE sensor/bh1750.cpp)
+    set(BH1750_SOURCE sensor/bh1750.cpp)
 endif()
 
-set(SENSOR_SOURCE ${BH680_SOURCE} ${DS3231_SOURCE} ${BH170_SOURCE})
-
-if(BUZZER_PRESENT)
-    set(BUZZER_SOURCE buzzer.cpp)
-endif()
+set(SENSOR_SOURCE ${BH680_SOURCE} ${DS3231_SOURCE} ${BH1750_SOURCE})
 
 if("${DEVICE_PRETTY_NAME}" STREQUAL "")
     message(FATAL_ERROR "DEVICE_PRETTY_NAME must be set")
@@ -94,6 +91,7 @@ set(COMPILE_DEFS
     WIFI_SSID="${WIFI_SSID}"
     WIFI_PASSWORD="${WIFI_PASSWORD}"
     SPI_TO_FPGA=${SPI_TO_FPGA}
+    BUZZER_PRESENT=${BUZZER_PRESENT}
     BME680_PRESENT=${BME680_PRESENT}
     DS3231_PRESENT=${DS3231_PRESENT}
     BH1750_PRESENT=${BH1750_PRESENT}

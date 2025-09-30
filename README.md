@@ -244,7 +244,7 @@ The build system is cmake. You should install either (or both) the ESP-IDF, Pico
 
 There are a number of configuration files used:
 
-* `local.cmake` : The main configuration file. Sets the board used,  MQTT topic and device name, WiFi details and MQTT broker details, 
+* `local.cmake` : The main configuration file. Sets the board used,  MQTT topic and device name, WiFi details and MQTT broker details,
 * `boards/*.cmake` : A per board description file. You should not have to touch these files, unless you want to play with supporting another board type.
 * `sensors.cmake` : A description of what I2C sensors are attached to the board.
 
@@ -276,7 +276,7 @@ The following options are mandatory:
 
 ### ${board}.cmake
 
-For completeness, a board description cmake file resembles the following, which is the description for the ESP32-S3 based Adafruit MatrixPortal S3:
+A board description cmake file resembles the following, which is the description for the ESP32-S3 based Adafruit MatrixPortal S3:
 
 ```cmake
 set(MATRIX_DISPLAY_SDK          ESP32)
@@ -298,7 +298,14 @@ For all board types `FRAME_DELAY_MS` sets the task delay between frames, since i
 
 Note that the Pico-SDK implementation supports driving the HUB75 display either via the iCE40UP FPGA present on my board (see the appendix at the bottom of this document for an outline) or the [Pico's PIO](https://www.raspberrypi.com/news/what-is-pio/) mode. This is configured via the `SPI_TO_FPGA` variable. If it is 0 PIO mode will be used.
 
-For the ESP32 implementation only simple bitbanging is supported, though perhaps a little surprisingly this performs very well with no observed flickering, even with 16 levels of brightness supported.
+For the ESP32 implementation only simple bitbanging is supported, though perhaps a little surprisingly this performs very well with no observed flickering, even with 256 levels of brightness supported.
+
+The last set of variables of interest for boards relates to buzzers. The firmware can drive a passive buzzer, though currently only Pico (1 and 2) based boards are supported. There are two variables:
+
+````cmake
+set(BUZZER_PRESENT              1)
+set(BUZZER_PIN                  27)
+```
 
 ### sensors.cmake
 
@@ -318,7 +325,7 @@ I2C address: 0x76.
 
 #### DS3231
 
-This is a holdover from when this projected used this RTC IC to hold the time and date instead of using SNTP. Because it was trivial to do a temperature reading can still be obtained from 
+This is a holdover from when this projected used this RTC IC to hold the time and date instead of using SNTP. Because it was trivial to do a temperature reading can still be obtained from
 this IC via this option.
 
 I2C address: 0x68
@@ -328,10 +335,6 @@ I2C address: 0x68
 This is a light-level sensor. Home Assistant calls these "illuminance" sensors. The implementation is very crude at present, but a single value between 0 and 255 can be obtained.
 
 I2C address: 0x23
-
-### Buzzer
-
-Currently only Pico boards support a passive buzzer. It is included on a board definition via  `BUZZER_PIN`.
 
 ## Building the Firmware
 

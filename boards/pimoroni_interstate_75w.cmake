@@ -1,3 +1,5 @@
+# https://shop.pimoroni.com/products/interstate-75-w?variant=54977948713339
+
 set(MATRIX_DISPLAY_SDK          PICO)
 set(PICO_BOARD                  pico2_w)
 

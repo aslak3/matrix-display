@@ -41,11 +41,11 @@ void sensor_task(void *dummy)
     setup_i2c();
 
     for (int sensor_count = 0; avail_sensors[sensor_count]; sensor_count++) {
+        const char *name = avail_sensors[sensor_count]->get_name();
+        DEBUG_printf(
+            "Configuring %s sensor, if enabled\n", name);
         if (!avail_sensors[sensor_count]->configure()) {
-            DEBUG_printf(
-                "Could not configure sensor %s\n",
-                avail_sensors[sensor_count]->get_name()
-            );
+            DEBUG_printf("Could not configure sensor %s\n", name);
         }
     }
 

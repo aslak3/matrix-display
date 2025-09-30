@@ -839,7 +839,7 @@ static void handle_porch_sensor_data(char *data_as_chars)
 
 static void handle_notificaiton_data(char *data_as_chars)
 {
-    DEBUG_printf("Notifation update: %s", data_as_chars);
+    DEBUG_printf("Notifation update: %s\n", data_as_chars);
 
     cJSON *json = json_parser(data_as_chars);
 

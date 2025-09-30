@@ -5,7 +5,9 @@
 
 #include <hardware/pwm.h>
 #elif ESP32_SDK
+#if BUZZER_PRESENT
 #warning "Buzzer is not yet supported on ESP32 boards; playing tones will be a noop"
+#endif
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -26,11 +28,13 @@ void buzzer_task(void *dummy)
     vTaskCoreAffinitySet(NULL, 1 << 0);
     DEBUG_printf("%s: core%u\n", pcTaskGetName(NULL), GET_CORE_NUMBER());
 
+#if BUZZER_PRESENT
 #if PICO_SDK
     gpio_set_function(BUZZER_PIN, GPIO_FUNC_PWM);
-    uint slice_num = pwm_gpio_to_slice_num(BUZZER_PIN);
+    slice_num = pwm_gpio_to_slice_num(BUZZER_PIN);
     // Set the base clock to 125MHz/250 = 500KHz
     pwm_set_clkdiv_int_frac(slice_num, 250, 0);
+#endif
 #endif
 
     while (1) {
@@ -122,6 +126,7 @@ void play_note(RTTTLNote_t note)
     DEBUG_printf("play_note: frequency_hz: %d, duration_ms: %d\n",
         note.frequency_hz, note.duration_ms);
 
+#if BUZZER_PRESENT
 #if PICO_SDK
     if (note.frequency_hz) {
         int wrap = 500*1000 / note.frequency_hz;
@@ -137,6 +142,7 @@ void play_note(RTTTLNote_t note)
     if (note.frequency_hz) {
         pwm_set_enabled(slice_num, false);
     }
+#endif
 #elif ESP32_SDK
     DEBUG_printf("Buzzer is not implemented on ESP32");
 #endif

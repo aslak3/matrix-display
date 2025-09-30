@@ -1,3 +1,5 @@
+# https://learn.adafruit.com/adafruit-matrixportal-s3/overview
+
 set(MATRIX_DISPLAY_SDK          ESP32)
 
 set(FRAME_DELAY_MS              20)

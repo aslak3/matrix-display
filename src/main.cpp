@@ -105,7 +105,7 @@ extern "C" void app_main(void)
     matrix_queue = xQueueCreate(1, sizeof(fb_t));
 
     xTaskCreate(&animate_task, "Animate Task", 4096, NULL, 10, NULL);
-    xTaskCreate(&mqtt_task, "MQTT Task", 8196, NULL, 0, NULL);
+    xTaskCreate(&mqtt_task, "MQTT Task", 4096, NULL, 0, NULL);
     xTaskCreate(&time_task, "Time Task", 4096, NULL, 0, NULL);
     xTaskCreate(&sensor_task, "Sensor Task", 4096, NULL, 0, NULL);
     xTaskCreate(&buzzer_task, "Buzzer Task", 4096, NULL, 0, NULL);
@@ -423,8 +423,9 @@ void matrix_task(void *dummy)
                 // oe high
                 gpio_set_level(OEN_PIN, false);
 
-                // Set a delay the same as the PWM tipping point
-                ets_delay_us(pwm_threshold);
+                // Set a delay in uS twice the PWM tipping point; twice should make the
+                // screen a little brighter
+                ets_delay_us(pwm_threshold * 2);
 
                 // oe low
                 gpio_set_level(OEN_PIN, true);
