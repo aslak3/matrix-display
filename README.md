@@ -302,7 +302,7 @@ For the ESP32 implementation only simple bitbanging is supported, though perhaps
 
 The last set of variables of interest for boards relates to buzzers. The firmware can drive a passive buzzer, though currently only Pico (1 and 2) based boards are supported. There are two variables:
 
-````cmake
+```cmake
 set(BUZZER_PRESENT              1)
 set(BUZZER_PIN                  27)
 ```
