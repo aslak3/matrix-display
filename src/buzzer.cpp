@@ -23,6 +23,8 @@ extern QueueHandle_t buzzer_queue; // For listening
 void play_note(RTTTLNote_t note);
 
 uint slice_num = 0;
+RTTTL rtttl;
+
 void buzzer_task(void *dummy)
 {
     vTaskCoreAffinitySet(NULL, 1 << 0);
@@ -39,7 +41,6 @@ void buzzer_task(void *dummy)
 
     while (1) {
         MessageBuzzer_t buzzer = {};
-        RTTTL rtttl;
 
         if (xQueueReceive(buzzer_queue, &buzzer, portMAX_DELAY == pdTRUE)) {
             switch (buzzer.message_type) {
@@ -144,6 +145,6 @@ void play_note(RTTTLNote_t note)
     }
 #endif
 #elif ESP32_SDK
-    DEBUG_printf("Buzzer is not implemented on ESP32");
+    DEBUG_printf("Buzzer is not implemented on ESP32\n");
 #endif
 }
