@@ -133,6 +133,12 @@ if(${MATRIX_DISPLAY_SDK} STREQUAL "PICO")
 
     set(FREERTOS_KERNEL_PATH $ENV{FREERTOS_KERNEL_PATH})
 
+    add_compile_definitions(
+        ${COMPILE_DEFS}
+        PICO_SDK=${PICO_SDK}
+        ESP32_SDK=${ESP32_SDK}
+    )
+
     add_executable(
         ${PROJECT}
         ${ALL_SOURCE}
@@ -143,12 +149,6 @@ if(${MATRIX_DISPLAY_SDK} STREQUAL "PICO")
     include(${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
 
     target_include_directories(${PROJECT} PUBLIC "pico_include/" ${CMAKE_CURRENT_LIST_DIR})
-    add_compile_definitions(
-        ${COMPILE_DEFS}
-        PICO_SDK=${PICO_SDK}
-        ESP32_SDK=${ESP32_SDK}
-        SNTP_SET_SYSTEM_TIME=set_system_time
-    )
     target_link_libraries(${PROJECT} PUBLIC
         pico_stdlib hardware_i2c hardware_spi hardware_dma hardware_pwm
         pico_cyw43_arch_lwip_sys_freertos
