@@ -208,7 +208,8 @@ A number of topics are recognised as configuration parameters. All of these appe
 * `clock_colon_flash` (0) : The frame count with which the colons in the time hold their steady state. 20 is a good rate. 0, the default, to disable the flashing.
 * `inside_temperatures_scroll_speed` (3) : The number of frames between each vertical pixel movement on the inside temperatures screen.
 * `current_weather_duration` (200) : The number of frames the current weather screen is displayed for.
-* `weather_forecast_duration` (500) : The number of frames the weather forecast screen is displayed for.
+* `weather_forecast_scroll_speed` (2) : The number of frames between each horizontal pixel movement on the weather forecast screen.
+* `weather_forecast_repeats` (1) : The number of times the weather forecast screen scrolls through its loop (temperatures, then rain chance) before moving on.
 * `media_player_scroll_speed` (1) : The number of frames between each horizontal pixel movement for this screen.
 * `calendar_scroll_speed` (3) : A vertical scroll is used on the calendar screen. This is the number of frames between movements.
 * `transport_duration` (300) : The number of frames the transport information appears on screen.

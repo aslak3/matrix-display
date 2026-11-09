@@ -14,7 +14,7 @@ typedef struct {
     double precipitation_probability;
 } Forecast_t;
 
-#define NO_FORECASTS 3
+#define NO_FORECASTS 6
 
 typedef struct {
     char name[16];
@@ -104,7 +104,8 @@ typedef struct {
     int clock_duration;
     int inside_temperatures_scroll_speed;
     int current_weather_duration;
-    int weather_forecast_duration;
+    int weather_forecast_repeats;
+    int weather_forecast_scroll_speed;
     int media_player_scroll_speed;
     int calendar_scroll_speed;
     int transport_duration;

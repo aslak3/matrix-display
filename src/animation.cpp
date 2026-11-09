@@ -22,7 +22,8 @@ Animation::Animation(FrameBuffer& f) : fb(f)
     configuration.clock_duration = 1000;
     configuration.inside_temperatures_scroll_speed = 3;
     configuration.current_weather_duration = 200;
-    configuration.weather_forecast_duration = 500;
+    configuration.weather_forecast_repeats = 1;
+    configuration.weather_forecast_scroll_speed = 2;
     configuration.media_player_scroll_speed = 1;
     configuration.calendar_scroll_speed = 3;
     configuration.transport_duration = 300;
@@ -115,7 +116,7 @@ void Animation::render_page(void)
             break;
 
         case PAGE_WEATHER_FORECAST:
-            if (render_weather_forecast_page() || !frames_left_on_page) {
+            if (render_weather_forecast_page()) {
                 set_next_page(PAGE_MEDIA_PLAYER);
             }
             break;
@@ -336,8 +337,11 @@ void Animation::update_configuration(Configuration_t *config)
     if (config->current_weather_duration >= 0) {
         configuration.current_weather_duration = config->current_weather_duration;
     }
-    if (config->weather_forecast_duration >= 0) {
-        configuration.weather_forecast_duration = config->weather_forecast_duration;
+    if (config->weather_forecast_repeats > 0) {
+        configuration.weather_forecast_repeats = config->weather_forecast_repeats;
+    }
+    if (config->weather_forecast_scroll_speed > 0) {
+        configuration.weather_forecast_scroll_speed = config->weather_forecast_scroll_speed;
     }
     if (config->media_player_scroll_speed >= 0) {
         configuration.media_player_scroll_speed = config->media_player_scroll_speed;
@@ -385,7 +389,7 @@ void Animation::change_page(Page_t new_page)
             break;
 
         case PAGE_WEATHER_FORECAST:
-            frames_left_on_page = configuration.weather_forecast_duration;
+            frames_left_on_page = 0;
             break;
 
         case PAGE_MEDIA_PLAYER:
@@ -532,36 +536,78 @@ bool Animation::render_current_weather_page(void)
 
 bool Animation::render_weather_forecast_page(void)
 {
-    if (! weather_state.framestamp) return true;
+    int count = weather_state.data.forecasts_count;
+    if (! weather_state.framestamp || count < 1) {
+        return true;
+    }
+    if (count > NO_FORECASTS) {
+        count = NO_FORECASTS;
+    }
 
-    int offset_x = 0;
-    for (int c = 0; c < 3; c++) {
-        Forecast_t& forecast = weather_state.data.forecasts[c];
+    // The forecasts form a horizontal strip that scrolls across the
+    // screen, right to left, like the other scrollers. Each slot is laid
+    // out like the old static page: condition icon on top, temperature or
+    // precipitation below it, hour at the bottom.
+    //
+    // The page runs a choreography of passes - temperatures, then rain
+    // chance - repeated weather_forecast_repeats times, and advances to the
+    // next page when the sequence is done, regardless of how long it takes.
+    const int slot_width = 22;
+    int repeats = configuration.weather_forecast_repeats;
+    if (repeats < 1) {
+        repeats = 1;
+    }
+    int passes = 2 * repeats;
+    int strip_width = count * slot_width;
+    int pass_width = strip_width + FB_WIDTH + (FB_WIDTH / 2);
 
-        fb.print_string(tiny_font, offset_x + 11 - (fb.string_length(tiny_font, forecast.time) / 2),
-            24, forecast.time, rgb_faded(white));
+    int speed = configuration.weather_forecast_scroll_speed;
+    if (speed < 1) {
+        speed = 1;
+    }
 
-        char buffer[10];
-        memset(buffer, 0, sizeof(buffer));
+    int elapsed = (frame - page_framestamp) / speed;
+    int pass = elapsed / pass_width;
+    if (pass >= passes) {
+        return true; // Sequence complete; on to the next page
+    }
+    int progress = elapsed % pass_width;
+    int strip_x = FB_WIDTH - progress;
 
-        if ((frame % 400) < 200) {
-            snprintf(buffer, sizeof(buffer), "%dC", (int)forecast.temperature);
-            fb.print_string(tiny_font, offset_x + 11 - (fb.string_length(tiny_font, buffer) / 2), 16, buffer, rgb_faded(yellow));
+    bool show_temperature = (pass % 2) == 0;
+    char buffer[10];
+
+    for (int i = 0; i < count; i++) {
+        int slot_x = strip_x + (i * slot_width);
+        if (slot_x >= FB_WIDTH || slot_x + slot_width <= 0) {
+            continue; // Slot fully off screen
+        }
+
+        Forecast_t &forecast = weather_state.data.forecasts[i];
+
+        image_t *condition_image = get_image(forecast.condition, 16, 16);
+        if (condition_image) {
+            fb.show_image(condition_image, slot_x + 2, 0, fade_brightness, false);
         }
         else {
-            snprintf(buffer, sizeof(buffer), "%d%%", (int)forecast.precipitation_probability);
-            fb.print_string(tiny_font, offset_x + 11 - (fb.string_length(tiny_font, buffer) / 2), 16, buffer, rgb_faded(light_blue));
-        }
-
-        image_t *current_weather_image = get_image(forecast.condition, 16, 16);
-        if (!current_weather_image) {
-            panic("Could not load current weather condition image for %s",
+            DEBUG_printf("No 16x16 image for weather condition %s\n",
                 forecast.condition);
         }
 
-        fb.show_image(current_weather_image, offset_x + 2, 0, fade_brightness, false);
+        memset(buffer, 0, sizeof(buffer));
+        if (show_temperature) {
+            snprintf(buffer, sizeof(buffer), "%dC", (int)forecast.temperature);
+            fb.print_string(tiny_font, slot_x + 11 - (fb.string_length(tiny_font, buffer) / 2),
+                16, buffer, rgb_faded(yellow));
+        }
+        else {
+            snprintf(buffer, sizeof(buffer), "%d%%", (int)forecast.precipitation_probability);
+            fb.print_string(tiny_font, slot_x + 11 - (fb.string_length(tiny_font, buffer) / 2),
+                16, buffer, rgb_faded(light_blue));
+        }
 
-        offset_x += 22;
+        fb.print_string(tiny_font, slot_x + 11 - (fb.string_length(tiny_font, forecast.time) / 2),
+            24, forecast.time, rgb_faded(white));
     }
 
     return false;

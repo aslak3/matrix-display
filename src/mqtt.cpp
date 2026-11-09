@@ -1017,7 +1017,8 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
     configuration.clock_duration = -1;
     configuration.inside_temperatures_scroll_speed = -1;
     configuration.current_weather_duration = -1;
-    configuration.weather_forecast_duration = -1;
+    configuration.weather_forecast_repeats = -1;
+    configuration.weather_forecast_scroll_speed = -1;
     configuration.media_player_scroll_speed = -1;
     configuration.calendar_scroll_speed = -1;
     configuration.transport_duration = -1;
@@ -1046,8 +1047,11 @@ static void handle_configuration_data(char *attribute, char *data_as_chars)
     else if (strcmp(attribute, "current_weather_duration") == 0) {
         configuration.current_weather_duration = value;
     }
-    else if (strcmp(attribute, "weather_forecast_duration") == 0) {
-        configuration.weather_forecast_duration = value;
+    else if (strcmp(attribute, "weather_forecast_repeats") == 0) {
+        configuration.weather_forecast_repeats = value;
+    }
+    else if (strcmp(attribute, "weather_forecast_scroll_speed") == 0) {
+        configuration.weather_forecast_scroll_speed = value;
     }
     else if (strcmp(attribute, "media_player_scroll_speed") == 0) {
         configuration.media_player_scroll_speed = value;
