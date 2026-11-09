@@ -107,4 +107,10 @@
 // SNTP
 #define SNTP_SERVER_DNS 1
 
+// lwIP's sntp.c (compiled as C) calls the SNTP_SET_SYSTEM_TIME(sec) hook,
+// which expands to this project function (defined in mqtt.cpp). It needs a
+// visible declaration; GCC 14 rejects implicit function declarations in C11.
+// The argument is epoch seconds.
+void set_system_time(unsigned sec);
+
 #endif /* __LWIPOPTS_H__ */

@@ -294,7 +294,7 @@ void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id
 #endif
 
 #if PICO_SDK
-extern "C" void set_system_time(u32_t sec, u32_t frac)
+extern "C" void set_system_time(unsigned sec)
 {
     struct timeval tv;
 
