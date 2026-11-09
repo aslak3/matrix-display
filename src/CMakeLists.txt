@@ -142,6 +142,7 @@ if(${MATRIX_DISPLAY_SDK} STREQUAL "PICO")
     add_executable(
         ${PROJECT}
         ${ALL_SOURCE}
+        lwip_mqtt.c
         ${SENSOR_SOURCE}
     )
 
@@ -152,7 +153,7 @@ if(${MATRIX_DISPLAY_SDK} STREQUAL "PICO")
     target_link_libraries(${PROJECT} PUBLIC
         pico_stdlib hardware_i2c hardware_spi hardware_dma hardware_pwm
         pico_cyw43_arch_lwip_sys_freertos
-        pico_lwip_mqtt pico_lwip_sntp
+        pico_lwip_sntp
         FreeRTOS-Kernel-Heap4
     )
 
@@ -166,7 +167,7 @@ elseif(${MATRIX_DISPLAY_SDK} STREQUAL "ESP32")
     set(PICO_SDK 0)
     set(ESP32_SDK 1)
 
-    set(MQTT_SOURCE "$ENV{IDF_PATH}/components/lwip/lwip/src/apps/mqtt/mqtt.c")
+    set(MQTT_SOURCE lwip_mqtt.c)
 
     idf_component_register(
         SRCS ${ALL_SOURCE} ${MQTT_SOURCE} ${SENSOR_SOURCE}

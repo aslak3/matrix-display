@@ -104,12 +104,22 @@ extern "C" void app_main(void)
 
     matrix_queue = xQueueCreate(1, sizeof(fb_t));
 
+#if ESP32_SDK
+    // Pin tasks directly at creation to prevent Core 0 starvation
+    xTaskCreatePinnedToCore(&animate_task, "Animate Task", 4096, NULL, 10, NULL, 0);
+    xTaskCreatePinnedToCore(&mqtt_task, "MQTT Task", 4096, NULL, 3, NULL, 0);
+    xTaskCreatePinnedToCore(&time_task, "Time Task", 4096, NULL, 1, NULL, 0);
+    xTaskCreatePinnedToCore(&sensor_task, "Sensor Task", 4096, NULL, 1, NULL, 0);
+    xTaskCreatePinnedToCore(&buzzer_task, "Buzzer Task", 4096, NULL, 1, NULL, 0);
+    xTaskCreatePinnedToCore(&matrix_task, "Matrix Task", 4096, NULL, 10, NULL, 1);
+#else
     xTaskCreate(&animate_task, "Animate Task", 4096, NULL, 10, NULL);
-    xTaskCreate(&mqtt_task, "MQTT Task", 4096, NULL, 0, NULL);
-    xTaskCreate(&time_task, "Time Task", 4096, NULL, 0, NULL);
-    xTaskCreate(&sensor_task, "Sensor Task", 4096, NULL, 0, NULL);
-    xTaskCreate(&buzzer_task, "Buzzer Task", 4096, NULL, 0, NULL);
+    xTaskCreate(&mqtt_task, "MQTT Task", 4096, NULL, 3, NULL);
+    xTaskCreate(&time_task, "Time Task", 4096, NULL, 1, NULL);
+    xTaskCreate(&sensor_task, "Sensor Task", 4096, NULL, 1, NULL);
+    xTaskCreate(&buzzer_task, "Buzzer Task", 4096, NULL, 1, NULL);
     xTaskCreate(&matrix_task, "Matrix Task", 4096, NULL, 10, NULL);
+#endif
 
 #if PICO_SDK
     vTaskStartScheduler();
@@ -248,7 +258,11 @@ void matrix_task(void *dummy)
 #endif
 {
 #if ESP32_SDK
-    esp_task_wdt_deinit();
+    // Unsubscribe IDLE1 from the task watchdog so matrix_task can run a 100% busy loop on Core 1
+    TaskHandle_t idle_1 = xTaskGetIdleTaskHandleForCore(1);
+    if (idle_1 != NULL && esp_task_wdt_status(idle_1) == ESP_OK) {
+        esp_task_wdt_delete(idle_1);
+    }
 #endif
 
     vTaskCoreAffinitySet(NULL, 1 << 1);

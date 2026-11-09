@@ -42,7 +42,7 @@ void buzzer_task(void *dummy)
     while (1) {
         MessageBuzzer_t buzzer = {};
 
-        if (xQueueReceive(buzzer_queue, &buzzer, portMAX_DELAY == pdTRUE)) {
+        if (xQueueReceive(buzzer_queue, &buzzer, portMAX_DELAY) == pdTRUE) {
             switch (buzzer.message_type) {
                 case MESSAGE_BUZZER_SIMPLE:
                     DEBUG_printf("Buzzer simple\n");

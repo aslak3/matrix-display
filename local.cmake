@@ -1,5 +1,5 @@
-set(MATRIX_DISPLAY_BOARD    aslak3_pico_w_ice40up)
-#set(MATRIX_DISPLAY_BOARD    adafuit_matrixportal_s3)
+#set(MATRIX_DISPLAY_BOARD    aslak3_pico_w_ice40up)
+set(MATRIX_DISPLAY_BOARD    adafuit_matrixportal_s3)
 #set(MATRIX_DISPLAY_BOARD    pimoroni_interstate_75w)
 
 # Used by MQTT topics and Home Assistant entities

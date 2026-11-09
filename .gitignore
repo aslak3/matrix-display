@@ -4,3 +4,7 @@ Makefile
 cmake_install.cmake
 /pico_flash_region.ld
 /private.cmake
+
+# Pico verification build trees
+build-pico/
+build-pico2/

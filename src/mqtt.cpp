@@ -125,6 +125,7 @@ void led_task(void *dummy)
 }
 
 bool mqtt_connected = false;
+bool networking_available = false;
 
 void mqtt_task(void *dummy)
 {
@@ -135,7 +136,11 @@ void mqtt_task(void *dummy)
 
     DEBUG_printf("Connecting on SSID %s\n", WIFI_SSID);
 
+#if ESP32_SDK
+    xTaskCreatePinnedToCore(&led_task, "LED Task", 2048, NULL, 1, NULL, 0);
+#else
     xTaskCreate(&led_task, "LED Task", 4096, NULL, 0, NULL);
+#endif
 
     send_waiting(Waiting_t { text: "Starting Wi-FI connection", sequence_number: 1 } );
 
@@ -176,20 +181,34 @@ void mqtt_task(void *dummy)
 
         vTaskDelay(1000 / portTICK_PERIOD_MS);
 
-#if ESP32_SDK
-        // This is a bit shocking, but for the ESP32 we force a restart if the MQTT still hasn't
-        // connected to the MQTT broker. Does not seem to be necessary for the Pico, touch wood
-        // etc. Of course we have the watchdog over in Pico land.
         if (mqtt_connected == false) {
             unconnected_count++;
 
-            if (unconnected_count >= 10) {
+            // Periodically retry connecting if not connected
+            if ((unconnected_count % 5) == 0) {
+#if ESP32_SDK
+                if (networking_available) {
+                    DEBUG_printf("Retrying MQTT connect...\n");
+                    do_mqtt_connect(client);
+                }
+#else
+                DEBUG_printf("Retrying MQTT connect...\n");
+                do_mqtt_connect(client);
+#endif
+            }
+
+#if ESP32_SDK
+            // Restart if we fail to connect for 60 seconds
+            if (unconnected_count >= 60) {
                 send_waiting(Waiting_t { text: "Rebooting as could not connect MQTT", sequence_number: 4 } );
                 vTaskDelay(5000 / portTICK_PERIOD_MS);
                 esp_restart();
             }
-        }
 #endif
+        }
+        else {
+            unconnected_count = 0;
+        }
     }
 }
 
@@ -220,8 +239,6 @@ static void connect_wifi(void)
 
 void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id,
     void *event_data);
-
-bool networking_available = false;
 
 static void connect_wifi(void)
 {
@@ -391,7 +408,6 @@ static void do_mqtt_subscribe(mqtt_client_t *client)
         else {
             DEBUG_printf("mqtt_subscribe on %s success\n", *s);
         }
-        vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 }
 
@@ -406,7 +422,6 @@ static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection
     }
     else {
         DEBUG_printf("Disconnected: %d\n", status);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
         mqtt_connected = false;
     }
 }
